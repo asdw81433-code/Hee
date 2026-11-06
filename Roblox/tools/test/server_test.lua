@@ -14,6 +14,14 @@ MockOnFireAll = function(name, kind)
 	local k = name .. ":" .. tostring(kind)
 	counts[k] = (counts[k] or 0) + 1
 end
+if PREBUILT then
+	-- จำลองไฟล์ .rbxlx: มีแมพ + โมเดลผู้เล่นอยู่แล้วก่อนเริ่มเกม
+	require(main.MapBuilder).buildGeometry()
+	local rig = require(main.CharacterBuilder).buildRig(Config.Look)
+	rig.Name = "SoiBrawler"
+	rig.Parent = game:GetService("ServerStorage")
+	print("prebuilt map parts:", #workspace.SoiMap:GetChildren())
+end
 task.spawn(loadScript(main))
 local Combat = require(main.Combat)
 local Weapons = require(main.Weapons)
@@ -161,6 +169,7 @@ for _, v in ipairs(RS.BrawlState.Scores:GetChildren()) do
 	print("  score", v:GetAttribute("DisplayName"), v.Value, "deaths", v:GetAttribute("Deaths"))
 end
 print("weapon picked/thrown:", didWeapon, didThrow, "glass/melon:", didGlass, didMelon, "super:", didSuper)
+print("maps in workspace:", (function() local n = 0 for _, c in ipairs(workspace:GetChildren()) do if c.Name == "SoiMap" then n = n + 1 end end return n end)())
 print("ERRORS:", #ERRORS)
 local pw = {}
 for k in pairs(PROPWRITES) do pw[#pw + 1] = k end

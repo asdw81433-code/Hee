@@ -24,7 +24,7 @@ rayParams.IgnoreWater = true
 
 local function refreshFilter()
 	local list = { fxFolder }
-	for _, n in ipairs({ "Fighters", "BrawlWeapons" }) do
+	for _, n in ipairs({ "Fighters", "BrawlWeapons", "BrawlGibs" }) do
 		local f = workspace:FindFirstChild(n)
 		if f then
 			table.insert(list, f)
@@ -434,6 +434,49 @@ handlers.melon = function(d)
 	Effects.spray(d.pos, Vector3.new(0, 1, 0), 30, 14, Color3.fromRGB(235, 60, 85), 1.2)
 end
 
+-- แขนขาหลุด: เลือดพุ่งจากตอเป็นจังหวะตามหัวใจ
+local spurts = {}
+handlers.sever = function(d)
+	local pos = d.pos
+	if not pos then
+		return
+	end
+	Effects.word(pos + Vector3.new(0, 1, 0), d.word or "หลุด!!", { big = true, color = Color3.fromRGB(255, 70, 60) })
+	Effects.sound("heavy", pos, 1.3)
+	Effects.shake(0.3)
+	if d.gore and d.gore >= 1 and Config.Blood > 0 then
+		Effects.spray(pos, Vector3.new(0, 1, 0), math.floor(30 * Config.Blood), 16, nil, 1.3)
+		if d.stump then
+			table.insert(spurts, { part = d.stump, untilT = os.clock() + 3.5, nextT = 0, beat = 0 })
+		end
+		if d.piece then
+			table.insert(spurts, { part = d.piece, untilT = os.clock() + 1.5, nextT = 0, beat = 0 })
+		end
+	else
+		-- โหมดคลาสสิก: ฝุ่นบล็อกแทนเลือด
+		Effects.spray(pos, Vector3.new(0, 1, 0), 10, 10, Color3.fromRGB(200, 200, 200), 1)
+	end
+end
+
+local function stepSpurts()
+	local t = os.clock()
+	for i = #spurts, 1, -1 do
+		local sp = spurts[i]
+		local part = sp.part
+		if not part or not part.Parent or t > sp.untilT then
+			table.remove(spurts, i)
+		elseif t >= sp.nextT then
+			sp.beat = sp.beat + 1
+			-- ตุบ...ตุบ แรงตอนหัวใจบีบ แล้วค่อยๆ อ่อนลง
+			local strong = (sp.beat % 6) < 2
+			sp.nextT = t + 0.06
+			local left = (sp.untilT - t) / 3.5
+			local dir = (part.CFrame.UpVector + Vector3.new(0, 0.6, 0)).Unit
+			Effects.spray(part.Position, dir, strong and 4 or 1, (strong and 14 or 6) * (0.4 + left), nil, 0.9)
+		end
+	end
+end
+
 handlers.pool = function(d)
 	if Config.Blood <= 0 then
 		return
@@ -485,6 +528,7 @@ function Effects.init(config, remotes, animator)
 
 	RunService.Heartbeat:Connect(function(dt)
 		stepDrops(dt)
+		stepSpurts()
 		-- ดาวหมุน
 		for _, s in pairs(stars) do
 			s.label.Rotation = (s.label.Rotation + dt * 160) % 360

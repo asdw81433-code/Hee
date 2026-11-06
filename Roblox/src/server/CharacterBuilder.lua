@@ -1,13 +1,17 @@
 -- ============================================================
---  ซอยเดือด : สร้างตัวละครเหลี่ยม R6 ด้วยโค้ด (หน้าวาดแบบพิกเซล)
+--  ซอยเดือด : ตัวคนสัดส่วนจริงแบบ gore-sandbox ragdoll (15 ชิ้น: หัว อกบน/ล่าง
+--  ต้นแขน ปลายแขน มือ ต้นขา หน้าแข้ง เท้า) ข้อต่อกลม แขนขาหลุดได้ทุกข้อ มีแผลติดตัว
+--  ถ้ามีโมเดล ServerStorage > SoiBrawler จะใช้โมเดลนั้นแทน (แก้ใน Studio ได้)
 -- ============================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local ServerStorage = game:GetService("ServerStorage")
 local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
 
 local CB = {}
 
-local HEAD = 1.6 -- หัวเหลี่ยมใหญ่ (ลูกบาศก์)
+local HEAD_SIZE = Vector3.new(0.85, 1.0, 0.95) -- หัวขนาดคนจริง (สูงรวม ~6.3 studs)
+local HEAD = HEAD_SIZE.Y
 local GRID = 16  -- หน้า 16x16 พิกเซล
 
 local function newPart(props)
@@ -92,37 +96,36 @@ end
 
 -- ===== ทรงผม (ไม่บังหน้า: อยู่ด้านบน/หลัง/ข้างเท่านั้น) =====
 local function buildHair(head, style, color)
-	local h = HEAD / 2
 	if style == "bald" then
 		return
 	end
+	local hx, hy, hz = head.Size.X / 2, head.Size.Y / 2, head.Size.Z / 2
+	local W, D = head.Size.X + 0.07, head.Size.Z + 0.07
 	local mat = Enum.Material.SmoothPlastic
-	if style == "box" or style == "long" then
-		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.12, 0.34, HEAD + 0.12), CFrame.new(0, h + 0.13, 0.02), color, mat)
-		cosmetic(head, "HairFringe", Vector3.new(HEAD + 0.12, 0.26, 0.16), CFrame.new(0, h - 0.1, -h - 0.04), color, mat)
-		cosmetic(head, "HairSideL", Vector3.new(0.14, 0.62, HEAD * 0.75), CFrame.new(-h - 0.06, h - 0.3, 0.2), color, mat)
-		cosmetic(head, "HairSideR", Vector3.new(0.14, 0.62, HEAD * 0.75), CFrame.new(h + 0.06, h - 0.3, 0.2), color, mat)
+	if style == "box" or style == "long" or style == "flat" then
+		-- ผมสั้นแนบหัว
+		cosmetic(head, "HairTop", Vector3.new(W, 0.16, D), CFrame.new(0, hy + 0.05, 0.01), color, mat)
+		cosmetic(head, "HairFringe", Vector3.new(W, 0.13, 0.08), CFrame.new(0, hy - 0.06, -hz - 0.03), color, mat)
+		cosmetic(head, "HairSideL", Vector3.new(0.06, 0.36, head.Size.Z * 0.7), CFrame.new(-hx - 0.03, hy - 0.2, 0.1), color, mat)
+		cosmetic(head, "HairSideR", Vector3.new(0.06, 0.36, head.Size.Z * 0.7), CFrame.new(hx + 0.03, hy - 0.2, 0.1), color, mat)
 		if style == "long" then
-			cosmetic(head, "HairBack", Vector3.new(HEAD + 0.12, HEAD + 0.6, 0.22), CFrame.new(0, -0.15, h + 0.09), color, mat)
+			cosmetic(head, "HairBack", Vector3.new(W, head.Size.Y + 0.5, 0.1), CFrame.new(0, -0.2, hz + 0.04), color, mat)
 		else
-			cosmetic(head, "HairBack", Vector3.new(HEAD + 0.12, HEAD * 0.7, 0.2), CFrame.new(0, h * 0.35, h + 0.08), color, mat)
+			cosmetic(head, "HairBack", Vector3.new(W, hy * 1.2, 0.08), CFrame.new(0, hy * 0.4, hz + 0.03), color, mat)
 		end
-	elseif style == "flat" then
-		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.08, 0.22, HEAD + 0.08), CFrame.new(0, h + 0.08, 0), color, mat)
-		cosmetic(head, "HairBack", Vector3.new(HEAD + 0.08, HEAD * 0.5, 0.14), CFrame.new(0, h * 0.5, h + 0.05), color, mat)
 	elseif style == "spike" then
-		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.08, 0.22, HEAD + 0.08), CFrame.new(0, h + 0.08, 0), color, mat)
+		cosmetic(head, "HairTop", Vector3.new(W, 0.12, D), CFrame.new(0, hy + 0.04, 0), color, mat)
 		for i = -1, 1 do
-			cosmetic(head, "Spike" .. i, Vector3.new(0.38, 0.55, 0.38), CFrame.new(i * 0.5, h + 0.4, 0.1 * i) * CFrame.Angles(0, math.rad(45), math.rad(i * 12)), color, mat)
+			cosmetic(head, "HairSpike" .. i, Vector3.new(0.18, 0.28, 0.18), CFrame.new(i * 0.24, hy + 0.17, 0.05 * i) * CFrame.Angles(0, math.rad(45), math.rad(i * 12)), color, mat)
 		end
-		cosmetic(head, "HairBack", Vector3.new(HEAD + 0.08, HEAD * 0.6, 0.14), CFrame.new(0, h * 0.4, h + 0.05), color, mat)
+		cosmetic(head, "HairBack", Vector3.new(W, hy, 0.07), CFrame.new(0, hy * 0.45, hz + 0.03), color, mat)
 	elseif style == "mohawk" then
-		cosmetic(head, "Mohawk", Vector3.new(0.36, 0.6, HEAD + 0.1), CFrame.new(0, h + 0.28, 0.05), color, mat)
+		cosmetic(head, "HairMohawk", Vector3.new(0.16, 0.3, D), CFrame.new(0, hy + 0.13, 0.03), color, mat)
 	elseif style == "cap" then
-		cosmetic(head, "Cap", Vector3.new(HEAD + 0.14, 0.42, HEAD + 0.14), CFrame.new(0, h + 0.12, 0), color, mat)
-		cosmetic(head, "Brim", Vector3.new(HEAD * 0.8, 0.1, 0.7), CFrame.new(0, h - 0.04, -h - 0.3), color, mat)
+		cosmetic(head, "HairCap", Vector3.new(W + 0.02, 0.24, D + 0.02), CFrame.new(0, hy + 0.06, 0), color, mat)
+		cosmetic(head, "HairBrim", Vector3.new(head.Size.X * 0.85, 0.05, 0.38), CFrame.new(0, hy - 0.04, -hz - 0.17), color, mat)
 	elseif style == "afro" then
-		cosmetic(head, "Afro", Vector3.new(HEAD + 0.9, 1.25, HEAD + 0.8), CFrame.new(0, h + 0.42, 0.3), color, mat)
+		cosmetic(head, "HairAfro", Vector3.new(head.Size.X + 0.55, 0.7, head.Size.Z + 0.5), CFrame.new(0, hy + 0.22, 0.15), color, mat)
 	end
 end
 
@@ -194,10 +197,14 @@ function CB.setFace(char, expr)
 	end
 	-- ตา
 	if e.eyes == "dot" then
-		px(f, "EyeL", 4, 7, 2, 2, eyeC, 3)
-		px(f, "EyeR", 10, 7, 2, 2, eyeC, 3)
-		px(f, "GlintL", 4, 7, 1, 1, Color3.fromRGB(255, 255, 255), 4).BackgroundTransparency = 0.25
-		px(f, "GlintR", 10, 7, 1, 1, Color3.fromRGB(255, 255, 255), 4).BackgroundTransparency = 0.25
+		local white = Color3.fromRGB(240, 236, 228)
+		px(f, "EyeL", 3, 7, 3, 1, white, 3)
+		px(f, "EyeR", 10, 7, 3, 1, white, 3)
+		px(f, "IrisL", 4.5, 7, 1.2, 1, eyeC, 4)
+		px(f, "IrisR", 10.3, 7, 1.2, 1, eyeC, 4)
+		local lid = (char:FindFirstChild("Head") and char.Head.Color or Color3.new(0.8, 0.6, 0.5)):Lerp(Color3.new(0, 0, 0), 0.25)
+		px(f, "LidL", 3, 6.6, 3, 0.4, lid, 3)
+		px(f, "LidR", 10, 6.6, 3, 0.4, lid, 3)
 	elseif e.eyes == "squint" then
 		px(f, "EyeL", 3, 8, 3, 1, eyeC, 3)
 		px(f, "EyeR", 10, 8, 3, 1, eyeC, 3)
@@ -295,7 +302,7 @@ function CB.addShirtBlood(char, n)
 	if Config.Blood <= 0 then
 		return
 	end
-	local torso = char:FindFirstChild("Torso")
+	local torso = char:FindFirstChild("UpperTorso")
 	local gui = torso and torso:FindFirstChild("ShirtBlood")
 	if not gui then
 		return
@@ -321,7 +328,7 @@ local function buildTag(head, displayName, player)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "Tag"
 	bb.Size = UDim2.new(0, 170, 0, 46)
-	bb.StudsOffset = Vector3.new(0, HEAD / 2 + 1.6, 0)
+	bb.StudsOffset = Vector3.new(0, HEAD / 2 + 1.5, 0)
 	bb.MaxDistance = 90
 	bb.AlwaysOnTop = false
 	bb.LightInfluence = 0
@@ -372,66 +379,236 @@ function CB.updateTag(char, frac)
 	fill.BackgroundColor3 = Color3.fromRGB(230, 60, 50):Lerp(Color3.fromRGB(90, 220, 90), frac)
 end
 
--- ===== สร้างตัวละคร =====
--- คืนค่า model (ยังไม่ parent)
-function CB.build(look, displayName, player)
+-- ===== โครงตัวคนสัดส่วนจริง (เท้าแตะพื้นที่ y=0, สูงรวม ~6.35) =====
+-- ชื่อชิ้น -> {ขนาด, ตำแหน่งจุดกลางตอนยืน, สี}
+local BODY = {
+	{ "LowerTorso", Vector3.new(1.3, 0.75, 0.75), Vector3.new(0, 3.375, 0), "Pants" },
+	{ "UpperTorso", Vector3.new(1.55, 1.35, 0.8), Vector3.new(0, 4.425, 0), "Shirt" },
+	{ "Head", HEAD_SIZE, Vector3.new(0, 5.85, 0), "Skin" },
+	{ "RightUpperArm", Vector3.new(0.42, 1.25, 0.42), Vector3.new(0.985, 4.375, 0), "Skin" },
+	{ "RightLowerArm", Vector3.new(0.38, 1.1, 0.38), Vector3.new(0.985, 3.2, 0), "Skin" },
+	{ "RightHand", Vector3.new(0.3, 0.45, 0.2), Vector3.new(0.985, 2.425, 0), "Skin" },
+	{ "LeftUpperArm", Vector3.new(0.42, 1.25, 0.42), Vector3.new(-0.985, 4.375, 0), "Skin" },
+	{ "LeftLowerArm", Vector3.new(0.38, 1.1, 0.38), Vector3.new(-0.985, 3.2, 0), "Skin" },
+	{ "LeftHand", Vector3.new(0.3, 0.45, 0.2), Vector3.new(-0.985, 2.425, 0), "Skin" },
+	{ "RightUpperLeg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(0.35, 2.4, 0), "Pants" },
+	{ "RightLowerLeg", Vector3.new(0.5, 1.45, 0.5), Vector3.new(0.35, 0.975, 0), "Pants" },
+	{ "RightFoot", Vector3.new(0.45, 0.25, 0.95), Vector3.new(0.35, 0.125, -0.15), "Shoes" },
+	{ "LeftUpperLeg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(-0.35, 2.4, 0), "Pants" },
+	{ "LeftLowerLeg", Vector3.new(0.5, 1.45, 0.5), Vector3.new(-0.35, 0.975, 0), "Pants" },
+	{ "LeftFoot", Vector3.new(0.45, 0.25, 0.95), Vector3.new(-0.35, 0.125, -0.15), "Shoes" },
+}
+local ROOT_SIZE = Vector3.new(1.6, 2, 1)
+local ROOT_Y = 4.1   -- ก้น HumanoidRootPart อยู่ที่แนวสะโพก (3.1) = HipHeight
+local HIP_HEIGHT = 3.1
+-- ข้อต่อ: ชื่อ, Part0, Part1(เก็บ Motor ไว้ในชิ้นนี้), C0, C1
+local JOINTS = {
+	{ "Root", "HumanoidRootPart", "LowerTorso", CFrame.new(0, -1, 0), CFrame.new(0, -0.275, 0) },
+	{ "Waist", "LowerTorso", "UpperTorso", CFrame.new(0, 0.375, 0), CFrame.new(0, -0.675, 0) },
+	{ "Neck", "UpperTorso", "Head", CFrame.new(0, 0.675, 0), CFrame.new(0, -0.75, 0) },
+	{ "RightShoulder", "UpperTorso", "RightUpperArm", CFrame.new(0.985, 0.475, 0), CFrame.new(0, 0.525, 0) },
+	{ "RightElbow", "RightUpperArm", "RightLowerArm", CFrame.new(0, -0.625, 0), CFrame.new(0, 0.55, 0) },
+	{ "RightWrist", "RightLowerArm", "RightHand", CFrame.new(0, -0.55, 0), CFrame.new(0, 0.225, 0) },
+	{ "LeftShoulder", "UpperTorso", "LeftUpperArm", CFrame.new(-0.985, 0.475, 0), CFrame.new(0, 0.525, 0) },
+	{ "LeftElbow", "LeftUpperArm", "LeftLowerArm", CFrame.new(0, -0.625, 0), CFrame.new(0, 0.55, 0) },
+	{ "LeftWrist", "LeftLowerArm", "LeftHand", CFrame.new(0, -0.55, 0), CFrame.new(0, 0.225, 0) },
+	{ "RightHip", "LowerTorso", "RightUpperLeg", CFrame.new(0.35, -0.275, 0), CFrame.new(0, 0.7, 0) },
+	{ "RightKnee", "RightUpperLeg", "RightLowerLeg", CFrame.new(0, -0.7, 0), CFrame.new(0, 0.725, 0) },
+	{ "RightAnkle", "RightLowerLeg", "RightFoot", CFrame.new(0, -0.725, 0), CFrame.new(0, 0.125, 0.15) },
+	{ "LeftHip", "LowerTorso", "LeftUpperLeg", CFrame.new(-0.35, -0.275, 0), CFrame.new(0, 0.7, 0) },
+	{ "LeftKnee", "LeftUpperLeg", "LeftLowerLeg", CFrame.new(0, -0.7, 0), CFrame.new(0, 0.725, 0) },
+	{ "LeftAnkle", "LeftLowerLeg", "LeftFoot", CFrame.new(0, -0.725, 0), CFrame.new(0, 0.125, 0.15) },
+}
+CB.JOINTS = JOINTS
+CB.HIP_HEIGHT = HIP_HEIGHT
+-- สีของชิ้นตามชื่อ
+local COLOR_OF = {
+	UpperTorso = "Shirt", Sleeve = "Shirt", Collar = "ShirtDark", Belly = "Shirt", Hem = "Shirt", ShoulderBall = "Shirt",
+	LowerTorso = "Pants", RightUpperLeg = "Pants", RightLowerLeg = "Pants", LeftUpperLeg = "Pants", LeftLowerLeg = "Pants", KneeBall = "Pants", HipBall = "Pants",
+	Head = "Skin", RightUpperArm = "Skin", RightLowerArm = "Skin", LeftUpperArm = "Skin", LeftLowerArm = "Skin", ElbowBall = "Skin",
+	RightHand = "Skin", LeftHand = "Skin", NeckSkin = "Skin", Thumb = "Skin",
+	EarL = "SkinDark", EarR = "SkinDark", Nose = "SkinNose", Jaw = "Skin",
+	RightFoot = "Shoes", LeftFoot = "Shoes", Sole = "Sole", Belt = "Belt",
+}
+
+local function ball(main, name, d, offset, color)
+	local p = cosmetic(main, name, Vector3.new(d, d, d), offset, color)
+	p.Shape = Enum.PartType.Ball
+	return p
+end
+
+-- สร้างโครงตัวเปล่า (ชิ้นส่วน + ข้อต่อ + ของตกแต่ง + Humanoid) ใช้ได้ทั้งตอนเล่นและตอน export โมเดล
+function CB.buildRig(look)
+	look = look or Config.Look
 	local model = Instance.new("Model")
-	model.Name = player and player.Name or displayName
-
-	local root = newPart({ Name = "HumanoidRootPart", Size = Vector3.new(2, 2, 1), Transparency = 1, CanCollide = false })
-	local torso = newPart({ Name = "Torso", Size = Vector3.new(2, 2, 1), Color = look.Shirt })
-	local head = newPart({ Name = "Head", Size = Vector3.new(HEAD, HEAD, HEAD), Color = look.Skin })
-	local ra = newPart({ Name = "Right Arm", Size = Vector3.new(1, 2, 1), Color = look.Skin, CanCollide = false })
-	local la = newPart({ Name = "Left Arm", Size = Vector3.new(1, 2, 1), Color = look.Skin, CanCollide = false })
-	local rl = newPart({ Name = "Right Leg", Size = Vector3.new(1, 2, 1), Color = look.Pants, CanCollide = false })
-	local ll = newPart({ Name = "Left Leg", Size = Vector3.new(1, 2, 1), Color = look.Pants, CanCollide = false })
-
-	local base = CFrame.new(0, 3, 0)
-	root.CFrame = base
-	torso.CFrame = base
-	head.CFrame = base * CFrame.new(0, 1 + HEAD / 2, 0)
-	ra.CFrame = base * CFrame.new(1.5, 0, 0)
-	la.CFrame = base * CFrame.new(-1.5, 0, 0)
-	rl.CFrame = base * CFrame.new(0.5, -2, 0)
-	ll.CFrame = base * CFrame.new(-0.5, -2, 0)
-	for _, p in ipairs({ root, torso, head, ra, la, rl, ll }) do
+	model.Name = "SoiBrawler"
+	local parts = {}
+	local root = newPart({ Name = "HumanoidRootPart", Size = ROOT_SIZE, Transparency = 1, CanCollide = false, CFrame = CFrame.new(0, ROOT_Y, 0) })
+	root.Parent = model
+	parts.HumanoidRootPart = root
+	for _, b in ipairs(BODY) do
+		local collide = (b[1] == "UpperTorso" or b[1] == "LowerTorso" or b[1] == "Head")
+		local p = newPart({ Name = b[1], Size = b[2], CFrame = CFrame.new(b[3]), Color = look[b[4]], CanCollide = collide })
 		p.Parent = model
+		parts[b[1]] = p
 	end
-
-	-- ข้อต่อ (C0/C1 ไม่หมุน -> Transform หมุนในแกนของลำตัวตรงๆ)
-	motor("RootJoint", root, torso, CFrame.new(0, -1, 0), CFrame.new(0, -1, 0), root)
-	motor("Neck", torso, head, CFrame.new(0, 1, 0), CFrame.new(0, -HEAD / 2, 0), torso)
-	motor("Right Shoulder", torso, ra, CFrame.new(1.5, 0.5, 0), CFrame.new(0, 0.5, 0), torso)
-	motor("Left Shoulder", torso, la, CFrame.new(-1.5, 0.5, 0), CFrame.new(0, 0.5, 0), torso)
-	motor("Right Hip", torso, rl, CFrame.new(0.5, -1, 0), CFrame.new(0, 1, 0), torso)
-	motor("Left Hip", torso, ll, CFrame.new(-0.5, -1, 0), CFrame.new(0, 1, 0), torso)
-
-	-- เสื้อแขนสั้น รองเท้า ฯลฯ
-	cosmetic(ra, "Sleeve", Vector3.new(1.06, 0.78, 1.06), CFrame.new(0, 0.62, 0), look.Shirt)
-	cosmetic(la, "Sleeve", Vector3.new(1.06, 0.78, 1.06), CFrame.new(0, 0.62, 0), look.Shirt)
-	cosmetic(rl, "Shoe", Vector3.new(1.06, 0.42, 1.2), CFrame.new(0, -0.8, -0.08), look.Shoes)
-	cosmetic(ll, "Shoe", Vector3.new(1.06, 0.42, 1.2), CFrame.new(0, -0.8, -0.08), look.Shoes)
-	cosmetic(torso, "Collar", Vector3.new(0.9, 0.12, 0.08), CFrame.new(0, 0.94, -0.52), look.Shirt:Lerp(Color3.new(0, 0, 0), 0.25))
-	if look.Belly then
-		cosmetic(torso, "Belly", Vector3.new(1.7, 1.1, 0.5), CFrame.new(0, -0.35, -0.6), look.Shirt)
+	for _, j in ipairs(JOINTS) do
+		motor(j[1], parts[j[2]], parts[j[3]], j[4], j[5], parts[j[3]])
 	end
-	-- หู + จมูกเล็ก (ตามภาพอ้างอิง)
-	local h = HEAD / 2
-	local earC = look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.12)
-	cosmetic(head, "EarL", Vector3.new(0.14, 0.4, 0.32), CFrame.new(-h - 0.07, 0, 0.08), earC)
-	cosmetic(head, "EarR", Vector3.new(0.14, 0.4, 0.32), CFrame.new(h + 0.07, 0, 0.08), earC)
-	if look.Nose then
-		cosmetic(head, "Nose", Vector3.new(0.26, 0.28, 0.12), CFrame.new(0, -0.18, -h - 0.06), look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.08))
+	local skinDark = look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.12)
+	-- เสื้อยืด: แขนสั้น ชายเสื้อ ปก + เข็มขัด
+	cosmetic(parts.UpperTorso, "Collar", Vector3.new(0.6, 0.08, 0.06), CFrame.new(0, 0.63, -0.41), look.Shirt:Lerp(Color3.new(0, 0, 0), 0.25))
+	cosmetic(parts.LowerTorso, "Hem", Vector3.new(1.34, 0.22, 0.79), CFrame.new(0, 0.27, 0), look.Shirt)
+	cosmetic(parts.LowerTorso, "Belt", Vector3.new(1.33, 0.1, 0.78), CFrame.new(0, 0.12, 0), Color3.fromRGB(40, 30, 24))
+	cosmetic(parts.UpperTorso, "NeckSkin", Vector3.new(0.36, 0.3, 0.36), CFrame.new(0, 0.8, 0.02), look.Skin)
+	for _, side in ipairs({ "Right", "Left" }) do
+		local sx = side == "Right" and 1 or -1
+		cosmetic(parts[side .. "UpperArm"], "Sleeve", Vector3.new(0.47, 0.62, 0.47), CFrame.new(0, 0.33, 0), look.Shirt)
+		-- ข้อต่อกลมแบบหุ่น ragdoll (กันเห็นช่องตอนงอ)
+		ball(parts.UpperTorso, "ShoulderBall", 0.5, CFrame.new(0.82 * sx, 0.47, 0), look.Shirt)
+		ball(parts[side .. "UpperArm"], "ElbowBall", 0.4, CFrame.new(0, -0.625, 0), look.Skin)
+		ball(parts[side .. "UpperLeg"], "KneeBall", 0.52, CFrame.new(0, -0.7, 0), look.Pants)
+		ball(parts.LowerTorso, "HipBall", 0.6, CFrame.new(0.35 * sx, -0.27, 0), look.Pants)
+		cosmetic(parts[side .. "Hand"], "Thumb", Vector3.new(0.1, 0.2, 0.12), CFrame.new(-0.13 * sx, 0.04, -0.1), look.Skin)
+		cosmetic(parts[side .. "Foot"], "Sole", Vector3.new(0.47, 0.06, 0.97), CFrame.new(0, -0.1, 0), Color3.fromRGB(20, 20, 20))
 	end
-	buildHair(head, look.HairStyle, look.Hair)
-
-	-- หน้า + เลือดบนเสื้อ
-	makeSurface(head, Enum.NormalId.Front, "Face")
-	local sb = makeSurface(torso, Enum.NormalId.Front, "ShirtBlood")
-	sb.PixelsPerStud = 30
+	local hx, hz = HEAD_SIZE.X / 2, HEAD_SIZE.Z / 2
+	cosmetic(parts.Head, "Jaw", Vector3.new(HEAD_SIZE.X * 0.82, 0.28, HEAD_SIZE.Z * 0.8), CFrame.new(0, -0.6, -0.03), look.Skin)
+	cosmetic(parts.Head, "EarL", Vector3.new(0.07, 0.24, 0.16), CFrame.new(-hx - 0.03, 0, 0.05), skinDark)
+	cosmetic(parts.Head, "EarR", Vector3.new(0.07, 0.24, 0.16), CFrame.new(hx + 0.03, 0, 0.05), skinDark)
+	cosmetic(parts.Head, "Nose", Vector3.new(0.14, 0.22, 0.1), CFrame.new(0, -0.08, -hz - 0.04), look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.08))
+	buildHair(parts.Head, "box", look.Hair)
 
 	local hum = Instance.new("Humanoid")
-	hum.RigType = Enum.HumanoidRigType.R6
+	hum.RigType = Enum.HumanoidRigType.R15
+	hum.HipHeight = HIP_HEIGHT
+	hum.AutomaticScalingEnabled = false
+	hum.BreakJointsOnDeath = false
+	hum.RequiresNeck = false
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	hum.Parent = model
+	model.PrimaryPart = root
+	return model
+end
+
+-- ระบายสีตาม look + ทำทรงผมใหม่
+function CB.applyLook(model, look)
+	local colors = {
+		Shirt = look.Shirt,
+		ShirtDark = look.Shirt:Lerp(Color3.new(0, 0, 0), 0.25),
+		Pants = look.Pants,
+		Skin = look.Skin,
+		SkinDark = look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.12),
+		SkinNose = look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.08),
+		Shoes = look.Shoes,
+		Sole = Color3.fromRGB(20, 20, 20),
+		Belt = Color3.fromRGB(40, 30, 24),
+	}
+	local head = model:FindFirstChild("Head")
+	for _, d in ipairs(model:GetDescendants()) do
+		if d:IsA("BasePart") then
+			local key = COLOR_OF[d.Name]
+			if key and colors[key] then
+				d.Color = colors[key]
+			end
+			if string.sub(d.Name, 1, 4) == "Hair" then
+				d:Destroy()
+			elseif d.Name == "Nose" and not look.Nose then
+				d:Destroy()
+			end
+		end
+	end
+	if head then
+		buildHair(head, look.HairStyle, look.Hair)
+	end
+	local torso = model:FindFirstChild("UpperTorso")
+	if look.Belly and torso and not torso:FindFirstChild("Belly") then
+		cosmetic(torso, "Belly", Vector3.new(1.35, 0.75, 0.35), CFrame.new(0, -0.3, -0.45), look.Shirt)
+	end
+end
+
+-- ===== แผลเลือดติดตัว (แปะที่ผิวชิ้นที่โดน หันหาทิศที่โดนตี) =====
+function CB.addWound(char, part, fromDir)
+	if not Config.Wounds or Config.Blood <= 0 or not part or not part.Parent then
+		return
+	end
+	local n = char:GetAttribute("Wounds") or 0
+	if n >= 18 then
+		return
+	end
+	char:SetAttribute("Wounds", n + 1)
+	-- หาด้านของชิ้นที่หันไปทางผู้ตี
+	local localDir = part.CFrame:VectorToObjectSpace(-fromDir)
+	local hs = part.Size / 2
+	local ax, ay, az = math.abs(localDir.X), math.abs(localDir.Y), math.abs(localDir.Z)
+	local normal
+	if ax >= ay and ax >= az then
+		normal = Vector3.new(localDir.X >= 0 and 1 or -1, 0, 0)
+	elseif ay >= az then
+		normal = Vector3.new(0, localDir.Y >= 0 and 1 or -1, 0)
+	else
+		normal = Vector3.new(0, 0, localDir.Z >= 0 and 1 or -1)
+	end
+	local rnd = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.2
+	-- ขอบเผื่อไม่เกินครึ่งของชิ้น (ชิ้นเล็กอย่างมือ/เท้าก็ไม่พัง)
+	local function inside(v, h)
+		local m = math.max(0, h - math.min(0.2, h * 0.5))
+		return math.clamp(v * h, -m, m)
+	end
+	local lp = Vector3.new(
+		normal.X ~= 0 and normal.X * hs.X or inside(rnd.X, hs.X),
+		normal.Y ~= 0 and normal.Y * hs.Y or inside(rnd.Y, hs.Y),
+		normal.Z ~= 0 and normal.Z * hs.Z or inside(rnd.Z, hs.Z)
+	)
+	local s0 = math.min(part.Size.X, part.Size.Y, part.Size.Z)
+	local worldPos = part.CFrame * (lp + normal * 0.03)
+	local worldN = part.CFrame:VectorToWorldSpace(normal)
+	local s = math.min(0.25 + math.random() * 0.3, s0 * 0.9)
+	local w = newPart({
+		Name = "Wound",
+		Size = Vector3.new(s, s * (0.8 + math.random() * 0.8), 0.05),
+		Color = Config.BloodColor:Lerp(Color3.new(0.15, 0, 0), math.random() * 0.5),
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CastShadow = false,
+	})
+	local up = math.abs(worldN.Y) > 0.9 and Vector3.xAxis or Vector3.yAxis
+	w.CFrame = CFrame.lookAt(worldPos, worldPos + worldN, up) * CFrame.Angles(0, 0, math.random() * 6.28)
+	local wc = Instance.new("WeldConstraint")
+	wc.Part0 = part
+	wc.Part1 = w
+	wc.Parent = w
+	w.Parent = part
+end
+
+-- ===== สร้างตัวละครพร้อมเล่น =====
+-- คืนค่า model (ยังไม่ parent)
+function CB.build(look, displayName, player)
+	local template = ServerStorage:FindFirstChild("SoiBrawler")
+	local model
+	if template and template:IsA("Model") and template:FindFirstChild("HumanoidRootPart") and template:FindFirstChildOfClass("Humanoid") then
+		model = template:Clone()
+		model:PivotTo(CFrame.new(0, ROOT_Y, 0))
+	else
+		model = CB.buildRig(look)
+	end
+	model.Name = player and player.Name or displayName
+	CB.applyLook(model, look)
+
+	local head = model:FindFirstChild("Head")
+	local torso = model:FindFirstChild("UpperTorso")
+	if not head:FindFirstChild("Face") then
+		makeSurface(head, Enum.NormalId.Front, "Face")
+	end
+	if not torso:FindFirstChild("ShirtBlood") then
+		local sb = makeSurface(torso, Enum.NormalId.Front, "ShirtBlood")
+		sb.PixelsPerStud = 30
+	end
+
+	local hum = model:FindFirstChildOfClass("Humanoid")
 	hum.MaxHealth = Config.MaxHealth
 	hum.Health = Config.MaxHealth
 	hum.WalkSpeed = Config.WalkSpeed
@@ -441,9 +618,8 @@ function CB.build(look, displayName, player)
 	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 	hum.BreakJointsOnDeath = false
 	hum.RequiresNeck = false
-	hum.Parent = model
 
-	model.PrimaryPart = root
+	model.PrimaryPart = model:FindFirstChild("HumanoidRootPart")
 	model:SetAttribute("BrowColor", look.Brows)
 	model:SetAttribute("DisplayName", displayName)
 	CB.setFace(model, "normal")

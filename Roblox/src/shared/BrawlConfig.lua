@@ -36,17 +36,30 @@ C.Blood = 1
 C.Teeth = true            -- ฟันกระเด็น
 C.FaceDamage = true       -- หน้าเลือดออก ตาเขียว
 C.BloodColor = Color3.fromRGB(150, 8, 12)
+C.Wounds = true           -- แผลเลือดติดตามตัวตรงจุดที่โดน
+-- ===== แขนขาขาด (สไตล์ gore sandbox) =====
+-- Dismember: true = แขน/ขา/หัวหลุดได้เมื่อโดนหนักๆ
+-- GoreLevel: 0 = หลุดแบบบล็อกคลาสสิก (ไม่มีเนื้อแดง), 1 = มีตอแดง + กระดูก + เลือดพุ่ง
+-- ** Roblox ไม่อนุญาตเนื้อหาชำแหละอวัยวะ (dismemberment/gore) ในเกมสาธารณะ
+--    ถ้าจะ Publish ให้คนอื่นเล่น ให้ตั้ง GoreLevel = 0 หรือ Dismember = false **
+C.Dismember = true
+C.GoreLevel = 1
+C.LimbHP = 38             -- ดาเมจสะสมที่แขน/ขาก่อนหลุด
+C.MinSeverHit = 11        -- ต้องโดนแรงอย่างน้อยเท่านี้ในทีเดียวถึงจะหลุด
+C.DecapChance = 0.35      -- โอกาสหัวหลุดตอนโดนน็อคด้วยท่าแรง (GoreLevel 1 เท่านั้น)
+C.HalfChance = 0.3        -- โอกาสขาดครึ่งท่อนตอนโดนน็อคด้วยหมัดจรวด/อาวุธหนัก (GoreLevel 1 เท่านั้น)
+C.GibLife = 20            -- ชิ้นส่วนที่หลุดอยู่กี่วินาที
 C.MaxStains = 350         -- จำนวนรอยเลือดสูงสุดบนพื้น
 C.StainLife = 90          -- รอยเลือดอยู่กี่วินาที
 C.CameraShake = 1
 
--- ===== หน้าตาตัวละคร (ตามภาพอ้างอิง: เสื้อยืดเทา กางเกงเขียว ผมสั้นทรงกล่อง) =====
+-- ===== หน้าตาตัวละคร (คนสัดส่วนจริงแบบ ragdoll: เสื้อยืดเทา กางเกงเขียว ผมสั้น) =====
 C.Look = {
 	Skin = Color3.fromRGB(232, 188, 146),
 	Shirt = Color3.fromRGB(128, 131, 137),
 	Pants = Color3.fromRGB(66, 112, 58),
 	Hair = Color3.fromRGB(44, 33, 28),
-	Shoes = Color3.fromRGB(36, 36, 40),
+	Shoes = Color3.fromRGB(52, 44, 40),
 	Eyes = Color3.fromRGB(24, 20, 20),
 	Brows = Color3.fromRGB(44, 33, 28),
 	Mouth = Color3.fromRGB(150, 82, 70),
@@ -91,15 +104,15 @@ C.BotNames = {
 C.Moves = {
 	jab    = { anim = "jab",   wind = 0.08, dur = 0.30, dmg = 6,  range = 4.8, arc = 80, knock = 9,  lift = 0,  stun = 0.30, daze = 10, word = "punch", super = 6, zone = "head" },
 	cross  = { anim = "cross", wind = 0.09, dur = 0.34, dmg = 8,  range = 5.0, arc = 75, knock = 14, lift = 0,  stun = 0.34, daze = 14, word = "punch", super = 7, zone = "head" },
-	upper  = { anim = "upper", wind = 0.13, dur = 0.50, dmg = 12, range = 4.8, arc = 75, knock = 22, lift = 48, stun = 0.5, daze = 24, word = "upper", super = 10, zone = "head", ragdoll = 1.6, teeth = 0.7 },
+	upper  = { anim = "upper", wind = 0.13, dur = 0.50, dmg = 12, range = 4.8, arc = 75, knock = 22, lift = 48, stun = 0.5, daze = 24, word = "upper", super = 10, zone = "head", ragdoll = 1.6, teeth = 0.7, heavy = true },
 	kick   = { anim = "kick",  wind = 0.14, dur = 0.48, dmg = 11, range = 5.8, arc = 65, knock = 58, lift = 14, stun = 0.5, daze = 12, word = "kick", super = 8, zone = "body", ragdoll = 1.5, guardBreak = true },
-	stomp  = { anim = "stomp", wind = 0.15, dur = 0.42, dmg = 9,  range = 4.8, arc = 90, knock = 6,  lift = 4,  stun = 0,   daze = 0,  word = "stomp", super = 5, zone = "body", onlyDown = true },
+	stomp  = { anim = "stomp", wind = 0.15, dur = 0.42, dmg = 9,  range = 4.8, arc = 90, knock = 6,  lift = 4,  stun = 0,   daze = 0,  word = "stomp", super = 5, zone = "limb", onlyDown = true },
 	dive   = { anim = "dive",  wind = 0.10, dur = 0.45, dmg = 13, range = 5.5, arc = 110, knock = 20, lift = 10, stun = 0.5, daze = 18, word = "slam", super = 8, zone = "head", ragdoll = 1.3, hitsDown = true },
 	grab   = { anim = "grab",  wind = 0.12, dur = 0.36, range = 4.4, arc = 75 },
 	suplex = { anim = "suplex", dur = 0.85, dmg = 10, knock = 15, lift = 46, daze = 20, super = 10, ragdoll = 2.2 },
 	swing  = { anim = "swing", wind = 0.17, dur = 0.50, range = 6.0, arc = 85, super = 6 },
 	throw  = { anim = "throw", wind = 0.10, dur = 0.36 },
-	super  = { anim = "super", wind = 0.42, dur = 1.05, dmg = 30, range = 7.0, arc = 85, knock = 95, lift = 60, stun = 1, daze = 60, word = "super", zone = "head", ragdoll = 3.2, unblockable = true, dash = 60, teeth = 1 },
+	super  = { anim = "super", wind = 0.42, dur = 1.05, dmg = 30, range = 7.0, arc = 85, knock = 95, lift = 60, stun = 1, daze = 60, word = "super", zone = "head", ragdoll = 3.2, unblockable = true, dash = 60, teeth = 1, heavy = true },
 	taunt  = { anim = "taunt", dur = 1.6, super = 12 },
 	pickup = { anim = "pickup", dur = 0.30 },
 }
@@ -109,8 +122,8 @@ C.PunchCombo = { "jab", "cross", "upper" }
 -- ===== อาวุธข้างถนน =====
 C.Weapons = {
 	pan    = { name = "กระทะเหล็ก",   icon = "🍳", dmg = 15, knock = 30, lift = 10, stun = 0.6, daze = 26, uses = 10, word = "pan",   ragdoll = 1.2, ragdollChance = 0.35, sound = "clang" },
-	plank  = { name = "ไม้หน้าสาม",   icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood" },
-	chair  = { name = "เก้าอี้พลาสติก", icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood" },
+	plank  = { name = "ไม้หน้าสาม",   icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood", heavy = true },
+	chair  = { name = "เก้าอี้พลาสติก", icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood", heavy = true },
 	fish   = { name = "ปลาทูยักษ์",    icon = "🐟", dmg = 5,  knock = 75, lift = 38, stun = 0.4, daze = 6,  uses = 999, word = "fish", ragdoll = 2.0, ragdollChance = 1, sound = "slap" },
 	cone   = { name = "กรวยจราจร",    icon = "🔺", dmg = 7,  knock = 14, lift = 4,  stun = 0.6, daze = 12, uses = 1,  word = "cone",  ragdoll = 0, ragdollChance = 0, sound = "thud", hat = true },
 	bottle = { name = "ขวดน้ำปลา",    icon = "🧴", dmg = 17, knock = 16, lift = 4,  stun = 0.7, daze = 30, uses = 1,  word = "glass", ragdoll = 1.2, ragdollChance = 0.5, sound = "glass", extraBlood = 2 },
@@ -139,6 +152,7 @@ C.Words = {
 	super = { "หมัดจรวด!!!", "ไปดาวอังคาร!!!" },
 	impact = { "ตุ้บ!", "โครม!", "อุ๊ก!", "ปึก!" },
 	melon = { "แตงโมแตก!!", "ชุ่มฉ่ำ!" },
+	sever = { "แขนหลุด!!", "ขาหลุด!!", "หัวหลุด!!" },
 }
 
 -- ===== ข้อความ KO ฮาๆ (%s = ชื่อคนล้ม) =====

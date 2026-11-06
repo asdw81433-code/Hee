@@ -221,7 +221,8 @@ function Weapons.equip(F, m)
 	if F.weapon or not m.Parent then
 		return
 	end
-	local arm = F.model:FindFirstChild("Right Arm")
+	-- ถือด้วยมือขวา ถ้าแขนขวาขาดใช้มือซ้าย
+	local arm = F.model:FindFirstChild("RightHand") or F.model:FindFirstChild("LeftHand")
 	if not arm then
 		return
 	end
@@ -231,12 +232,12 @@ function Weapons.equip(F, m)
 	m:SetAttribute("DroppedT", nil)
 	setPhysics(m, true)
 	local grip = m.PrimaryPart
-	m:PivotTo(arm.CFrame * CFrame.new(0, -1, 0))
+	m:PivotTo(arm.CFrame * CFrame.new(0, -0.1, 0))
 	local w = Instance.new("Weld")
 	w.Name = "GripWeld"
 	w.Part0 = arm
 	w.Part1 = grip
-	w.C0 = CFrame.new(0, -1, 0)
+	w.C0 = CFrame.new(0, -0.1, 0)
 	w.C1 = CFrame.new()
 	w.Parent = grip
 	local icon = grip:FindFirstChild("Icon")

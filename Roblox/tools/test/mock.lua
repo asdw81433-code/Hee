@@ -117,6 +117,9 @@ CFmt.__index = function(c, k)
 		end
 	end
 	if k == "PointToWorldSpace" then return function(a, v) return matvec(a.R, v) + a.p end end
+	if k == "PointToObjectSpace" then return function(a, v) return matvec(transpose(a.R), v - a.p) end end
+	if k == "VectorToWorldSpace" then return function(a, v) return matvec(a.R, v) end end
+	if k == "VectorToObjectSpace" then return function(a, v) return matvec(transpose(a.R), v) end end
 	if k == "Lerp" then return function(a, b, t) return setmetatable({ p = a.p:Lerp(b.p, t), R = (t < 0.5) and a.R or b.R }, CFmt) end end
 	error("CFrame: invalid member " .. tostring(k), 2)
 end
@@ -343,7 +346,7 @@ local DEFAULTS = {
 	MoveDirection = v3(), CameraOffset = v3(), FloorMaterial = Enum.Material.Plastic, Text = "", TextTransparency = 0,
 	BackgroundTransparency = 0, Rotation = 0, Value = 0, LayoutOrder = 0, PrimaryPart = nil, StudsOffset = v3(),
 	Transform = CFrame.identity, C0 = CFrame.identity, C1 = CFrame.identity, Gravity = 196.2, CharacterAutoLoads = true,
-	FieldOfView = 70, ViewportSize = Vector2.new(1280, 720), ZIndex = 1, CastShadow = true,
+	FieldOfView = 70, ViewportSize = Vector2.new(1280, 720), ZIndex = 1, CastShadow = true, HipHeight = 2,
 }
 local Methods = {}
 local InstMT = { __typeof = "Instance" }
@@ -565,13 +568,27 @@ function Methods.Destroy(o)
 	if MockOnDestroy then MockOnDestroy(o) end
 end
 function Methods.ClearAllChildren(o) for _, c in ipairs(Methods.GetChildren(o)) do Methods.Destroy(c) end end
-function Methods.Clone(o)
+local function cloneRec(o, map)
 	local n = Instance_new(rawget(o, "__class"))
+	map[o] = n
 	for k, v in pairs(rawget(o, "__props")) do rawget(n, "__props")[k] = v end
 	for k, v in pairs(rawget(o, "__attrs")) do rawget(n, "__attrs")[k] = v end
+	rawset(n, "__source", rawget(o, "__source"))
 	for _, c in ipairs(rawget(o, "__children")) do
-		local cc = Methods.Clone(c)
+		local cc = cloneRec(c, map)
 		setParent(cc, n)
+	end
+	return n
+end
+function Methods.Clone(o)
+	local map = {}
+	local n = cloneRec(o, map)
+	-- like Roblox: references to instances inside the cloned tree point to the copies
+	for _, copy in pairs(map) do
+		local pr = rawget(copy, "__props")
+		for k, v in pairs(pr) do
+			if type(v) == "table" and map[v] then pr[k] = map[v] end
+		end
 	end
 	return n
 end

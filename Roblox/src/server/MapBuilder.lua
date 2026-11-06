@@ -11,6 +11,15 @@ local ROAD_HW = 16   -- ครึ่งความกว้างถนน
 local FACADE = 22    -- แนวหน้าตึก
 local LEN = 70       -- ครึ่งความยาวซอย
 local rng = Random.new(20261106)
+local DEFAULT_WEAPON_SPAWNS = {
+	Vector3.new(0, 0, -50), Vector3.new(-11, 0, -22), Vector3.new(11, 0, -15), Vector3.new(-11, 0, 8),
+	Vector3.new(11, 0, 14), Vector3.new(0, 0, 58), Vector3.new(0, 1.2, 30),
+}
+local DEFAULT_SPAWNS = {
+	Vector3.new(-9, 0, -60), Vector3.new(9, 0, -58), Vector3.new(-10, 0, -36), Vector3.new(10, 0, -30),
+	Vector3.new(-8, 0, -6), Vector3.new(8, 0, -2), Vector3.new(-6, 0, 12), Vector3.new(6, 0, 18),
+	Vector3.new(-10, 0, 60), Vector3.new(10, 0, 62),
+}
 local folder
 local remotes
 
@@ -128,8 +137,12 @@ local function makeBreakable(part, kind)
 	end)
 end
 
-local function spawnMelon(pos)
-	local melon = P("Watermelon", Vector3.new(1.5, 1.5, 1.5), CFrame.new(pos), rgb(40, 130, 40), M.SmoothPlastic, { Anchored = false, Shape = Enum.PartType.Ball })
+local function makeMelon(pos)
+	return P("Watermelon", Vector3.new(1.5, 1.5, 1.5), CFrame.new(pos), rgb(40, 130, 40), M.SmoothPlastic, { Anchored = false, Shape = Enum.PartType.Ball })
+end
+
+local hookMelon
+hookMelon = function(melon, pos)
 	local done = false
 	melon.Touched:Connect(function(hit)
 		if done or hit.Anchored or hit:IsDescendantOf(melon) then
@@ -150,11 +163,10 @@ local function spawnMelon(pos)
 			end
 			melon:Destroy()
 			task.delay(30, function()
-				spawnMelon(pos)
+				hookMelon(makeMelon(pos), pos)
 			end)
 		end
 	end)
-	return melon
 end
 
 -- ===== ตึกแถว 1 ห้อง =====
@@ -178,8 +190,7 @@ local function shophouse(side, z, w)
 	label(sign, face, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
 	-- กระจกหน้าร้าน (แตกได้!)
 	if rng:NextNumber() < 0.55 then
-		local g = P("ShopGlass", Vector3.new(0.3, 5.2, w - 2.2), at(fx - side * 0.62, 3.1, z), rgb(170, 210, 230), M.Glass, { Transparency = 0.45 })
-		makeBreakable(g, "glass")
+		P("ShopGlass", Vector3.new(0.3, 5.2, w - 2.2), at(fx - side * 0.62, 3.1, z), rgb(170, 210, 230), M.Glass, { Transparency = 0.45 })
 	end
 	-- ชั้นบน: หน้าต่าง แอร์ ระเบียง
 	for f = 1, floors - 1 do
@@ -277,14 +288,8 @@ local function prop(name, size, pos, color, material, shape)
 	return p
 end
 
-function MapBuilder.build(r)
-	remotes = r
-	-- ลบ Baseplate / SpawnLocation จากเทมเพลต (ถ้ามี) กันพื้นซ้อนกัน
-	for _, d in ipairs(workspace:GetChildren()) do
-		if (d.Name == "Baseplate" and d:IsA("BasePart")) or d:IsA("SpawnLocation") then
-			d:Destroy()
-		end
-	end
+-- สร้างตัวแมพทั้งหมด (ใช้ตอนไม่มีแมพในไฟล์ หรือตอน export ไฟล์ .rbxlx)
+function MapBuilder.buildGeometry()
 	folder = Instance.new("Folder")
 	folder.Name = "SoiMap"
 	folder.Parent = workspace
@@ -394,7 +399,7 @@ function MapBuilder.build(r)
 	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 48.6), rgb(130, 90, 50), M.Wood)
 	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 51.4), rgb(130, 90, 50), M.Wood)
 	for i = 0, 5 do
-		spawnMelon(Vector3.new(10.6 + (i % 3) * 1.45, 3.3, 49.3 + math.floor(i / 3) * 1.45))
+		makeMelon(Vector3.new(10.6 + (i % 3) * 1.45, 3.3, 49.3 + math.floor(i / 3) * 1.45))
 	end
 
 	-- ของเตะได้: ถังขยะ กล่อง เก้าอี้พลาสติก
@@ -410,7 +415,7 @@ function MapBuilder.build(r)
 	end
 	for _, st in ipairs({ { -13, -14 }, { 13, 6 }, { -13, 20 } }) do
 		for i = 0, 4 do
-			prop("Box", Vector3.new(1.6, 1.6, 1.6), Vector3.new(st[1] + (i % 2) * 1.7 - 0.8, 0.85 + math.floor(i / 2) * 1.62, st[2] + (i % 3) * 0.2), rgb(176, 136, 90), M.Cardboard)
+			prop("Box", Vector3.new(1.6, 1.6, 1.6), Vector3.new(st[1] + (i % 2) * 1.7 - 0.8, 0.85 + math.floor(i / 2) * 1.62, st[2] + (i % 3) * 0.2), rgb(176, 136, 90), M.SmoothPlastic)
 		end
 	end
 	for i = 1, 10 do
@@ -421,22 +426,17 @@ function MapBuilder.build(r)
 		prop("TableLeg", Vector3.new(0.25, 2, 0.25), Vector3.new(pz[1], 1, pz[2]), rgb(200, 200, 200), M.Metal)
 	end
 
-	-- จุดอาวุธ
-	local weaponSpawns = {
-		Vector3.new(0, 0, -50), Vector3.new(-11, 0, -22), Vector3.new(11, 0, -15), Vector3.new(-11, 0, 8),
-		Vector3.new(11, 0, 14), Vector3.new(0, 0, 58), Vector3.new(0, 1.2, 30),
-	}
-	for _, p in ipairs(weaponSpawns) do
+	-- จุดอาวุธ (แท่นเหลือง) + จุดเกิด (บล็อกล่องหน) : ย้ายใน Studio ได้ เกมอ่านตำแหน่งจากชิ้นพวกนี้
+	for _, p in ipairs(DEFAULT_WEAPON_SPAWNS) do
 		P("WeaponPad", Vector3.new(0.12, 3.4, 3.4), at(p.X, p.Y + 0.04, p.Z) * CFrame.Angles(0, 0, math.pi / 2), rgb(255, 210, 40), M.Neon, { Shape = Enum.PartType.Cylinder, CanCollide = false, CanQuery = false })
 	end
-	-- จุดเกิด
-	local spawns = {
-		Vector3.new(-9, 0, -60), Vector3.new(9, 0, -58), Vector3.new(-10, 0, -36), Vector3.new(10, 0, -30),
-		Vector3.new(-8, 0, -6), Vector3.new(8, 0, -2), Vector3.new(-6, 0, 12), Vector3.new(6, 0, 18),
-		Vector3.new(-10, 0, 60), Vector3.new(10, 0, 62),
-	}
+	for _, p in ipairs(DEFAULT_SPAWNS) do
+		P("SpawnPoint", Vector3.new(2, 0.2, 2), at(p.X, p.Y + 0.1, p.Z), rgb(80, 220, 120), M.SmoothPlastic, { Transparency = 0.6, CanCollide = false, CanQuery = false, CanTouch = false })
+	end
+	return folder
+end
 
-	-- แสงยามเย็น
+local function applyLighting()
 	Lighting.ClockTime = 17.4
 	Lighting.Brightness = 2.4
 	Lighting.Ambient = rgb(90, 80, 80)
@@ -464,7 +464,47 @@ function MapBuilder.build(r)
 	cc.Brightness = 0.02
 	cc.TintColor = rgb(255, 246, 236)
 	cc.Parent = Lighting
+end
+MapBuilder.applyLighting = applyLighting
 
+-- เรียกตอนเริ่มเกม: ใช้แมพที่อยู่ในไฟล์ (Workspace > SoiMap) ถ้ามี ไม่มีก็สร้างใหม่
+function MapBuilder.build(r)
+	remotes = r
+	-- ลบ Baseplate / SpawnLocation จากเทมเพลต (ถ้ามี) กันพื้นซ้อนกัน
+	for _, d in ipairs(workspace:GetChildren()) do
+		if (d.Name == "Baseplate" and d:IsA("BasePart")) or d:IsA("SpawnLocation") then
+			d:Destroy()
+		end
+	end
+	local existing = workspace:FindFirstChild("SoiMap")
+	if existing then
+		folder = existing
+	else
+		MapBuilder.buildGeometry()
+	end
+	-- ผูกของแตกได้ + อ่านจุดเกิด/จุดอาวุธจากชิ้นในแมพ
+	local spawns, weaponSpawns = {}, {}
+	for _, d in ipairs(folder:GetDescendants()) do
+		if d:IsA("BasePart") then
+			if d.Name == "ShopGlass" then
+				makeBreakable(d, "glass")
+			elseif d.Name == "Watermelon" then
+				hookMelon(d, d.Position)
+			elseif d.Name == "WeaponPad" then
+				table.insert(weaponSpawns, d.Position - Vector3.new(0, 0.04, 0))
+			elseif d.Name == "SpawnPoint" then
+				table.insert(spawns, d.Position - Vector3.new(0, 0.1, 0))
+				d.Transparency = 1
+			end
+		end
+	end
+	if #spawns == 0 then
+		spawns = DEFAULT_SPAWNS
+	end
+	if #weaponSpawns == 0 then
+		weaponSpawns = DEFAULT_WEAPON_SPAWNS
+	end
+	applyLighting()
 	return { spawns = spawns, weaponSpawns = weaponSpawns, folder = folder }
 end
 

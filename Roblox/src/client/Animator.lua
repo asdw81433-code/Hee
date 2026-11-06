@@ -12,14 +12,19 @@ local chars = {} -- [model] = state
 local localPlayer = Players.LocalPlayer
 
 local MOTORS = {
-	Root = { "HumanoidRootPart", "RootJoint" },
-	N = { "Torso", "Neck" },
-	RS = { "Torso", "Right Shoulder" },
-	LS = { "Torso", "Left Shoulder" },
-	RH = { "Torso", "Right Hip" },
-	LH = { "Torso", "Left Hip" },
+	Root = { "LowerTorso", "Root" },
+	W = { "UpperTorso", "Waist" },
+	N = { "Head", "Neck" },
+	RS = { "RightUpperArm", "RightShoulder" },
+	RE = { "RightLowerArm", "RightElbow" },
+	LS = { "LeftUpperArm", "LeftShoulder" },
+	LE = { "LeftLowerArm", "LeftElbow" },
+	RH = { "RightUpperLeg", "RightHip" },
+	RK = { "RightLowerLeg", "RightKnee" },
+	LH = { "LeftUpperLeg", "LeftHip" },
+	LK = { "LeftLowerLeg", "LeftKnee" },
 }
-local JOINTS = { "Root", "N", "RS", "LS", "RH", "LH" }
+local JOINTS = { "Root", "W", "N", "RS", "RE", "LS", "LE", "RH", "RK", "LH", "LK" }
 local rad = math.rad
 local sin, cos, abs = math.sin, math.cos, math.abs
 local rayParams = RaycastParams.new()
@@ -145,6 +150,7 @@ Animator.localBlock = false
 local function copy3(v)
 	return { v[1], v[2], v[3] }
 end
+local ZERO = { 0, 0, 0 }
 
 -- ท่าพื้นฐาน (ยืน/เดิน/กระโดด/มึน/การ์ด)
 local function basePose(st, dt, out)
@@ -154,36 +160,43 @@ local function basePose(st, dt, out)
 	local t = st.t
 	local G = Anim.Guard
 	for _, j in ipairs(JOINTS) do
-		out[j] = copy3(G[j])
+		out[j] = copy3(G[j] or ZERO)
 	end
 	out.off = { 0, sin(t * 2.2) * 0.04, 0 }
 	-- หายใจ/โยกตัว
 	out.RS[1] = out.RS[1] + sin(t * 2.2) * rad(3)
 	out.LS[1] = out.LS[1] + sin(t * 2.2 + 1) * rad(3)
+	out.W[1] = out.W[1] + sin(t * 2.2) * rad(1.5)
 
 	local weapon = model:GetAttribute("Weapon")
 	if weapon then
 		out.RS = copy3(Anim.WeaponArm)
+		out.RE = copy3(Anim.WeaponElbow)
 	end
 
 	-- ลอยอยู่ไหม (raycast ลงพื้น ใช้ได้กับทุกตัวละคร ไม่ต้องพึ่ง property ที่อาจไม่ replicate)
 	st.airT = (st.airT or 0) - dt
 	if st.airT <= 0 then
 		st.airT = 0.08
-		local res = workspace:Raycast(st.root.Position, Vector3.new(0, -3.8, 0), rayParams)
+		local reach = (st.hum.HipHeight or 2) + st.root.Size.Y / 2 + 0.8
+		local res = workspace:Raycast(st.root.Position, Vector3.new(0, -reach, 0), rayParams)
 		st.air = res == nil and abs(vel.Y) > 2
 	end
-	local air = st.air
-	if air then
-		-- ลอยกลางอากาศ: แขนกวัดแกว่งฮาๆ
+	if st.air then
+		-- ลอยกลางอากาศ: แขนกวัดแกว่งฮาๆ ขางอ
 		local fl = sin(t * 16)
 		local falling = vel.Y < -20
 		local amp = falling and 40 or 18
 		out.RS = { rad(150 + fl * amp), 0, rad(30) }
 		out.LS = { rad(150 - fl * amp), 0, rad(-30) }
-		out.RH = { rad(35 + (falling and fl * 25 or 0)), 0, rad(6) }
-		out.LH = { rad(-15 - (falling and fl * 25 or 0)), 0, rad(-6) }
-		out.Root = { rad(falling and 10 or -6), 0, 0 }
+		out.RE = { rad(30 + fl * 25), 0, 0 }
+		out.LE = { rad(30 - fl * 25), 0, 0 }
+		out.RH = { rad(40 + (falling and fl * 25 or 0)), 0, rad(6) }
+		out.RK = { rad(-70), 0, 0 }
+		out.LH = { rad(-10 - (falling and fl * 25 or 0)), 0, rad(-6) }
+		out.LK = { rad(-40), 0, 0 }
+		out.Root = { 0, 0, 0 }
+		out.W = { rad(falling and 10 or -6), 0, 0 }
 		out.N = { rad(falling and 20 or 0), 0, 0 }
 		return
 	end
@@ -193,27 +206,39 @@ local function basePose(st, dt, out)
 		st.walkPhase = st.walkPhase + dt * speed * 0.62
 		local p = st.walkPhase
 		local s = sin(p)
-		out.RH = { s * rad(46) * k, 0, rad(3) }
-		out.LH = { -s * rad(46) * k, 0, rad(-3) }
-		out.off = { 0, abs(cos(p)) * 0.16 * k - 0.04, 0 }
-		out.Root = { rad(-7) * k, rad(-15) * (1 - k) + s * rad(6) * k, s * rad(2.5) * k }
+		-- ขาก้าว + เข่างอตอนยกขาไปหน้า
+		out.RH = { s * rad(40) * k, 0, rad(3) }
+		out.LH = { -s * rad(40) * k, 0, rad(-3) }
+		out.RK = { -math.max(0, sin(p + 1.3)) * rad(65) * k - rad(5), 0, 0 }
+		out.LK = { -math.max(0, sin(p + 1.3 + math.pi)) * rad(65) * k - rad(5), 0, 0 }
+		out.off = { 0, abs(cos(p)) * 0.14 * k - 0.05, 0 }
+		out.Root = { 0, rad(-10) * (1 - k) + s * rad(5) * k, s * rad(2.5) * k }
+		out.W = { rad(-8) * k, -s * rad(8) * k, 0 }
 		if not weapon then
-			-- วิ่ง: แขนแกว่งสลับขา (ยังยกหมัดอยู่ครึ่งๆ)
-			out.RS = { rad(55) - s * rad(40) * k, rad(20), rad(6) }
-			out.LS = { rad(55) + s * rad(40) * k, rad(-20), rad(-6) }
+			-- วิ่ง: แขนงอแกว่งสลับขา
+			out.RS = { rad(40) - s * rad(40) * k, rad(15), rad(8) }
+			out.LS = { rad(40) + s * rad(40) * k, rad(-15), rad(-8) }
+			out.RE = { rad(95), 0, 0 }
+			out.LE = { rad(95), 0, 0 }
 		else
-			out.LS = { rad(30) + s * rad(40) * k, 0, rad(-6) }
+			out.LS = { rad(25) + s * rad(40) * k, 0, rad(-6) }
+			out.LE = { rad(60), 0, 0 }
 		end
 	end
 
-	-- มึนหัว: โยกเยก
+	-- มึนหัว: โยกเยก เข่าอ่อน
 	if model:GetAttribute("Dizzy") then
-		out.Root = { sin(t * 2.1) * rad(8), sin(t * 1.3) * rad(15), sin(t * 3.2) * rad(12) }
+		out.Root = { 0, sin(t * 1.3) * rad(10), sin(t * 3.2) * rad(8) }
+		out.W = { sin(t * 2.1) * rad(10), sin(t * 1.7) * rad(12), sin(t * 2.9) * rad(10) }
 		out.N = { sin(t * 4) * rad(18), 0, cos(t * 4) * rad(18) }
 		out.RS = { rad(18) + sin(t * 3) * rad(12), 0, rad(22) }
 		out.LS = { rad(18) - sin(t * 3) * rad(12), 0, rad(-22) }
+		out.RE = { rad(25), 0, 0 }
+		out.LE = { rad(25), 0, 0 }
 		out.RH = { sin(t * 3.2) * rad(10), 0, rad(8) }
 		out.LH = { -sin(t * 3.2) * rad(10), 0, rad(-8) }
+		out.RK = { rad(-20) - abs(sin(t * 3.2)) * rad(20), 0, 0 }
+		out.LK = { rad(-20) - abs(cos(t * 3.2)) * rad(20), 0, 0 }
 		return
 	end
 
@@ -291,11 +316,11 @@ function Animator.step(dt)
 						end
 					end
 				end
-				-- ชดเชย: ขา/หัวไม่บิดตามลำตัวมากเกินไป
-				local root = pose.Root
+				-- ชดเชย: ขาไม่เอียงตามสะโพก, หัวหันหาเป้าแม้ลำตัวบิด
+				local root, waist = pose.Root, pose.W
 				pose.RH = { pose.RH[1] - root[1], pose.RH[2] - root[2], pose.RH[3] - root[3] }
 				pose.LH = { pose.LH[1] - root[1], pose.LH[2] - root[2], pose.LH[3] - root[3] }
-				pose.N = { pose.N[1] - root[1] * 0.5, pose.N[2] - root[2] * 0.8, pose.N[3] }
+				pose.N = { pose.N[1] - (root[1] + waist[1]) * 0.5, pose.N[2] - (root[2] + waist[2]) * 0.8, pose.N[3] }
 
 				local w, z = OMEGA_BASE, ZETA_BASE
 				if acting then
@@ -308,7 +333,7 @@ function Animator.step(dt)
 						local s = st.springs[j]
 						if s then
 							local jw = w
-							if j == "RH" or j == "LH" then
+							if j == "RH" or j == "LH" or j == "RK" or j == "LK" then
 								jw = w * 1.15
 							end
 							springStep(s, pose[j], jw, z, h)
@@ -319,7 +344,8 @@ function Animator.step(dt)
 				for _, j in ipairs(JOINTS) do
 					local m = st.motors[j]
 					local s = st.springs[j]
-					if m and s then
+					-- ข้อที่ขาดไปแล้ว (แขนขาหลุด) ข้ามไป
+					if m and s and m.Enabled and m.Parent and m:IsDescendantOf(model) then
 						if j == "Root" then
 							m.Transform = jointCF(s.x, st.off.x)
 						else

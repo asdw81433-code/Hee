@@ -12,6 +12,7 @@ Combat.onDeath = nil -- function(F, killerF)
 Combat.onScore = nil -- function()
 
 local remotes, Ragdoll, CB, Weapons
+local gibsFolder
 local fighters = Combat.fighters
 local corpses = Combat.corpses
 
@@ -42,6 +43,9 @@ function Combat.init(deps)
 	Ragdoll = deps.Ragdoll
 	CB = deps.CB
 	Weapons = deps.Weapons
+	gibsFolder = Instance.new("Folder")
+	gibsFolder.Name = "BrawlGibs"
+	gibsFolder.Parent = workspace
 end
 
 function Combat.get(model)
@@ -123,6 +127,219 @@ local function randomSpin(mag)
 	return Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * mag
 end
 
+-- ===== แขนขาหลุด (สไตล์ gore sandbox) =====
+-- ชื่อชิ้น -> ข้อที่ต้องตัด (ชิ้นที่ต่ออยู่ปลายทางหลุดตามไปหมด)
+local SEVER = {
+	Head = { joint = "Neck", kind = "head" },
+	UpperTorso = { joint = "Waist", kind = "torso" },
+	RightUpperArm = { joint = "RightShoulder", kind = "arm", side = "R" },
+	RightLowerArm = { joint = "RightElbow", kind = "arm", side = "R" },
+	RightHand = { joint = "RightWrist", kind = "hand", side = "R" },
+	LeftUpperArm = { joint = "LeftShoulder", kind = "arm", side = "L" },
+	LeftLowerArm = { joint = "LeftElbow", kind = "arm", side = "L" },
+	LeftHand = { joint = "LeftWrist", kind = "hand", side = "L" },
+	RightUpperLeg = { joint = "RightHip", kind = "leg", side = "R" },
+	RightLowerLeg = { joint = "RightKnee", kind = "leg", side = "R" },
+	RightFoot = { joint = "RightAnkle", kind = "foot", side = "R" },
+	LeftUpperLeg = { joint = "LeftHip", kind = "leg", side = "L" },
+	LeftLowerLeg = { joint = "LeftKnee", kind = "leg", side = "L" },
+	LeftFoot = { joint = "LeftAnkle", kind = "foot", side = "L" },
+}
+Combat.SEVER = SEVER
+local MEAT = Color3.fromRGB(120, 10, 14)
+local BONE = Color3.fromRGB(235, 228, 205)
+local SEVER_WORD = { arm = "แขนหลุด!!", hand = "มือหลุด!!", leg = "ขาหลุด!!", foot = "เท้าหลุด!!", head = "หัวหลุด!!", torso = "ขาดครึ่งท่อน!!" }
+
+local function gorePiece(base, name, cf, size, color)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.CFrame = cf
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = base
+	w.Part1 = p
+	w.Parent = p
+	p.Parent = base
+	return p
+end
+
+-- ตอเนื้อแดง + กระดูก ที่ผิวของ part ตรงข้อต่อ (localPos = ตำแหน่งข้อในพิกัดของ part)
+local function makeStump(part, localPos, width)
+	local hs = part.Size / 2
+	local ratios = { math.abs(localPos.X) / hs.X, math.abs(localPos.Y) / hs.Y, math.abs(localPos.Z) / hs.Z }
+	local axis = 2
+	if ratios[1] > ratios[2] and ratios[1] >= ratios[3] then
+		axis = 1
+	elseif ratios[3] > ratios[2] then
+		axis = 3
+	end
+	local comps = { localPos.X, localPos.Y, localPos.Z }
+	local sign = comps[axis] >= 0 and 1 or -1
+	local halves = { hs.X, hs.Y, hs.Z }
+	local p = {}
+	for i = 1, 3 do
+		if i == axis then
+			p[i] = sign * (halves[i] + 0.01)
+		else
+			p[i] = math.clamp(comps[i], -halves[i] * 0.6, halves[i] * 0.6)
+		end
+	end
+	local n = { 0, 0, 0 }
+	n[axis] = sign
+	local normal = Vector3.new(n[1], n[2], n[3])
+	local pos = Vector3.new(p[1], p[2], p[3])
+	local disc = { width, width, width }
+	disc[axis] = 0.08
+	gorePiece(part, "GoreStump", part.CFrame * CFrame.new(pos), Vector3.new(disc[1], disc[2], disc[3]), MEAT)
+	local bw = math.max(0.12, width * 0.3)
+	gorePiece(part, "GoreBone", part.CFrame * CFrame.new(pos + normal * 0.07), Vector3.new(bw, bw, bw), BONE)
+	return part
+end
+
+-- ชิ้นที่อยู่ปลายทางของ part (ตามข้อต่อ Motor6D) เช่น ต้นแขน -> ปลายแขน -> มือ
+local function downstream(model, part)
+	local kids = {}
+	for _, m in ipairs(model:GetDescendants()) do
+		if m:IsA("Motor6D") and m.Part0 and m.Part1 then
+			kids[m.Part0] = kids[m.Part0] or {}
+			table.insert(kids[m.Part0], m.Part1)
+		end
+	end
+	local out, queue = {}, { part }
+	while #queue > 0 do
+		local p = table.remove(queue, 1)
+		table.insert(out, p)
+		for _, c in ipairs(kids[p] or {}) do
+			table.insert(queue, c)
+		end
+	end
+	return out
+end
+
+local function updateLosses(F)
+	local m = F.model
+	local function gone(n)
+		return m:FindFirstChild(n) == nil
+	end
+	local arms, legs = 0, 0
+	local handsGone, feetGone = 0, 0
+	for _, side in ipairs({ "Right", "Left" }) do
+		if gone(side .. "UpperArm") or gone(side .. "LowerArm") then
+			arms = arms + 1
+		elseif gone(side .. "Hand") then
+			handsGone = handsGone + 1
+		end
+		if gone(side .. "UpperLeg") or gone(side .. "LowerLeg") then
+			legs = legs + 1
+		elseif gone(side .. "Foot") then
+			feetGone = feetGone + 1
+		end
+	end
+	F.dmgMul = ((arms == 0) and 1 or ((arms == 1) and 0.8 or 0.5)) * (1 - handsGone * 0.1)
+	F.speedMul = ((legs == 0) and 1 or ((legs == 1) and 0.45 or 0.22)) * (1 - feetGone * 0.2)
+	if legs >= 2 then
+		F.hum.HipHeight = 0.15 -- คลานด้วยลำตัว
+	end
+end
+
+-- ตัดชิ้นส่วน partName ออกจาก model  (F = นักสู้ที่ยังมีชีวิต หรือ nil ถ้าเป็นศพ)
+function Combat.sever(model, partName, vel, F)
+	if not Config.Dismember then
+		return false
+	end
+	local def = SEVER[partName]
+	if not def or not Ragdoll.hasJoint(model, def.joint) then
+		return false
+	end
+	if (def.kind == "head" or def.kind == "torso") and Config.GoreLevel < 1 then
+		return false
+	end
+	local part = model:FindFirstChild(partName)
+	local motor = part and part:FindFirstChild(def.joint)
+	if not part or not motor or not motor.Part0 then
+		return false
+	end
+	local base = motor.Part0
+	local c0, c1 = motor.C0.Position, motor.C1.Position
+	local pieces = downstream(model, part)
+	-- อาวุธที่ถืออยู่ในมือที่ขาด หลุดตามไปด้วย
+	if F and F.weapon then
+		local grip = F.weapon.model and F.weapon.model.PrimaryPart
+		local gw = grip and grip:FindFirstChild("GripWeld")
+		if gw then
+			for _, p in ipairs(pieces) do
+				if gw.Part0 == p then
+					Weapons.drop(F, (vel or Vector3.zero) * 0.4 + Vector3.new(0, 10, 0))
+					break
+				end
+			end
+		end
+	end
+	local pos = Ragdoll.sever(model, def.joint, pieces, gibsFolder)
+	if not pos then
+		return false
+	end
+	local stumpPart = nil
+	if Config.GoreLevel >= 1 then
+		local width = math.min(part.Size.X, part.Size.Z) * 0.92
+		stumpPart = makeStump(base, c0, width)
+		makeStump(part, c1, width)
+	end
+	vel = vel or Vector3.zero
+	for _, p in ipairs(pieces) do
+		p.AssemblyLinearVelocity = vel + randomSpin(12) + Vector3.new(0, 14, 0)
+		p.AssemblyAngularVelocity = randomSpin(25)
+		Debris:AddItem(p, Config.GibLife)
+	end
+	if F then
+		updateLosses(F)
+	end
+	fx("sever", { pos = pos, stump = stumpPart or base, piece = part, gore = Config.GoreLevel, word = SEVER_WORD[def.kind] or "หลุด!!", victim = model })
+	return true
+end
+
+-- เลือกว่าโดนชิ้นไหนของตัว
+local LIMB_LIST = {
+	"RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperArm", "LeftLowerArm", "LeftHand",
+	"RightUpperLeg", "RightLowerLeg", "RightFoot", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot",
+}
+local function pickPart(G, mv)
+	local m = G.model
+	local zone = mv.zone or "body"
+	local list
+	if mv.weapon then
+		list = { "Head", "Head", "Head", "UpperTorso", "UpperTorso", "RightUpperArm", "LeftUpperArm", "RightLowerArm", "LeftLowerArm", "RightHand", "LeftHand", "RightUpperLeg", "LeftUpperLeg", "RightLowerLeg", "LeftLowerLeg" }
+	elseif zone == "head" then
+		if math.random() < 0.72 and m:FindFirstChild("Head") then
+			return m.Head
+		end
+		list = { "UpperTorso", "RightUpperArm", "LeftUpperArm", "RightLowerArm", "LeftLowerArm", "RightHand", "LeftHand" }
+	elseif zone == "limb" then
+		list = { "Head", "UpperTorso", "LowerTorso" }
+		for _, n in ipairs(LIMB_LIST) do
+			table.insert(list, n)
+			table.insert(list, n)
+		end
+	else
+		list = { "UpperTorso", "UpperTorso", "UpperTorso", "LowerTorso", "RightUpperLeg", "LeftUpperLeg", "RightLowerLeg", "LeftLowerLeg", "RightUpperArm", "LeftUpperArm" }
+	end
+	for _ = 1, 6 do
+		local p = m:FindFirstChild(list[math.random(1, #list)])
+		if p then
+			return p
+		end
+	end
+	return m:FindFirstChild("UpperTorso") or G.root
+end
+
 -- ===== ความเสียหาย =====
 local function damage(G, amount, by)
 	if not G.alive then
@@ -177,6 +394,9 @@ function Combat.hit(F, G, mv, dir)
 	local down = Ragdoll.isRagdolled(victim)
 	dir = dir or (F and F.root.CFrame.LookVector) or Vector3.new(0, 0, -1)
 	local dmg = (mv.dmg or 5) * (0.9 + math.random() * 0.2)
+	if F and not mv.weapon then
+		dmg = dmg * (F.dmgMul or 1)
+	end
 
 	-- ===== การ์ด =====
 	if G.blocking and not down and not mv.unblockable then
@@ -220,8 +440,11 @@ function Combat.hit(F, G, mv, dir)
 	end
 	setSuper(G, G.super + 4)
 
-	local zone = mv.zone or "body"
-	local pos = (zone == "head") and G.head.Position or G.torso.Position
+	local hitPart = pickPart(G, mv)
+	local zone = (hitPart.Name == "Head") and "head" or "body"
+	local pos = hitPart.Position
+	CB.addWound(victim, hitPart, dir)
+	G.limbDmg[hitPart.Name] = (G.limbDmg[hitPart.Name] or 0) + dmg
 	local bloodN = 0
 	if Config.Blood > 0 then
 		bloodN = math.floor((dmg * 0.9 + (mv.extraBlood or 0) * 6) * (crit and 1.6 or 1) * Config.Blood)
@@ -272,8 +495,26 @@ function Combat.hit(F, G, mv, dir)
 		end
 	end
 
-	-- ล้ม / กระเด็น
+	-- แขนขาหลุด
 	local dead = G.hum.Health <= 0
+	local sevVel = dir * (mv.knock or 10) * 0.8 + Vector3.new(0, (mv.lift or 0) * 0.5 + 12, 0)
+	local strong = mv.heavy or mv.weapon or mv.onlyDown
+	if Config.Dismember and (hitPart.Name == "UpperTorso" or hitPart.Name == "LowerTorso") then
+		-- ท่าแรงสุดๆ ตอนน็อค: ขาดครึ่งท่อน
+		if dead and (mv.unblockable or (mv.weapon and mv.weapon.heavy)) and Config.GoreLevel >= 1 and math.random() < Config.HalfChance then
+			Combat.sever(victim, "UpperTorso", sevVel * 1.2 + Vector3.new(0, 16, 0), G)
+		end
+	elseif Config.Dismember and SEVER[hitPart.Name] then
+		if hitPart.Name == "Head" then
+			if dead and strong and Config.GoreLevel >= 1 and math.random() < Config.DecapChance then
+				Combat.sever(victim, "Head", sevVel * 1.3 + Vector3.new(0, 20, 0), G)
+			end
+		elseif (dmg >= Config.MinSeverHit and G.limbDmg[hitPart.Name] >= Config.LimbHP and strong) or (dead and strong and math.random() < 0.6) then
+			Combat.sever(victim, hitPart.Name, sevVel, G)
+		end
+	end
+
+	-- ล้ม / กระเด็น
 	local wantRag = mv.ragdoll ~= nil
 	if mv.ragdollChance and math.random() > mv.ragdollChance then
 		wantRag = false
@@ -332,7 +573,7 @@ Combat.findTarget = findTarget
 -- เตะ/ทุบศพ (ฟิสิกส์ล้วน ฮาๆ)
 local function hitCorpse(F, dir, mv)
 	for model in pairs(corpses) do
-		local torso = model.Parent and model:FindFirstChild("Torso")
+		local torso = model.Parent and model:FindFirstChild("UpperTorso")
 		if torso then
 			local d = torso.Position - F.root.Position
 			if Vector3.new(d.X, 0, d.Z).Magnitude < (mv.range or 4.5) + 1 and math.abs(d.Y) < 5 then
@@ -343,6 +584,18 @@ local function hitCorpse(F, dir, mv)
 					end
 				end
 				fx("hit", { pos = torso.Position, dir = dir, power = 8, word = pickWord("impact"), blood = math.floor(6 * Config.Blood), teeth = 0, attacker = F.model, victim = model, sound = "thud" })
+				-- ศพโดนหนักๆ แขนขาหลุดได้
+				if Config.Dismember and (mv.heavy or mv.weapon or mv.onlyDown) and math.random() < 0.45 then
+					local names = {}
+					for n, def in pairs(SEVER) do
+						if model:FindFirstChild(n) and Ragdoll.hasJoint(model, def.joint) and def.kind ~= "torso" and (def.kind ~= "head" or Config.GoreLevel >= 1) then
+							table.insert(names, n)
+						end
+					end
+					if #names > 0 then
+						Combat.sever(model, names[math.random(1, #names)], vel * 0.6, nil)
+					end
+				end
 				return true
 			end
 		end
@@ -409,7 +662,7 @@ local function doSwing(F, dir)
 				Weapons.onHit(F, G)
 			end
 		else
-			hitCorpse(F, dir, { range = mv.range, knock = wdef.knock, lift = wdef.lift })
+			hitCorpse(F, dir, { range = mv.range, knock = wdef.knock, lift = wdef.lift, weapon = wdef })
 		end
 	end)
 end
@@ -505,6 +758,20 @@ function Combat.request(F, action, payload)
 		end
 	elseif action == "kick" then
 		local downed = findTarget(F, dir, Config.Moves.stomp)
+		if not downed then
+			-- ศพอยู่ตรงหน้า = กระทืบ
+			for model in pairs(corpses) do
+				local torso = model.Parent and model:FindFirstChild("UpperTorso")
+				if torso then
+					local d = torso.Position - F.root.Position
+					local fd = Vector3.new(d.X, 0, d.Z)
+					if fd.Magnitude < Config.Moves.stomp.range + 0.8 and (fd.Magnitude < 1 or fd.Unit:Dot(dir) > 0.5) then
+						downed = true
+						break
+					end
+				end
+			end
+		end
 		if downed then
 			doMove(F, "stomp", dir)
 		else
@@ -563,7 +830,7 @@ function Combat.register(model, opts)
 		model = model,
 		hum = hum,
 		root = model:FindFirstChild("HumanoidRootPart"),
-		torso = model:FindFirstChild("Torso"),
+		torso = model:FindFirstChild("UpperTorso"),
 		head = model:FindFirstChild("Head"),
 		player = opts.player,
 		name = opts.name,
@@ -587,6 +854,9 @@ function Combat.register(model, opts)
 		actN = 0,
 		alive = true,
 		exprT = 0,
+		limbDmg = {},
+		dmgMul = 1,
+		speedMul = 1,
 	}
 	local att = Instance.new("Attachment")
 	att.Name = "PushAtt"
@@ -676,7 +946,7 @@ function Combat.kill(F, reason)
 	})
 	task.delay(0.9, function()
 		if model.Parent then
-			local torso = model:FindFirstChild("Torso")
+			local torso = model:FindFirstChild("UpperTorso")
 			if torso then
 				fx("pool", { pos = torso.Position })
 			end
@@ -721,7 +991,7 @@ function Combat.step(dt)
 				end
 				-- ความเร็วเดิน
 				if not rag then
-					local speed = Config.WalkSpeed
+					local speed = Config.WalkSpeed * F.speedMul
 					if t < F.dizzyUntil then
 						speed = 4
 					elseif t < F.stunUntil then
@@ -734,7 +1004,7 @@ function Combat.step(dt)
 					if hum.WalkSpeed ~= speed then
 						hum.WalkSpeed = speed
 					end
-					local jp = (t < F.stunUntil or t < F.dizzyUntil) and 0 or Config.JumpPower
+					local jp = (t < F.stunUntil or t < F.dizzyUntil or F.speedMul < 0.3) and 0 or Config.JumpPower * math.max(0.6, F.speedMul)
 					if hum.JumpPower ~= jp then
 						hum.JumpPower = jp
 					end

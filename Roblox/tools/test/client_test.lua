@@ -88,7 +88,12 @@ fx:Fire("taunt", { char = chars[2] })
 fx:Fire("break", { pos = head, glass = true })
 fx:Fire("break", { pos = head, glass = false })
 fx:Fire("melon", { pos = head })
-fx:Fire("pool", { pos = chars[3].Torso.Position })
+fx:Fire("pool", { pos = chars[3].UpperTorso.Position })
+fx:Fire("sever", { pos = chars[2].RightUpperArm.Position, stump = chars[2].UpperTorso, piece = chars[2].RightUpperArm, gore = 1, word = "แขนหลุด!!", victim = chars[2] })
+fx:Fire("sever", { pos = chars[3].Head.Position, stump = chars[3].UpperTorso, piece = chars[3].Head, gore = 0, word = "หัวหลุด!!", victim = chars[3] })
+-- simulate a severed limb on char 2: motor destroyed, part moved away
+chars[2].RightLowerArm.RightElbow:Destroy()
+chars[2].RightLowerArm.Parent = workspace
 frames(200)
 local nt = rf.Notify.OnClientEvent
 nt:Fire("ko", { victim = "P2", killer = "Me", msg = "P2 หลับปุ๋ย", victimModel = chars[2], killerModel = chars[1], streak = "🔥 ร้อนแรง!" })

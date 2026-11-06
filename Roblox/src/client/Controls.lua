@@ -49,10 +49,10 @@ local function findEnemy(c, range, cone, wantDown)
 	local camLook = cam and flat(cam.CFrame.LookVector) or look
 	local best, bestScore = nil, math.huge
 	for _, m in ipairs(CollectionService:GetTagged("BrawlChar")) do
-		if m ~= c and m.Parent and not m:GetAttribute("Dead") then
+		if m ~= c and m.Parent and (wantDown or not m:GetAttribute("Dead")) then
 			local down = m:GetAttribute("Ragdoll") == true
 			if (wantDown and down) or (not wantDown and not down) then
-				local part = down and m:FindFirstChild("Torso") or m:FindFirstChild("HumanoidRootPart")
+				local part = down and m:FindFirstChild("UpperTorso") or m:FindFirstChild("HumanoidRootPart")
 				if part then
 					local d = part.Position - root.Position
 					local fd = Vector3.new(d.X, 0, d.Z)
