@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : สร้างแมพ "ซอยตึกแถว" ด้วยโค้ดทั้งหมด
+--  ALLEY BRAWL : แมพตรอกเมืองอเมริกัน (ตึกอิฐ บันไดหนีไฟ แท็กซี่ รถฮอทด็อก) ด้วยโค้ด
 --  ถนน 2 เลน + ฟุตบาท + ตึกแถว + เสาไฟสายไฟพันกัน + สังเวียนข้างทาง
 -- ============================================================
 local Lighting = game:GetService("Lighting")
@@ -84,17 +84,18 @@ local function wire(a, b, sag, color)
 end
 
 local SHOPS = {
-	"ข้าวมันไก่", "ก๋วยเตี๋ยวเรือ", "ร้านตัดผม", "นวดแผนไทย", "ร้านชำ", "ซ่อมมือถือ", "หมูกระทะ",
-	"ร้านยา", "ส้มตำแซ่บ", "เสริมสวย", "ผัดไทย", "ชานมไข่มุก", "ซักรีด", "ร้านเกม", "อู่ซ่อมรถ",
-	"คลินิกทำฟัน 🦷", "ประกันชีวิต", "ร้านโลงศพ", "ข้าวต้มโต้รุ่ง", "ยาดม ยาหม่อง",
+	"PAWN SHOP", "PIZZA", "LAUNDROMAT", "24/7 DINER", "TATTOO", "BARBER", "DONUTS", "GROCERY",
+	"PHONE REPAIR", "GYM", "ARCADE", "HARDWARE", "DENTIST", "BAIL BONDS", "INSURANCE", "CHECK CASHING",
+	"TACOS", "SHOE REPAIR", "PET SHOP", "KARATE DOJO", "FUNERAL HOME", "ICE CREAM",
 }
-local PASTEL = {
-	rgb(236, 222, 190), rgb(198, 222, 200), rgb(236, 200, 200), rgb(196, 214, 236), rgb(240, 232, 170),
-	rgb(222, 200, 236), rgb(210, 210, 205), rgb(240, 214, 180),
+local NEON = { "HOTEL", "OPEN 24H", "MOTEL", "ARCADE", "PIZZA", "DINER", "TATTOO", "VACANCY", "BOXING" }
+local BRICK = {
+	rgb(150, 72, 58), rgb(126, 82, 64), rgb(176, 112, 84), rgb(110, 62, 52), rgb(140, 132, 124), rgb(188, 160, 124), rgb(96, 88, 90),
 }
 local SIGN = {
-	rgb(220, 40, 40), rgb(30, 110, 200), rgb(250, 200, 30), rgb(30, 160, 80), rgb(240, 120, 20), rgb(140, 40, 160),
+	rgb(200, 30, 30), rgb(25, 70, 150), rgb(230, 180, 20), rgb(20, 120, 60), rgb(30, 30, 34), rgb(120, 30, 120),
 }
+local IRON = rgb(30, 30, 33)
 
 -- ===== ของแตกได้ =====
 local function breakGlass(glass)
@@ -169,94 +170,123 @@ hookMelon = function(melon, pos)
 	end)
 end
 
--- ===== ตึกแถว 1 ห้อง =====
-local function shophouse(side, z, w)
+-- ===== ตึกอิฐอเมริกัน 1 ห้อง (หน้าร้าน + กันสาด + บันไดหนีไฟ + ถังน้ำบนหลังคา) =====
+local function building(side, z, w)
 	local floors = rng:NextInteger(2, 4)
 	local H = floors * 9 + 0.5
 	local depth = 12
 	local x = side * (FACADE + depth / 2)
 	local fx = side * FACADE -- ระนาบหน้าตึก
-	local col = PASTEL[rng:NextInteger(1, #PASTEL)]
+	local col = BRICK[rng:NextInteger(1, #BRICK)]
+	local trim = col:Lerp(rgb(235, 225, 210), 0.55)
 	local face = side > 0 and Enum.NormalId.Left or Enum.NormalId.Right -- ด้านที่หันเข้าถนน
-	P("Building", Vector3.new(depth, H, w), at(x, H / 2, z), col, M.Concrete)
-	-- ชั้นล่าง: ร้านค้า
-	local shopC = rgb(30, 26, 24)
-	P("ShopInside", Vector3.new(0.2, 7, w - 1.6), at(fx - side * 0.1, 4, z), shopC, M.SmoothPlastic)
-	local shutterOpen = rng:NextNumber(0.25, 0.6)
-	local sh = 7 * shutterOpen
-	P("Shutter", Vector3.new(0.3, sh, w - 1.4), at(fx - side * 0.25, 7.5 - sh / 2, z), rgb(150, 152, 156), M.CorrodedMetal)
-	-- ป้ายร้าน
-	local sign = P("ShopSign", Vector3.new(0.5, 1.8, w - 1), at(fx - side * 0.35, 8.5, z), SIGN[rng:NextInteger(1, #SIGN)], M.SmoothPlastic)
+	P("Building", Vector3.new(depth, H, w), at(x, H / 2, z), col, M.Brick)
+	-- ชั้นล่าง: หน้าร้าน
+	P("ShopInside", Vector3.new(0.2, 7, w - 1.6), at(fx - side * 0.1, 4, z), rgb(26, 24, 24), M.SmoothPlastic)
+	P("ShopFrame", Vector3.new(0.3, 7.6, 0.5), at(fx - side * 0.15, 4, z - w / 2 + 0.55), trim, M.Concrete)
+	P("ShopFrame", Vector3.new(0.3, 7.6, 0.5), at(fx - side * 0.15, 4, z + w / 2 - 0.55), trim, M.Concrete)
+	if rng:NextNumber() < 0.35 then
+		local sh = 7 * rng:NextNumber(0.3, 0.7)
+		P("Shutter", Vector3.new(0.3, sh, w - 1.4), at(fx - side * 0.25, 7.5 - sh / 2, z), rgb(140, 142, 146), M.CorrodedMetal)
+	end
+	-- ป้ายร้าน + กันสาดผ้าเอียง
+	local sign = P("ShopSign", Vector3.new(0.5, 1.6, w - 1.2), at(fx - side * 0.35, 8.6, z), SIGN[rng:NextInteger(1, #SIGN)], M.SmoothPlastic)
 	label(sign, face, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
+	if rng:NextNumber() < 0.6 then
+		P("Awning", Vector3.new(2.6, 0.15, w - 1.4), at(fx - side * 1.25, 7.55, z) * CFrame.Angles(0, 0, math.rad(-22 * side)), SIGN[rng:NextInteger(1, #SIGN)], M.Fabric, { CanCollide = false })
+	end
 	-- กระจกหน้าร้าน (แตกได้!)
-	if rng:NextNumber() < 0.55 then
+	if rng:NextNumber() < 0.6 then
 		P("ShopGlass", Vector3.new(0.3, 5.2, w - 2.2), at(fx - side * 0.62, 3.1, z), rgb(170, 210, 230), M.Glass, { Transparency = 0.45 })
 	end
-	-- ชั้นบน: หน้าต่าง แอร์ ระเบียง
+	-- ชั้นบน: หน้าต่างกรอบขาว แอร์ บันไดหนีไฟ
+	local fireEscape = rng:NextNumber() < 0.5
 	for f = 1, floors - 1 do
 		local y = f * 9 + 0.5
-		P("Ledge", Vector3.new(0.8, 0.4, w), at(fx - side * 0.2, y, z), col:Lerp(rgb(0, 0, 0), 0.15), M.Concrete)
+		P("Cornice", Vector3.new(0.6, 0.35, w), at(fx - side * 0.15, y, z), trim, M.Concrete)
 		for i = -1, 1, 2 do
-			local wz = z + i * w * 0.22
-			P("Window", Vector3.new(0.3, 3.4, 2.8), at(fx - side * 0.1, y + 4.5, wz), rgb(40, 60, 90), M.Glass, { Reflectance = 0.15 })
-			P("Frame", Vector3.new(0.25, 3.8, 3.2), at(fx - side * 0.04, y + 4.5, wz), rgb(235, 235, 230))
-			if rng:NextNumber() < 0.35 then
-				P("AC", Vector3.new(1.3, 1.4, 2.2), at(fx - side * 0.75, y + 2, wz), rgb(232, 232, 228), M.SmoothPlastic)
+			local wz = z + i * w * 0.24
+			P("Window", Vector3.new(0.3, 3.8, 2.4), at(fx - side * 0.1, y + 4.4, wz), rgb(36, 46, 62), M.Glass, { Reflectance = 0.2 })
+			P("Frame", Vector3.new(0.25, 4.3, 2.9), at(fx - side * 0.04, y + 4.4, wz), trim)
+			P("Sill", Vector3.new(0.5, 0.25, 3.1), at(fx - side * 0.2, y + 2.25, wz), trim, M.Concrete)
+			if rng:NextNumber() < 0.25 then
+				P("AC", Vector3.new(1.2, 1.2, 1.8), at(fx - side * 0.7, y + 2.95, wz), rgb(225, 225, 220), M.SmoothPlastic)
 			end
 		end
-		if rng:NextNumber() < 0.4 then
-			P("Balcony", Vector3.new(1.6, 0.3, w * 0.7), at(fx - side * 0.8, y + 1, z), col:Lerp(rgb(0, 0, 0), 0.2), M.Concrete)
-			P("Rail", Vector3.new(0.15, 1.4, w * 0.7), at(fx - side * 1.55, y + 1.85, z), rgb(60, 60, 64), M.Metal)
-			-- ผ้าตากหลากสี ฮาๆ
-			for k = 1, 3 do
-				P("Laundry", Vector3.new(0.1, 1.2, 0.9), at(fx - side * 1.5, y + 2.6, z - w * 0.25 + k * w * 0.13), SIGN[rng:NextInteger(1, #SIGN)], M.Fabric, { CanCollide = false })
+		if fireEscape then
+			-- ชานบันไดหนีไฟเหล็กดำ + ราว + บันไดเฉียง
+			P("FireEscape", Vector3.new(2, 0.2, w * 0.7), at(fx - side * 1, y + 0.9, z), IRON, M.Metal)
+			P("FERail", Vector3.new(0.12, 1.2, w * 0.7), at(fx - side * 1.95, y + 1.6, z), IRON, M.Metal)
+			P("FERailTop", Vector3.new(0.18, 0.12, w * 0.7), at(fx - side * 1.95, y + 2.2, z), IRON, M.Metal)
+			if f < floors - 1 then
+				local a = Vector3.new(fx - side * 1.1, y + 1, z - w * 0.3)
+				local b2 = Vector3.new(fx - side * 1.1, y + 9.9, z + w * 0.15)
+				P("FEStairs", Vector3.new(1.4, 0.15, (b2 - a).Magnitude), CFrame.lookAt((a + b2) / 2, b2), IRON, M.Metal, { CanCollide = false })
 			end
 		end
 	end
-	P("Parapet", Vector3.new(depth, 1, w), at(x, H + 0.5, z), col:Lerp(rgb(0, 0, 0), 0.1), M.Concrete)
+	P("Parapet", Vector3.new(depth, 1, w), at(x, H + 0.5, z), trim:Lerp(col, 0.5), M.Concrete)
+	-- ถังน้ำบนหลังคาแบบนิวยอร์ก
+	if rng:NextNumber() < 0.2 then
+		local tx = x + side * 1.5
+		P("WaterTower", Vector3.new(4, 3.4, 3.4), at(tx, H + 4.5, z) * CFrame.Angles(0, 0, math.pi / 2), rgb(120, 86, 60), M.Wood, { Shape = Enum.PartType.Cylinder })
+		for _, o in ipairs({ { -1.2, -1.2 }, { 1.2, -1.2 }, { -1.2, 1.2 }, { 1.2, 1.2 } }) do
+			P("TowerLeg", Vector3.new(0.2, 2.6, 0.2), at(tx + o[1], H + 1.8, z + o[2]), IRON, M.Metal)
+		end
+	end
 	-- ป้ายนีออนแนวตั้ง
-	if rng:NextNumber() < 0.35 then
-		local ns = P("NeonSign", Vector3.new(3, 5, 0.4), at(fx - side * 1.8, 12 + rng:NextNumber(0, 3), z + w / 2 - 0.6), SIGN[rng:NextInteger(1, #SIGN)], M.Neon)
-		label(ns, Enum.NormalId.Front, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
-		label(ns, Enum.NormalId.Back, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
+	if rng:NextNumber() < 0.3 then
+		local ns = P("NeonSign", Vector3.new(2.6, 6, 0.4), at(fx - side * 1.8, 12 + rng:NextNumber(0, 3), z + w / 2 - 0.6), SIGN[rng:NextInteger(1, #SIGN)], M.Neon)
+		local word = NEON[rng:NextInteger(1, #NEON)]
+		label(ns, Enum.NormalId.Front, word, rgb(255, 255, 255))
+		label(ns, Enum.NormalId.Back, word, rgb(255, 255, 255))
 	end
 end
 
-local function pole(x, z)
-	P("Pole", Vector3.new(0.9, 24, 0.9), at(x, 12.5, z), rgb(160, 158, 150), M.Concrete)
-	P("CrossArm", Vector3.new(0.4, 0.4, 6), at(x, 22.5, z), rgb(70, 70, 70), M.Metal)
-	if rng:NextNumber() < 0.4 then
-		P("Transformer", Vector3.new(1.6, 2.4, 1.6), at(x - math.sign(x) * 0.9, 18, z), rgb(110, 115, 110), M.Metal)
-	end
-	-- โคมไฟถนน
-	local arm = P("LampArm", Vector3.new(3.5, 0.3, 0.3), at(x - math.sign(x) * 1.8, 16, z), rgb(70, 70, 70), M.Metal)
-	local lamp = P("Lamp", Vector3.new(1.2, 0.4, 0.8), at(x - math.sign(x) * 3.4, 15.7, z), rgb(255, 220, 160), M.Neon)
+-- เสาไฟถนนเหล็ก (cobra head)
+local function streetLamp(x, z)
+	local dark = rgb(48, 52, 50)
+	P("LampPost", Vector3.new(0.5, 15, 0.5), at(x, 8, z), dark, M.Metal)
+	P("LampBase", Vector3.new(0.9, 1, 0.9), at(x, 1, z), dark, M.Metal)
+	P("LampArm", Vector3.new(3.6, 0.25, 0.25), at(x - math.sign(x) * 1.8, 15.4, z), dark, M.Metal)
+	local lamp = P("Lamp", Vector3.new(1.4, 0.35, 0.8), at(x - math.sign(x) * 3.5, 15.2, z), rgb(255, 225, 170), M.Neon)
 	local light = Instance.new("PointLight")
 	light.Range = 26
 	light.Brightness = 1.3
 	light.Color = rgb(255, 210, 150)
 	light.Shadows = false
 	light.Parent = lamp
-	return arm
 end
 
--- ===== ตุ๊กตุ๊ก =====
-local function tuktuk(cf)
-	local blue, yellow, dark = rgb(30, 90, 190), rgb(250, 200, 30), rgb(25, 25, 28)
-	P("TukBase", Vector3.new(4.2, 1.2, 7), cf * at(0, 1.6, 0), blue, M.Metal)
-	P("TukNose", Vector3.new(2.2, 2.6, 1.6), cf * at(0, 2.6, -3.4), blue, M.Metal)
-	P("TukRoof", Vector3.new(4.6, 0.3, 5.4), cf * at(0, 6.4, 0.6), yellow, M.Metal)
-	for _, px in ipairs({ -2, 2 }) do
-		P("TukPost", Vector3.new(0.2, 4.2, 0.2), cf * at(px, 4.3, 3), dark, M.Metal)
-		P("TukPost", Vector3.new(0.2, 4.2, 0.2), cf * at(px, 4.3, -1.8), dark, M.Metal)
+-- เสาไฟฟ้าไม้ + สายไฟเรียบร้อย
+local function utilityPole(x, z)
+	P("UtilityPole", Vector3.new(0.8, 22, 0.8), at(x, 11.5, z), rgb(92, 70, 50), M.Wood)
+	P("CrossArm", Vector3.new(0.35, 0.35, 5), at(x, 21.5, z), rgb(92, 70, 50), M.Wood)
+	if rng:NextNumber() < 0.4 then
+		P("Transformer", Vector3.new(1.2, 2, 1.2), at(x - math.sign(x) * 0.8, 18.5, z), rgb(120, 125, 120), M.Metal, { Shape = Enum.PartType.Block })
 	end
-	P("TukSeat", Vector3.new(3.8, 1.4, 1.6), cf * at(0, 2.9, 2.2), rgb(150, 30, 30), M.Fabric)
-	P("TukWindshield", Vector3.new(3.8, 2, 0.15), cf * at(0, 4.6, -2), rgb(180, 220, 240), M.Glass, { Transparency = 0.5 })
-	for _, w in ipairs({ { 0, -3.2 }, { -2.1, 2.4 }, { 2.1, 2.4 } }) do
-		P("Wheel", Vector3.new(0.6, 1.8, 1.8), cf * at(w[1], 0.9, w[2]), dark, M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+end
+
+-- ===== แท็กซี่เหลือง =====
+local function taxi(cf)
+	local yellow, dark, glass = rgb(245, 196, 20), rgb(25, 25, 28), rgb(60, 80, 100)
+	P("TaxiBody", Vector3.new(4.4, 1.8, 10), cf * at(0, 1.9, 0), yellow, M.Metal)
+	P("TaxiCabin", Vector3.new(4, 1.6, 5.2), cf * at(0, 3.6, 0.4), yellow, M.Metal)
+	P("TaxiWindshield", Vector3.new(3.8, 1.3, 0.15), cf * at(0, 3.6, -2.25), glass, M.Glass, { Transparency = 0.2 })
+	P("TaxiRearGlass", Vector3.new(3.8, 1.3, 0.15), cf * at(0, 3.6, 3.05), glass, M.Glass, { Transparency = 0.2 })
+	for _, sx in ipairs({ -1, 1 }) do
+		P("TaxiSideGlass", Vector3.new(0.12, 1.1, 4.4), cf * at(sx * 2.02, 3.65, 0.4), glass, M.Glass, { Transparency = 0.2 })
+		P("Headlight", Vector3.new(0.9, 0.4, 0.1), cf * at(sx * 1.5, 2.2, -5.02), rgb(255, 250, 220), M.Neon)
+		P("Taillight", Vector3.new(0.8, 0.4, 0.1), cf * at(sx * 1.6, 2.2, 5.02), rgb(200, 20, 20), M.Neon)
 	end
-	local plate = P("TukSign", Vector3.new(4.2, 0.9, 0.2), cf * at(0, 7.0, -2.0), yellow, M.SmoothPlastic)
-	label(plate, Enum.NormalId.Front, "TAXI ตุ๊กตุ๊ก", dark)
+	P("Checker", Vector3.new(4.42, 0.3, 6), cf * at(0, 2.2, 0), dark, M.SmoothPlastic)
+	P("Bumper", Vector3.new(4.5, 0.4, 0.3), cf * at(0, 1.2, -5.1), rgb(160, 160, 165), M.Metal)
+	for _, wpos in ipairs({ { -2.1, -3.2 }, { 2.1, -3.2 }, { -2.1, 3.2 }, { 2.1, 3.2 } }) do
+		P("Wheel", Vector3.new(0.7, 1.8, 1.8), cf * at(wpos[1], 0.9, wpos[2]), dark, M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+	end
+	local roof = P("TaxiSign", Vector3.new(2, 0.6, 0.7), cf * at(0, 4.7, 0.4), rgb(255, 250, 230), M.Neon)
+	label(roof, Enum.NormalId.Front, "TAXI", dark)
+	label(roof, Enum.NormalId.Back, "TAXI", dark)
 end
 
 local function motorbike(cf, color)
@@ -269,14 +299,38 @@ local function motorbike(cf, color)
 	end
 end
 
-local function stall(cf)
+local function hotdogCart(cf)
 	local steel = rgb(190, 192, 196)
 	P("Cart", Vector3.new(5, 2.6, 2.6), cf * at(0, 1.8, 0), steel, M.DiamondPlate)
-	P("Display", Vector3.new(4.6, 1.6, 2.2), cf * at(0, 3.9, 0), rgb(200, 230, 240), M.Glass, { Transparency = 0.5 })
+	P("Grill", Vector3.new(4.4, 0.3, 2), cf * at(0, 3.25, 0), rgb(40, 40, 42), M.Metal)
+	for i = -2, 2 do
+		P("HotDog", Vector3.new(0.9, 0.22, 0.22), cf * at(i * 0.8, 3.5, 0.2), rgb(170, 70, 40), M.SmoothPlastic)
+	end
+	for _, wz in ipairs({ -1.4, 1.4 }) do
+		P("Wheel", Vector3.new(0.3, 1.4, 1.4), cf * at(-2.2, 0.7, wz) * CFrame.Angles(0, math.pi / 2, 0), rgb(25, 25, 28), M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+	end
 	P("UmbrellaPole", Vector3.new(0.2, 8, 0.2), cf * at(2.6, 4.5, 0), rgb(60, 60, 60), M.Metal)
-	P("Umbrella", Vector3.new(0.4, 9, 9), cf * at(2.6, 8.6, 0) * CFrame.Angles(0, 0, math.pi / 2), rgb(220, 50, 50), M.Fabric, { Shape = Enum.PartType.Cylinder, CanCollide = false })
-	local s = P("StallSign", Vector3.new(4.6, 1, 0.2), cf * at(0, 5.2, -1.2), rgb(250, 200, 30))
-	label(s, Enum.NormalId.Front, "หมูปิ้ง ไม้ละ 10.-", rgb(120, 20, 20))
+	P("Umbrella", Vector3.new(0.4, 9, 9), cf * at(2.6, 8.6, 0) * CFrame.Angles(0, 0, math.pi / 2), rgb(230, 190, 30), M.Fabric, { Shape = Enum.PartType.Cylinder, CanCollide = false })
+	local s2 = P("StallSign", Vector3.new(4.6, 1, 0.2), cf * at(0, 5.2, -1.2), rgb(200, 30, 30))
+	label(s2, Enum.NormalId.Front, "HOT DOGS $2", rgb(255, 230, 120))
+end
+
+-- ถังขยะใหญ่ (หนัก ตัวละครบินชนแล้วเด้ง)
+local function dumpster(pos, ry, color)
+	local cf = CFrame.new(pos) * CFrame.Angles(0, ry, 0)
+	local body = P("Dumpster", Vector3.new(6, 3.6, 3.4), cf * at(0, 1.9, 0), color, M.Metal, { Anchored = false })
+	local lid = P("DumpsterLid", Vector3.new(6.1, 0.25, 3.5), cf * at(0, 3.85, 0) * CFrame.Angles(math.rad(-6), 0, 0), rgb(30, 30, 32), M.SmoothPlastic, { Anchored = false, Massless = true })
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = body
+	w.Part1 = lid
+	w.Parent = lid
+end
+
+local function hydrant(pos)
+	local red = rgb(200, 30, 30)
+	P("Hydrant", Vector3.new(0.8, 1.6, 0.8), CFrame.new(pos + Vector3.new(0, 0.8, 0)), red, M.Metal)
+	P("HydrantCap", Vector3.new(1.0, 0.3, 1.0), CFrame.new(pos + Vector3.new(0, 1.7, 0)), red, M.Metal)
+	P("HydrantArm", Vector3.new(1.4, 0.35, 0.35), CFrame.new(pos + Vector3.new(0, 1.1, 0)), red, M.Metal)
 end
 
 -- ของฟิสิกส์ที่เตะกระจาย
@@ -291,7 +345,7 @@ end
 -- สร้างตัวแมพทั้งหมด (ใช้ตอนไม่มีแมพในไฟล์ หรือตอน export ไฟล์ .rbxlx)
 function MapBuilder.buildGeometry()
 	folder = Instance.new("Folder")
-	folder.Name = "SoiMap"
+	folder.Name = "AlleyMap"
 	folder.Parent = workspace
 
 	-- พื้นถนน + ฟุตบาท
@@ -302,12 +356,20 @@ function MapBuilder.buildGeometry()
 		local segs = math.floor((LEN * 2) / 6)
 		for i = 0, segs - 1 do
 			local z = -LEN + i * 6 + 3
-			P("Curb", Vector3.new(0.4, 0.54, 6), at(s * (ROAD_HW + 0.2), 0.24, z), (i % 2 == 0) and rgb(210, 40, 40) or rgb(240, 240, 240), M.SmoothPlastic)
+			local fireLane = (i % 7 == 3)
+			P("Curb", Vector3.new(0.4, 0.54, 6), at(s * (ROAD_HW + 0.2), 0.24, z), fireLane and rgb(200, 40, 40) or rgb(190, 188, 182), M.Concrete)
 		end
 	end
 	-- เส้นถนน
-	for z = -LEN + 5, LEN - 5, 10 do
-		P("LaneMark", Vector3.new(0.4, 0.05, 4.5), at(0, 0.01, z), rgb(250, 200, 30), M.SmoothPlastic, { CanCollide = false })
+	-- เส้นเหลืองคู่กลางถนน + เส้นขาวขอบทาง + ฝาท่อ
+	for _, x in ipairs({ -0.35, 0.35 }) do
+		P("CenterLine", Vector3.new(0.25, 0.05, LEN * 2), at(x, 0.01, 0), rgb(245, 190, 30), M.SmoothPlastic, { CanCollide = false })
+	end
+	for _, x in ipairs({ -ROAD_HW + 1.2, ROAD_HW - 1.2 }) do
+		P("EdgeLine", Vector3.new(0.3, 0.05, LEN * 2), at(x, 0.01, 0), rgb(235, 235, 235), M.SmoothPlastic, { CanCollide = false })
+	end
+	for _, z in ipairs({ -48, -12, 16, 44 }) do
+		P("Manhole", Vector3.new(0.06, 2.4, 2.4), at(rng:NextNumber(-8, 8), 0.02, z) * CFrame.Angles(0, 0, math.pi / 2), rgb(55, 55, 58), M.DiamondPlate, { Shape = Enum.PartType.Cylinder, CanCollide = false })
 	end
 	for i = -6, 6 do
 		P("Zebra", Vector3.new(1.3, 0.05, 6), at(i * 2.3, 0.01, -32), rgb(240, 240, 240), M.SmoothPlastic, { CanCollide = false })
@@ -321,21 +383,30 @@ function MapBuilder.buildGeometry()
 	local w = 10
 	for _, s in ipairs({ -1, 1 }) do
 		for z = -LEN + w / 2, LEN - w / 2, w do
-			shophouse(s, z, w)
+			building(s, z, w)
 		end
 	end
 	-- ปลายซอย
-	local wallC = rgb(150, 92, 72)
+	local wallC = rgb(132, 66, 52)
 	P("EndWallS", Vector3.new(FACADE * 2 + 4, 16, 2), at(0, 8, -LEN - 2), wallC, M.Brick)
 	local gs = P("Graffiti", Vector3.new(30, 6, 0.3), at(0, 7, -LEN - 0.85), rgb(255, 255, 255), M.SmoothPlastic, { Transparency = 1 })
-	label(gs, Enum.NormalId.Back, "ซอยเดือด 🔥 SOI BRAWL", rgb(255, 70, 40))
+	label(gs, Enum.NormalId.Back, "ALLEY BRAWL", rgb(255, 70, 40), nil, Enum.Font.PermanentMarker)
 	P("EndWallN", Vector3.new(FACADE * 2 + 4, 16, 2), at(0, 8, LEN + 2), wallC, M.Brick)
-	local dead = P("DeadEnd", Vector3.new(12, 3, 0.3), at(0, 9, LEN + 0.85), rgb(250, 200, 30), M.SmoothPlastic)
-	label(dead, Enum.NormalId.Front, "ทางตัน ⛔ ห้ามต่อยกันในซอย", rgb(160, 20, 20))
+	local dead = P("DeadEnd", Vector3.new(8, 2.2, 0.3), at(-5, 9, LEN + 0.85), rgb(250, 200, 30), M.SmoothPlastic)
+	label(dead, Enum.NormalId.Front, "DEAD END", rgb(20, 20, 20))
+	local nofight = P("NoFighting", Vector3.new(7, 2.2, 0.3), at(6, 9, LEN + 0.85), rgb(240, 240, 240), M.SmoothPlastic)
+	label(nofight, Enum.NormalId.Front, "NO FIGHTING ⛔", rgb(190, 20, 20))
+	-- รั้วลวดตาข่ายหน้ากำแพง
+	for i = -3, 3 do
+		P("FencePost", Vector3.new(0.25, 10, 0.25), at(i * 6, 5, LEN - 1.5), rgb(150, 150, 155), M.Metal)
+	end
+	P("ChainLink", Vector3.new(36, 9, 0.1), at(0, 4.8, LEN - 1.5), rgb(170, 170, 175), M.DiamondPlate, { Transparency = 0.55 })
+	local graf = P("Graffiti2", Vector3.new(14, 4, 0.3), at(0, 4, -LEN - 0.85), rgb(255, 255, 255), M.SmoothPlastic, { Transparency = 1 })
+	label(graf, Enum.NormalId.Back, "NO RULES", rgb(60, 200, 255), nil, Enum.Font.PermanentMarker)
 	-- ป้ายซุ้มทางเข้า
-	local banner = P("Banner", Vector3.new(ROAD_HW * 2 + 2, 4, 0.4), at(0, 17, -LEN + 6), rgb(190, 30, 30), M.Fabric, { CanCollide = false })
-	label(banner, Enum.NormalId.Front, "ยินดีต้อนรับสู่ ซอยเดือด", rgb(255, 230, 120))
-	label(banner, Enum.NormalId.Back, "ซอยเดือด  SOI BRAWL", rgb(255, 230, 120))
+	local banner = P("Banner", Vector3.new(ROAD_HW * 2 + 2, 4, 0.4), at(0, 17, -LEN + 6), rgb(30, 30, 34), M.Fabric, { CanCollide = false })
+	label(banner, Enum.NormalId.Front, "WELCOME TO THE ALLEY", rgb(255, 210, 60))
+	label(banner, Enum.NormalId.Back, "ALLEY BRAWL • FIGHT NIGHT", rgb(255, 210, 60))
 
 	-- กำแพงล่องหน (กันร่างบินออก/ขึ้นหลังคา)
 	local inv = { Transparency = 1, CanQuery = false, CastShadow = false }
@@ -345,33 +416,28 @@ function MapBuilder.buildGeometry()
 	P("InvisWall", Vector3.new(FACADE * 2, 220, 1), at(0, 110, -LEN - 0.5), rgb(0, 0, 0), M.SmoothPlastic, inv)
 	P("InvisWall", Vector3.new(FACADE * 2, 220, 1), at(0, 110, LEN + 0.5), rgb(0, 0, 0), M.SmoothPlastic, inv)
 
-	-- เสาไฟ + สายไฟพันกันระโยงระยาง
-	local poles = {}
-	for _, s in ipairs({ -1, 1 }) do
+	-- เสาไฟถนน + เสาไฟฟ้าไม้ สายไฟเรียบๆ ไม่พันกัน
+	for _, sgn in ipairs({ -1, 1 }) do
 		for z = -60, 60, 20 do
-			pole(s * (ROAD_HW + 1.2), z)
-			table.insert(poles, { x = s * (ROAD_HW + 1.2), z = z })
+			streetLamp(sgn * (ROAD_HW + 1.2), z + (sgn > 0 and 10 or 0))
 		end
-	end
-	for _, s in ipairs({ -1, 1 }) do
-		for z = -60, 40, 20 do
-			for k = 1, 3 do
-				local y = 21 + k * 0.6
-				wire(Vector3.new(s * (ROAD_HW + 1.2), y, z), Vector3.new(s * (ROAD_HW + 1.2), y, z + 20), 1.2 + k * 0.5)
+		for z = -55, 55, 22 do
+			utilityPole(sgn * (FACADE - 1.5), z)
+		end
+		for z = -55, 33, 22 do
+			for k = 1, 2 do
+				wire(Vector3.new(sgn * (FACADE - 1.5) + (k - 1.5) * 3, 21.4, z), Vector3.new(sgn * (FACADE - 1.5) + (k - 1.5) * 3, 21.4, z + 22), 1.4)
 			end
 		end
 	end
-	for z = -60, 60, 20 do
-		for k = 1, 4 do
-			local y = 19 + k * 0.9
-			wire(Vector3.new(-(ROAD_HW + 1.2), y, z + rng:NextNumber(-1, 1)), Vector3.new(ROAD_HW + 1.2, y + rng:NextNumber(-1, 1), z + rng:NextNumber(-3, 3)), 1.5 + k * 0.6)
-		end
+	for _, z in ipairs({ -33, 11 }) do
+		wire(Vector3.new(-(FACADE - 1.5), 21.4, z), Vector3.new(FACADE - 1.5, 21.4, z), 2.5)
 	end
 
 	-- สังเวียนข้างทาง
 	local ringZ = 30
 	local ring = P("Ring", Vector3.new(16, 1.2, 16), at(0, 0.6, ringZ), rgb(40, 90, 170), M.Fabric)
-	label(ring, Enum.NormalId.Top, "สังเวียนซอย", rgb(255, 255, 255))
+	label(ring, Enum.NormalId.Top, "FIGHT NIGHT", rgb(255, 255, 255))
 	P("RingApron", Vector3.new(17, 1, 17), at(0, 0.4, ringZ), rgb(30, 30, 34), M.SmoothPlastic)
 	local cornerC = { rgb(220, 40, 40), rgb(40, 80, 220), rgb(240, 240, 240), rgb(240, 240, 240) }
 	local corners = { { -7.7, -7.7 }, { 7.7, 7.7 }, { 7.7, -7.7 }, { -7.7, 7.7 } }
@@ -389,27 +455,38 @@ function MapBuilder.buildGeometry()
 		end
 	end
 
-	-- ยานพาหนะ ร้านรถเข็น
-	tuktuk(at(-11, 0, -44) * CFrame.Angles(0, math.rad(8), 0))
-	motorbike(at(13, 0, -40) * CFrame.Angles(0, math.rad(-20), 0), rgb(200, 30, 30))
-	motorbike(at(14.5, 0, -36) * CFrame.Angles(0, math.rad(-15), 0), rgb(30, 30, 30))
-	stall(at(-12.5, 0, 52) * CFrame.Angles(0, math.rad(90), 0))
-	-- รถเข็นแตงโม
-	P("MelonCart", Vector3.new(5, 1.6, 3), at(12, 1.6, 50), rgb(130, 90, 50), M.Wood)
-	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 48.6), rgb(130, 90, 50), M.Wood)
-	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 51.4), rgb(130, 90, 50), M.Wood)
+	-- เก้าอี้พับเหล็กรอบสังเวียน (เตะกระจายได้)
+	for i = 1, 8 do
+		local a2 = i / 8 * math.pi * 2
+		prop("RingsideChair", Vector3.new(1.4, 1.6, 1.4), Vector3.new(math.cos(a2) * 11.5, 0.8, ringZ + math.sin(a2) * 11.5), rgb(120, 122, 128), M.Metal)
+	end
+
+	-- รถ ร้านรถเข็น
+	taxi(at(-11.5, 0, -44) * CFrame.Angles(0, math.rad(4), 0))
+	motorbike(at(13, 0, -40) * CFrame.Angles(0, math.rad(-20), 0), rgb(30, 30, 30))
+	motorbike(at(14.5, 0, -36) * CFrame.Angles(0, math.rad(-15), 0), rgb(140, 20, 20))
+	hotdogCart(at(-12.5, 0, 52) * CFrame.Angles(0, math.rad(90), 0))
+	-- แผงผลไม้ (แตงโมแตกได้)
+	P("FruitStand", Vector3.new(5, 1.6, 3), at(12, 1.6, 50), rgb(110, 80, 50), M.Wood)
+	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 48.6), rgb(110, 80, 50), M.Wood)
+	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 51.4), rgb(110, 80, 50), M.Wood)
+	local fs = P("FruitSign", Vector3.new(4.6, 1, 0.2), at(12, 4.6, 48.4), rgb(30, 120, 50))
+	label(fs, Enum.NormalId.Front, "FRESH FRUIT", rgb(255, 255, 255))
 	for i = 0, 5 do
 		makeMelon(Vector3.new(10.6 + (i % 3) * 1.45, 3.3, 49.3 + math.floor(i / 3) * 1.45))
 	end
 
-	-- ของเตะได้: ถังขยะ กล่อง เก้าอี้พลาสติก
+	-- ของข้างทาง: ถังขยะใหญ่ ถังขยะเหล็ก กล่อง พาเลท หัวดับเพลิง ตู้หนังสือพิมพ์
+	dumpster(Vector3.new(-18.8, 0.5, -24), 0, rgb(40, 90, 60))
+	dumpster(Vector3.new(18.8, 0.5, 2), 0, rgb(40, 70, 130))
+	dumpster(Vector3.new(-18.8, 0.5, 36), 0, rgb(40, 90, 60))
 	for i = 1, 8 do
-		local s = (i % 2 == 0) and 1 or -1
+		local sgn = (i % 2 == 0) and 1 or -1
 		local z = -55 + i * 13 + rng:NextNumber(-2, 2)
-		local bin = prop("TrashBin", Vector3.new(2, 2.6, 2), Vector3.new(s * (ROAD_HW + 3), 2, z), (i % 3 == 0) and rgb(240, 130, 30) or rgb(40, 130, 60), M.SmoothPlastic)
-		local lid = P("Lid", Vector3.new(2.1, 0.3, 2.1), bin.CFrame * at(0, 1.45, 0), rgb(30, 30, 30), M.SmoothPlastic, { Anchored = false, Massless = true })
+		local can = prop("TrashCan", Vector3.new(1.6, 2.4, 1.6), Vector3.new(sgn * (ROAD_HW + 3), 1.7, z), rgb(150, 152, 156), M.Metal)
+		local lid = P("Lid", Vector3.new(1.75, 0.25, 1.75), can.CFrame * at(0, 1.3, 0), rgb(120, 122, 126), M.Metal, { Anchored = false, Massless = true })
 		local wc = Instance.new("WeldConstraint")
-		wc.Part0 = bin
+		wc.Part0 = can
 		wc.Part1 = lid
 		wc.Parent = lid
 	end
@@ -417,13 +494,17 @@ function MapBuilder.buildGeometry()
 		for i = 0, 4 do
 			prop("Box", Vector3.new(1.6, 1.6, 1.6), Vector3.new(st[1] + (i % 2) * 1.7 - 0.8, 0.85 + math.floor(i / 2) * 1.62, st[2] + (i % 3) * 0.2), rgb(176, 136, 90), M.SmoothPlastic)
 		end
+		prop("Pallet", Vector3.new(3.6, 0.5, 3.6), Vector3.new(st[1], 0.3, st[2] + 3.5), rgb(160, 130, 90), M.Wood)
 	end
-	for i = 1, 10 do
-		prop("Stool", Vector3.new(1.1, 1.3, 1.1), Vector3.new(-9 + (i % 5) * 1.8, 0.7, 47 + math.floor(i / 5) * 3), (i % 2 == 0) and rgb(220, 40, 40) or rgb(40, 90, 210), M.SmoothPlastic)
+	for _, z in ipairs({ -50, -6, 26, 58 }) do
+		hydrant(Vector3.new((z % 2 == 0) and 17.5 or -17.5, 0.5, z))
 	end
-	prop("Table", Vector3.new(4, 0.25, 2.6), Vector3.new(-6, 2.2, 50), rgb(240, 240, 240), M.SmoothPlastic)
-	for _, pz in ipairs({ { -7.7, 49 }, { -4.3, 49 }, { -7.7, 51 }, { -4.3, 51 } }) do
-		prop("TableLeg", Vector3.new(0.25, 2, 0.25), Vector3.new(pz[1], 1, pz[2]), rgb(200, 200, 200), M.Metal)
+	for i, z in ipairs({ -30, 8, 40 }) do
+		local nb = P("NewsBox", Vector3.new(1.4, 2.6, 1.2), at(i % 2 == 0 and 20.6 or -20.6, 1.8, z), (i % 2 == 0) and rgb(30, 70, 160) or rgb(190, 30, 30), M.Metal)
+		label(nb, i % 2 == 0 and Enum.NormalId.Left or Enum.NormalId.Right, "NEWS", rgb(255, 255, 255))
+	end
+	for i = 1, 6 do
+		prop("TrafficCone", Vector3.new(0.9, 1.4, 0.9), Vector3.new(rng:NextNumber(-10, 10), 0.75, -38 + i * 1.6), rgb(255, 110, 20), M.SmoothPlastic)
 	end
 
 	-- จุดอาวุธ (แท่นเหลือง) + จุดเกิด (บล็อกล่องหน) : ย้ายใน Studio ได้ เกมอ่านตำแหน่งจากชิ้นพวกนี้
@@ -467,7 +548,7 @@ local function applyLighting()
 end
 MapBuilder.applyLighting = applyLighting
 
--- เรียกตอนเริ่มเกม: ใช้แมพที่อยู่ในไฟล์ (Workspace > SoiMap) ถ้ามี ไม่มีก็สร้างใหม่
+-- เรียกตอนเริ่มเกม: ใช้แมพที่อยู่ในไฟล์ (Workspace > AlleyMap) ถ้ามี ไม่มีก็สร้างใหม่
 function MapBuilder.build(r)
 	remotes = r
 	-- ลบ Baseplate / SpawnLocation จากเทมเพลต (ถ้ามี) กันพื้นซ้อนกัน
@@ -476,7 +557,7 @@ function MapBuilder.build(r)
 			d:Destroy()
 		end
 	end
-	local existing = workspace:FindFirstChild("SoiMap")
+	local existing = workspace:FindFirstChild("AlleyMap")
 	if existing then
 		folder = existing
 	else

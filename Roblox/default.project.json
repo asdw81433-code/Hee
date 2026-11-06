@@ -1,5 +1,5 @@
 {
-  "name": "SoiBrawl",
+  "name": "AlleyBrawl",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {

@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : ระบบต่อสู้ (ฝั่ง server ตัดสินทุกอย่าง)
+--  ALLEY BRAWL : ระบบต่อสู้ (ฝั่ง server ตัดสินทุกอย่าง)
 -- ============================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
@@ -148,7 +148,7 @@ local SEVER = {
 Combat.SEVER = SEVER
 local MEAT = Color3.fromRGB(120, 10, 14)
 local BONE = Color3.fromRGB(235, 228, 205)
-local SEVER_WORD = { arm = "แขนหลุด!!", hand = "มือหลุด!!", leg = "ขาหลุด!!", foot = "เท้าหลุด!!", head = "หัวหลุด!!", torso = "ขาดครึ่งท่อน!!" }
+local SEVER_WORD = { arm = "ARM OFF!!", hand = "HAND OFF!!", leg = "LEG OFF!!", foot = "FOOT OFF!!", head = "HEADLESS!!", torso = "CUT IN HALF!!" }
 
 local function gorePiece(base, name, cf, size, color)
 	local p = Instance.new("Part")
@@ -302,7 +302,7 @@ function Combat.sever(model, partName, vel, F)
 	if F then
 		updateLosses(F)
 	end
-	fx("sever", { pos = pos, stump = stumpPart or base, piece = part, gore = Config.GoreLevel, word = SEVER_WORD[def.kind] or "หลุด!!", victim = model })
+	fx("sever", { pos = pos, stump = stumpPart or base, piece = part, gore = Config.GoreLevel, word = SEVER_WORD[def.kind] or "OFF!!", victim = model })
 	return true
 end
 
@@ -692,7 +692,7 @@ local function doGrab(F, dir)
 			G.model:SetAttribute("Block", false)
 		end
 		setAct(G, "hurt")
-		fx("word", { pos = G.head.Position, word = "จับได้!", big = false })
+		fx("word", { pos = G.head.Position, word = "GOTCHA!", big = false })
 		task.delay(0.3, function()
 			if not G.alive or not F.alive or F.actN ~= id2 then
 				return
@@ -702,7 +702,7 @@ local function doGrab(F, dir)
 			damage(G, sx.dmg, F)
 			setSuper(F, F.super + sx.super)
 			G.daze = G.daze + sx.daze
-			fx("hit", { pos = G.head.Position, dir = -dir, power = sx.dmg, word = "ซูเพล็กซ์!!", blood = math.floor(4 * Config.Blood), teeth = 0, attacker = F.model, victim = G.model, sound = "heavy", big = true })
+			fx("hit", { pos = G.head.Position, dir = -dir, power = sx.dmg, word = "SUPLEX!!", blood = math.floor(4 * Config.Blood), teeth = 0, attacker = F.model, victim = G.model, sound = "heavy", big = true })
 			Combat.ragdoll(G, vel, spin, G.hum.Health > 0 and sx.ragdoll or nil)
 		end)
 	end)

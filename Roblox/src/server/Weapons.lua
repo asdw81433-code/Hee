@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : อาวุธข้างถนน (กระทะ ไม้หน้าสาม เก้าอี้ ปลาทู กรวย ขวดน้ำปลา)
+--  ALLEY BRAWL : อาวุธข้างถนน (กระทะ ไม้ตอกตะปู เก้าอี้พับ ปลายักษ์ กรวย ขวดซอส)
 --  อาวุธสร้างใน "พื้นที่มือ": จุด (0,0,0) = มือ, ตัวอาวุธยื่นไปทางแกน -Y
 -- ============================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,12 +50,13 @@ local BUILD = {
 		return 3.8
 	end,
 	chair = function(m)
-		local red = Color3.fromRGB(205, 40, 40)
-		wpart(m, "Back", Vector3.new(1.6, 1.4, 0.16), CFrame.new(0, -0.6, 0), red)
-		wpart(m, "Seat", Vector3.new(1.6, 0.16, 1.6), CFrame.new(0, -1.35, -0.72), red)
+		-- เก้าอี้พับเหล็กสไตล์มวยปล้ำ
+		local grey = Color3.fromRGB(120, 122, 128)
+		wpart(m, "Back", Vector3.new(1.5, 1.1, 0.12), CFrame.new(0, -0.55, 0), grey, Enum.Material.Metal)
+		wpart(m, "Seat", Vector3.new(1.5, 0.12, 1.4), CFrame.new(0, -1.2, -0.65), grey, Enum.Material.Metal)
 		for i, x in ipairs({ -0.68, 0.68 }) do
-			wpart(m, "LegB" .. i, Vector3.new(0.18, 1.5, 0.18), CFrame.new(x, -2.05, 0) * CFrame.Angles(DEG(-8), 0, 0), red)
-			wpart(m, "LegF" .. i, Vector3.new(0.18, 1.5, 0.18), CFrame.new(x, -2.05, -1.45) * CFrame.Angles(DEG(8), 0, 0), red)
+			wpart(m, "LegB" .. i, Vector3.new(0.12, 2.6, 0.12), CFrame.new(x, -1.45, 0.05) * CFrame.Angles(DEG(-10), 0, 0), grey, Enum.Material.Metal)
+			wpart(m, "LegF" .. i, Vector3.new(0.12, 1.8, 0.12), CFrame.new(x, -1.95, -1.2) * CFrame.Angles(DEG(14), 0, 0), grey, Enum.Material.Metal)
 		end
 		return 2.8
 	end,
@@ -80,13 +81,14 @@ local BUILD = {
 		return 1.8
 	end,
 	bottle = function(m)
-		local glass = Color3.fromRGB(120, 66, 22)
-		wpart(m, "Cap", Vector3.new(0.28, 0.14, 0.28), CFrame.new(0, 0.12, 0), Color3.fromRGB(200, 30, 30))
-		local neck = wpart(m, "Neck", Vector3.new(0.24, 0.65, 0.24), CFrame.new(0, -0.3, 0), glass, Enum.Material.Glass)
-		neck.Transparency = 0.15
-		local body = wpart(m, "Body", Vector3.new(0.55, 1.2, 0.55), CFrame.new(0, -1.2, 0), glass, Enum.Material.Glass)
-		body.Transparency = 0.15
-		wpart(m, "Label", Vector3.new(0.57, 0.45, 0.57), CFrame.new(0, -1.2, 0), Color3.fromRGB(240, 220, 120))
+		-- ขวดซอสมะเขือเทศแก้ว
+		local red = Color3.fromRGB(190, 20, 20)
+		wpart(m, "Cap", Vector3.new(0.3, 0.16, 0.3), CFrame.new(0, 0.12, 0), Color3.fromRGB(240, 240, 240))
+		local neck = wpart(m, "Neck", Vector3.new(0.26, 0.6, 0.26), CFrame.new(0, -0.3, 0), red, Enum.Material.Glass)
+		neck.Transparency = 0.1
+		local body = wpart(m, "Body", Vector3.new(0.6, 1.25, 0.6), CFrame.new(0, -1.2, 0), red, Enum.Material.Glass)
+		body.Transparency = 0.1
+		wpart(m, "Label", Vector3.new(0.62, 0.5, 0.62), CFrame.new(0, -1.15, 0), Color3.fromRGB(245, 240, 225))
 		return 1.9
 	end,
 }
@@ -363,7 +365,7 @@ function Weapons.onHit(F, G)
 		F.model:SetAttribute("Weapon", nil)
 		F.model:SetAttribute("WeaponUses", nil)
 		coneHat(m, G)
-		Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "หัวกรวย! 🤡", big = true })
+		Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "CONEHEAD! 🤡", big = true })
 		return
 	end
 	if uses <= 0 then
@@ -420,7 +422,7 @@ function Weapons.throw(F, dir)
 					m:SetAttribute("Uses", uses)
 					if wdef.hat then
 						coneHat(m, G)
-						Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "หัวกรวย! 🤡", big = true })
+						Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "CONEHEAD! 🤡", big = true })
 					elseif uses <= 0 then
 						Weapons.shatter(m, hit.Position)
 					end
@@ -433,7 +435,7 @@ function Weapons.throw(F, dir)
 			table.insert(conns, p.Touched:Connect(onTouch))
 		end
 	end
-	Combat.fx("word", { pos = start, word = "ขว้าง!", small = true })
+	Combat.fx("word", { pos = start, word = "YOINK! THROW!", small = true })
 	task.delay(2.2, finish)
 end
 

@@ -15,7 +15,7 @@ local CB = require(main.CharacterBuilder)
 local mapFolder = MapBuilder.buildGeometry()
 MapBuilder.applyLighting()
 local rig = CB.buildRig(Config.Look)
-rig.Name = "SoiBrawler"
+rig.Name = "Brawler"
 
 -- ===== enum -> ตัวเลขใน XML =====
 local ENUMS = {
@@ -23,7 +23,7 @@ local ENUMS = {
 	PartType = { Ball = 0, Block = 1, Cylinder = 2 },
 	NormalId = { Right = 0, Top = 1, Back = 2, Left = 3, Bottom = 4, Front = 5 },
 	SurfaceGuiSizingMode = { FixedSize = 0, PixelsPerStud = 1 },
-	Font = { GothamBold = 19, GothamBlack = 20 },
+	Font = { GothamBold = 19, GothamBlack = 20, PermanentMarker = 38 },
 	SurfaceType = { Smooth = 0 },
 	HumanoidRigType = { R6 = 0, R15 = 1 },
 	HumanoidDisplayDistanceType = { Viewer = 0, Subject = 1, None = 2 },

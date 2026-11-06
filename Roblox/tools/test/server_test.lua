@@ -18,9 +18,9 @@ if PREBUILT then
 	-- จำลองไฟล์ .rbxlx: มีแมพ + โมเดลผู้เล่นอยู่แล้วก่อนเริ่มเกม
 	require(main.MapBuilder).buildGeometry()
 	local rig = require(main.CharacterBuilder).buildRig(Config.Look)
-	rig.Name = "SoiBrawler"
+	rig.Name = "Brawler"
 	rig.Parent = game:GetService("ServerStorage")
-	print("prebuilt map parts:", #workspace.SoiMap:GetChildren())
+	print("prebuilt map parts:", #workspace.AlleyMap:GetChildren())
 end
 task.spawn(loadScript(main))
 local Combat = require(main.Combat)
@@ -132,10 +132,10 @@ for step = 1, math.floor(130 / dt) do
 		didGlass = true
 		local fast = Instance.new("Part")
 		fast.AssemblyLinearVelocity = Vector3.new(40, 0, 0)
-		for _, d in ipairs(workspace.SoiMap:GetChildren()) do
+		for _, d in ipairs(workspace.AlleyMap:GetChildren()) do
 			if d:GetAttribute("Breakable") == "glass" then d.Touched:Fire(fast) break end
 		end
-		for _, d in ipairs(workspace.SoiMap:GetChildren()) do
+		for _, d in ipairs(workspace.AlleyMap:GetChildren()) do
 			if d.Name == "Watermelon" then d.Touched:Fire(fast) didMelon = true break end
 		end
 	end
@@ -169,7 +169,7 @@ for _, v in ipairs(RS.BrawlState.Scores:GetChildren()) do
 	print("  score", v:GetAttribute("DisplayName"), v.Value, "deaths", v:GetAttribute("Deaths"))
 end
 print("weapon picked/thrown:", didWeapon, didThrow, "glass/melon:", didGlass, didMelon, "super:", didSuper)
-print("maps in workspace:", (function() local n = 0 for _, c in ipairs(workspace:GetChildren()) do if c.Name == "SoiMap" then n = n + 1 end end return n end)())
+print("maps in workspace:", (function() local n = 0 for _, c in ipairs(workspace:GetChildren()) do if c.Name == "AlleyMap" then n = n + 1 end end return n end)())
 print("ERRORS:", #ERRORS)
 local pw = {}
 for k in pairs(PROPWRITES) do pw[#pw + 1] = k end

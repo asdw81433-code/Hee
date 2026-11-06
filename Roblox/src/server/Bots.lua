@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : นักเลง AI
+--  ALLEY BRAWL : นักเลง AI
 -- ============================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))

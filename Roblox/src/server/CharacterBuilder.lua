@@ -1,7 +1,7 @@
 -- ============================================================
---  ซอยเดือด : ตัวคนสัดส่วนจริงแบบ gore-sandbox ragdoll (15 ชิ้น: หัว อกบน/ล่าง
+--  ALLEY BRAWL : ตัวคนสัดส่วนจริงแบบ gore-sandbox ragdoll (15 ชิ้น: หัว อกบน/ล่าง
 --  ต้นแขน ปลายแขน มือ ต้นขา หน้าแข้ง เท้า) ข้อต่อกลม แขนขาหลุดได้ทุกข้อ มีแผลติดตัว
---  ถ้ามีโมเดล ServerStorage > SoiBrawler จะใช้โมเดลนั้นแทน (แก้ใน Studio ได้)
+--  ถ้ามีโมเดล ServerStorage > Brawler จะใช้โมเดลนั้นแทน (แก้ใน Studio ได้)
 -- ============================================================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
@@ -441,7 +441,7 @@ end
 function CB.buildRig(look)
 	look = look or Config.Look
 	local model = Instance.new("Model")
-	model.Name = "SoiBrawler"
+	model.Name = "Brawler"
 	local parts = {}
 	local root = newPart({ Name = "HumanoidRootPart", Size = ROOT_SIZE, Transparency = 1, CanCollide = false, CFrame = CFrame.new(0, ROOT_Y, 0) })
 	root.Parent = model
@@ -587,7 +587,7 @@ end
 -- ===== สร้างตัวละครพร้อมเล่น =====
 -- คืนค่า model (ยังไม่ parent)
 function CB.build(look, displayName, player)
-	local template = ServerStorage:FindFirstChild("SoiBrawler")
+	local template = ServerStorage:FindFirstChild("Brawler")
 	local model
 	if template and template:IsA("Model") and template:FindFirstChild("HumanoidRootPart") and template:FindFirstChildOfClass("Humanoid") then
 		model = template:Clone()

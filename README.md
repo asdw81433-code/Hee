@@ -1,6 +1,6 @@
 # NEON BAY: Static Saints
 
-> **ใหม่ล่าสุด:** [ซอยเดือด: SOI BRAWL](Roblox/README.md) — เกมตีกันข้างถนนสำหรับ Roblox (เปิด `Roblox/SoiBrawl.rbxlx` ใน Roblox Studio แมพอยู่ในไฟล์แล้ว กด Play ได้เลย) ร่าง ragdoll สัดส่วนคนจริง 15 ชิ้น แขนขาหลุดได้ เลือด อาวุธข้างถนน บอท AI ปุ่มมือถือ
+> **ใหม่ล่าสุด:** [ALLEY BRAWL](Roblox/README.md) — เกมตีกันข้างถนนสไตล์ฝรั่งสำหรับ Roblox (เปิด `Roblox/AlleyBrawl.rbxlx` ใน Roblox Studio แมพอยู่ในไฟล์แล้ว กด Play ได้เลย) ตรอกเมืองอเมริกา ร่าง ragdoll สัดส่วนคนจริง 15 ชิ้น แขนขาหลุดได้ เลือด อาวุธข้างถนน บอท AI ปุ่มมือถือ
 >
 > **ใหม่:** [สังเวียนเลือด: CAGE BLOOD](CageBlood/README.md) — เกม MMA แซนด์บ็อกซ์บนเว็บ (เปิด `CageBlood/index.html` เล่นได้ทันที) ตัวละครเหลี่ยม วาดหน้าเองได้ ระบบเลือด/บาดเจ็บสมจริง โหมดอาชีพพร้อมเนื้อเรื่อง
 

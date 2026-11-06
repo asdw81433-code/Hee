@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : SOI BRAWL  -  สคริปต์หลักฝั่ง Server
+--  ALLEY BRAWL  -  สคริปต์หลักฝั่ง Server
 --  (ServerScriptService > BrawlServer  + ModuleScript ลูก 6 ตัว)
 -- ============================================================
 local Players = game:GetService("Players")
@@ -93,8 +93,8 @@ local function syncScores()
 		if st.player and st.player.Parent then
 			local ls = st.player:FindFirstChild("leaderstats")
 			if ls then
-				ls.KO.Value = st.kos
-				ls["ล้ม"].Value = st.deaths
+				ls.KOs.Value = st.kos
+				ls.Deaths.Value = st.deaths
 			end
 		end
 	end
@@ -157,10 +157,10 @@ local function onPlayerAdded(player)
 	local ls = Instance.new("Folder")
 	ls.Name = "leaderstats"
 	local ko = Instance.new("IntValue")
-	ko.Name = "KO"
+	ko.Name = "KOs"
 	ko.Parent = ls
 	local dn = Instance.new("IntValue")
-	dn.Name = "ล้ม"
+	dn.Name = "Deaths"
 	dn.Parent = ls
 	ls.Parent = player
 	player.CameraMaxZoomDistance = 40
@@ -207,7 +207,7 @@ local function botName()
 		end
 	end
 	if #pool == 0 then
-		return "นักเลง #" .. math.random(10, 99)
+		return "Thug #" .. math.random(10, 99)
 	end
 	local n = pool[math.random(1, #pool)]
 	usedNames[n] = true
@@ -414,4 +414,4 @@ task.spawn(function()
 	end
 end)
 
-print("[ซอยเดือด] พร้อมตีกันแล้ว! 🔥")
+print("[ALLEY BRAWL] ready to rumble! 🔥")

@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : เอฟเฟกต์ฝั่ง client
+--  ALLEY BRAWL : เอฟเฟกต์ฝั่ง client
 --  เลือดเป็นหยดจริง (ตก กระเซ็น ติดพื้น/กำแพง), ฟันกระเด็น, คำการ์ตูน, กล้องสั่น, เสียง
 -- ============================================================
 local Players = game:GetService("Players")
@@ -98,7 +98,7 @@ function Effects.word(pos, text, opts)
 	t.BackgroundTransparency = 1
 	t.Text = text
 	t.TextScaled = true
-	t.Font = Enum.Font.FredokaOne
+	t.Font = Enum.Font.Bangers
 	t.TextColor3 = opts.color or WORD_COLORS[rng:NextInteger(1, #WORD_COLORS)]
 	t.Rotation = rng:NextNumber(-14, 14)
 	t.Parent = bb
@@ -313,7 +313,7 @@ handlers.hit = function(d)
 	local pos, dir = d.pos, d.dir or Vector3.new(0, 0, -1)
 	local mine = myChar()
 	local power = d.power or 5
-	Effects.word(pos, d.word or "ปั้ก!", { big = d.big })
+	Effects.word(pos, d.word or "POW!", { big = d.big })
 	Effects.sound(d.sound or "hit", pos, math.clamp(power / 10, 0.5, 1.5))
 	if d.blood and d.blood > 0 then
 		Effects.spray(pos, dir, d.blood, 12 + power, nil, 1)
@@ -325,7 +325,7 @@ handlers.hit = function(d)
 	end
 	if d.teeth and d.teeth > 0 then
 		Effects.teeth(pos, dir, d.teeth)
-		Effects.word(pos + Vector3.new(0, 1.2, 0), "🦷 ฟันหลุด!", { small = true, color = Color3.fromRGB(255, 255, 255) })
+		Effects.word(pos + Vector3.new(0, 1.2, 0), "🦷 TOOTH!", { small = true, color = Color3.fromRGB(255, 255, 255) })
 	end
 	if d.victim and not d.impact then
 		flash(d.victim, d.crit and Color3.fromRGB(255, 80, 60) or nil)
@@ -357,7 +357,7 @@ handlers.hit = function(d)
 end
 
 handlers.block = function(d)
-	Effects.word(d.pos, d.word or "กัน!", { big = d.big, color = Color3.fromRGB(120, 230, 255) })
+	Effects.word(d.pos, d.word or "BLOCKED!", { big = d.big, color = Color3.fromRGB(120, 230, 255) })
 	Effects.sound("clang", d.pos, d.big and 1.2 or 0.7)
 	if d.victim then
 		flash(d.victim, Color3.fromRGB(120, 200, 255))
@@ -376,7 +376,7 @@ handlers.dizzy = function(d)
 	if d.victim then
 		local head = d.victim:FindFirstChild("Head")
 		if head then
-			Effects.word(head.Position + Vector3.new(0, 1.5, 0), "มึนตึ้บ! 😵", { big = true, color = Color3.fromRGB(200, 160, 255) })
+			Effects.word(head.Position + Vector3.new(0, 1.5, 0), "DIZZY! 😵", { big = true, color = Color3.fromRGB(200, 160, 255) })
 		end
 	end
 end
@@ -385,7 +385,7 @@ handlers.super = function(d)
 	local char = d.char
 	local head = char and char:FindFirstChild("Head")
 	if head then
-		Effects.word(head.Position + Vector3.new(0, 2, 0), "หมัดจรวด!!! 🚀", { big = true, color = Color3.fromRGB(255, 80, 40) })
+		Effects.word(head.Position + Vector3.new(0, 2, 0), "ROCKET PUNCH!!! 🚀", { big = true, color = Color3.fromRGB(255, 80, 40) })
 		Effects.sound("super", head.Position, 1.4)
 		local cam = workspace.CurrentCamera
 		if cam and (cam.CFrame.Position - head.Position).Magnitude < 60 then
@@ -400,7 +400,7 @@ end
 handlers.taunt = function(d)
 	local head = d.char and d.char:FindFirstChild("Head")
 	if head then
-		Effects.word(head.Position + Vector3.new(0, 2, 0), "🎵 ยั่วๆ 🎶", { small = true, color = Color3.fromRGB(255, 150, 220) })
+		Effects.word(head.Position + Vector3.new(0, 2, 0), "🎵 COME AT ME! 🎶", { small = true, color = Color3.fromRGB(255, 150, 220) })
 		task.delay(0.7, function()
 			if head.Parent then
 				Effects.word(head.Position + Vector3.new(0, 2.4, 0), "💃🕺", { small = true })
@@ -410,7 +410,7 @@ handlers.taunt = function(d)
 end
 
 handlers["break"] = function(d)
-	Effects.word(d.pos, d.glass and "เพล้ง!!" or "พัง!!", { big = true, color = Color3.fromRGB(200, 240, 255) })
+	Effects.word(d.pos, d.glass and "SMASH!!" or "BROKEN!!", { big = true, color = Color3.fromRGB(200, 240, 255) })
 	Effects.sound(d.glass and "glass" or "wood", d.pos, 1.2)
 	if d.glass then
 		for _ = 1, 10 do
@@ -429,7 +429,7 @@ handlers["break"] = function(d)
 end
 
 handlers.melon = function(d)
-	Effects.word(d.pos, (Config.Words.melon or { "แตงโมแตก!" })[1], { big = true, color = Color3.fromRGB(120, 255, 120) })
+	Effects.word(d.pos, (Config.Words.melon or { "SPLAT!!" })[1], { big = true, color = Color3.fromRGB(120, 255, 120) })
 	Effects.sound("thud", d.pos, 1)
 	Effects.spray(d.pos, Vector3.new(0, 1, 0), 30, 14, Color3.fromRGB(235, 60, 85), 1.2)
 end
@@ -441,7 +441,7 @@ handlers.sever = function(d)
 	if not pos then
 		return
 	end
-	Effects.word(pos + Vector3.new(0, 1, 0), d.word or "หลุด!!", { big = true, color = Color3.fromRGB(255, 70, 60) })
+	Effects.word(pos + Vector3.new(0, 1, 0), d.word or "OFF!!", { big = true, color = Color3.fromRGB(255, 70, 60) })
 	Effects.sound("heavy", pos, 1.3)
 	Effects.shake(0.3)
 	if d.gore and d.gore >= 1 and Config.Blood > 0 then
@@ -506,7 +506,7 @@ function Effects.init(config, remotes, animator)
 		if h and type(data) == "table" then
 			local ok, err = pcall(h, data)
 			if not ok then
-				warn("[ซอยเดือด] fx error", kind, err)
+				warn("[ALLEY BRAWL] fx error", kind, err)
 			end
 		end
 	end)

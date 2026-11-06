@@ -1,4 +1,4 @@
-// สร้างไฟล์ SoiBrawl.rbxlx จากโค้ดใน src/
+// สร้างไฟล์ AlleyBrawl.rbxlx จากโค้ดใน src/
 //   cd tools && npm install && npm run place
 // แมพ แสง และโมเดลผู้เล่น ถูกสร้างด้วยโค้ดเกมจริง (รันใน mock) แล้วบันทึกเป็นชิ้นงานจริงในไฟล์
 import fs from 'fs';
@@ -75,11 +75,11 @@ xml += world.map + '\n\t</Item>\n';
 // Lighting: แสงยามเย็น
 xml += '\t<Item class="Lighting" referent="RBXLIGHTING">\n\t\t<Properties>\n\t\t\t<string name="Name">Lighting</string>\n' + world.lightProps + '\n\t\t</Properties>\n';
 xml += world.lightKids + '\n\t</Item>\n';
-// ServerStorage: โมเดลผู้เล่น SoiBrawler (แก้หน้าตา/ขนาดใน Studio ได้ เกมจะใช้ตัวนี้)
+// ServerStorage: โมเดลผู้เล่น Brawler (แก้หน้าตา/ขนาดใน Studio ได้ เกมจะใช้ตัวนี้)
 xml += '\t<Item class="ServerStorage" referent="RBXSERVERSTORAGE">\n\t\t<Properties>\n\t\t\t<string name="Name">ServerStorage</string>\n\t\t</Properties>\n';
 xml += world.template + '\n\t</Item>\n';
 for (const n of TREE) xml += item(n, 1);
 xml += '</roblox>\n';
-const out = path.join(ROOT, 'SoiBrawl.rbxlx');
+const out = path.join(ROOT, 'AlleyBrawl.rbxlx');
 fs.writeFileSync(out, xml);
 console.log('wrote', out, (xml.length / 1024).toFixed(1) + ' KB');

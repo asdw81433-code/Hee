@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : SOI BRAWL  -  สคริปต์หลักฝั่ง Client
+--  ALLEY BRAWL  -  สคริปต์หลักฝั่ง Client
 --  (StarterPlayer > StarterPlayerScripts > BrawlClient + ModuleScript ลูก 4 ตัว)
 -- ============================================================
 local Players = game:GetService("Players")
@@ -67,4 +67,4 @@ remotes.Ragdoll.OnClientEvent:Connect(function(on)
 	end
 end)
 
-print("[ซอยเดือด] client พร้อม 👊")
+print("[ALLEY BRAWL] client ready 👊")

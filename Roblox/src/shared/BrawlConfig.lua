@@ -1,12 +1,11 @@
 -- ============================================================
---  ซอยเดือด : SOI BRAWL  -  ตั้งค่าเกมทั้งหมดอยู่ไฟล์นี้
+--  ALLEY BRAWL  -  ตั้งค่าเกมทั้งหมดอยู่ไฟล์นี้
 --  (ReplicatedStorage > BrawlConfig)
 --  แก้ตัวเลขตรงนี้ได้เลย ไม่ต้องแตะสคริปต์อื่น
 -- ============================================================
 local C = {}
 
-C.GameName = "ซอยเดือด"
-C.GameNameEn = "SOI BRAWL"
+C.GameName = "ALLEY BRAWL"
 
 -- ===== กติกา =====
 C.BotCount = 5            -- จำนวนนักเลง AI (0 = ไม่มีบอท)
@@ -93,9 +92,9 @@ C.HairStyles = { "box", "box", "flat", "spike", "mohawk", "bald", "cap", "long",
 
 -- ===== ชื่อนักเลง AI =====
 C.BotNames = {
-	"ลุงพล ขาโหด", "ป้าแจ่ม กระทะทอง", "ไอ้ตี๋ หมัดเมา", "เฮียโต้ง ท้องพุ้ย", "น้องบอย ขาสั่น",
-	"พี่วิน มอไซค์", "เจ๊หมวย ตบไม่ยั้ง", "ตาเหม่ง นักเลงเก่า", "จ่าเฉื่อย", "หนุ่มยิม กล้ามโต",
-	"ไอ้หมึก แขนยาง", "พี่ช่าง ประแจหาย", "หมูแฮม ตัวกลม", "ยายเพ็ญ หมัดเหล็ก", "เสี่ยปุ้ย ทองหยอง",
+	"Big Earl", "Knuckles McGee", "Granny Gertrude", "Crazy Steve", "Tiny Tony",
+	"Disco Dave", "Sweaty Gary", "Mad Dog Murphy", "Pizza Pete", "Doughnut Dan",
+	"Chad Thunderfist", "Uncle Rick", "Meatball Marco", "Sir Slaps-a-Lot", "Lunchbox Larry",
 }
 
 -- ===== ท่าต่อสู้ =====
@@ -121,12 +120,12 @@ C.PunchCombo = { "jab", "cross", "upper" }
 
 -- ===== อาวุธข้างถนน =====
 C.Weapons = {
-	pan    = { name = "กระทะเหล็ก",   icon = "🍳", dmg = 15, knock = 30, lift = 10, stun = 0.6, daze = 26, uses = 10, word = "pan",   ragdoll = 1.2, ragdollChance = 0.35, sound = "clang" },
-	plank  = { name = "ไม้หน้าสาม",   icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood", heavy = true },
-	chair  = { name = "เก้าอี้พลาสติก", icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood", heavy = true },
-	fish   = { name = "ปลาทูยักษ์",    icon = "🐟", dmg = 5,  knock = 75, lift = 38, stun = 0.4, daze = 6,  uses = 999, word = "fish", ragdoll = 2.0, ragdollChance = 1, sound = "slap" },
-	cone   = { name = "กรวยจราจร",    icon = "🔺", dmg = 7,  knock = 14, lift = 4,  stun = 0.6, daze = 12, uses = 1,  word = "cone",  ragdoll = 0, ragdollChance = 0, sound = "thud", hat = true },
-	bottle = { name = "ขวดน้ำปลา",    icon = "🧴", dmg = 17, knock = 16, lift = 4,  stun = 0.7, daze = 30, uses = 1,  word = "glass", ragdoll = 1.2, ragdollChance = 0.5, sound = "glass", extraBlood = 2 },
+	pan    = { name = "Frying Pan",      icon = "🍳", dmg = 15, knock = 30, lift = 10, stun = 0.6, daze = 26, uses = 10, word = "pan",   ragdoll = 1.2, ragdollChance = 0.35, sound = "clang" },
+	plank  = { name = "2x4 With A Nail", icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood", heavy = true },
+	chair  = { name = "Folding Chair",   icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood", heavy = true },
+	fish   = { name = "Giant Fish",      icon = "🐟", dmg = 5,  knock = 75, lift = 38, stun = 0.4, daze = 6,  uses = 999, word = "fish", ragdoll = 2.0, ragdollChance = 1, sound = "slap" },
+	cone   = { name = "Traffic Cone",    icon = "🔺", dmg = 7,  knock = 14, lift = 4,  stun = 0.6, daze = 12, uses = 1,  word = "cone",  ragdoll = 0, ragdollChance = 0, sound = "thud", hat = true },
+	bottle = { name = "Ketchup Bottle",  icon = "🍅", dmg = 17, knock = 16, lift = 4,  stun = 0.7, daze = 30, uses = 1,  word = "glass", ragdoll = 1.2, ragdollChance = 0.5, sound = "glass", extraBlood = 2 },
 }
 C.WeaponOrder = { "pan", "plank", "chair", "fish", "cone", "bottle" }
 C.WeaponRespawn = 10      -- วินาที
@@ -135,41 +134,41 @@ C.ThrowSpeed = 85
 
 -- ===== คำการ์ตูนเด้งตอนตี =====
 C.Words = {
-	punch = { "ปั้ก!", "ผัวะ!", "ปึ้ก!", "โป๊ก!", "พลั่ก!" },
-	upper = { "ปึ้ง!!", "ลอยยย!", "บินนน!", "เปรี้ยง!!" },
-	kick  = { "ตุ้บ!", "ปั้ง!", "เปรี้ยง!", "ถีบ!!" },
-	stomp = { "กระทืบ!", "แป้ก!", "ตุ้บ!", "เหยียบ!" },
-	slam  = { "โครม!!", "ตูม!!", "ตุ้บ!!", "อั่ก!" },
-	block = { "กัน!", "แป๊ก!", "ไม่เข้า!" },
-	guard = { "การ์ดแตก!!" },
-	crit  = { "คริ!!", "เจ็บจี๊ด!!", "โอ๊ยยย!!" },
-	pan   = { "เป๊ง!!", "แก๊ง!!", "เคร้ง!!" },
-	wood  = { "ป๊อก!!", "โป๊ก!!", "ปั้ก!!" },
-	chair = { "โครม!!", "เพี้ยะ!!", "ปัง!!" },
-	fish  = { "แปะ!", "ป้าบ!", "ปลาทู!!", "เหม็นคาว!" },
-	cone  = { "ป๊อก!", "หัวกรวย!" },
-	glass = { "เพล้ง!!", "แชร้ง!!" },
-	super = { "หมัดจรวด!!!", "ไปดาวอังคาร!!!" },
-	impact = { "ตุ้บ!", "โครม!", "อุ๊ก!", "ปึก!" },
-	melon = { "แตงโมแตก!!", "ชุ่มฉ่ำ!" },
-	sever = { "แขนหลุด!!", "ขาหลุด!!", "หัวหลุด!!" },
+	punch = { "POW!", "BAM!", "WHAM!", "SMACK!", "BOP!" },
+	upper = { "KAPOW!!", "LIFTOFF!", "UPPERCUT!!", "SKY HIGH!!" },
+	kick  = { "THWACK!", "BOOT!", "WHUMP!", "YEET!!" },
+	stomp = { "STOMP!", "CRUNCH!", "SQUISH!", "CURB STOMP!" },
+	slam  = { "CRASH!!", "BOOM!!", "THUD!!", "OOF!" },
+	block = { "BLOCKED!", "NOPE!", "DENIED!" },
+	guard = { "GUARD BREAK!!" },
+	crit  = { "CRITICAL!!", "BRUTAL!!", "OUCH!!" },
+	pan   = { "CLANG!!", "BONK!!", "DONG!!" },
+	wood  = { "THOCK!!", "WHACK!!", "CRACK!!" },
+	chair = { "CRASH!!", "SLAM!!", "BANG!!" },
+	fish  = { "SLAP!", "FISH SLAP!!", "SPLOOSH!", "SMELLY!" },
+	cone  = { "BONK!", "CONEHEAD!" },
+	glass = { "SMASH!!", "SHATTER!!", "KETCHUP!!" },
+	super = { "ROCKET PUNCH!!!", "TO THE MOON!!!" },
+	impact = { "THUD!", "CRASH!", "OOF!", "WHUMP!" },
+	melon = { "SPLAT!!", "JUICY!" },
+	sever = { "ARM OFF!!", "LEG OFF!!", "HEADLESS!!" },
 }
 
--- ===== ข้อความ KO ฮาๆ (%s = ชื่อคนล้ม) =====
+-- ===== Funny KO messages (%s = the one who got knocked out) =====
 C.KOMessages = {
-	"%s หลับปุ๋ยกลางซอย 💤",
-	"%s เห็นดาวเต็มฟ้า ⭐",
-	"%s ฟันร่วงหมดปาก 🦷",
-	"%s บินไปดาวอังคาร 🚀",
-	"%s ขอไปนอนก่อนนะ 😵",
-	"%s ร้องเรียกแม่ 😭",
-	"%s กลายเป็นพรมเช็ดเท้า 🧽",
-	"%s ไปไม่เป็นเลยทีเดียว 🫠",
-	"%s โดนส่งกลับบ้านเก่า 🏠",
-	"%s ลืมไปว่าตัวเองเป็นใคร 🤪",
+	"%s is taking a dirt nap 💤",
+	"%s is seeing stars ⭐",
+	"%s lost all their teeth 🦷",
+	"%s got launched to Mars 🚀",
+	"%s needs a minute... or ten 😵",
+	"%s is crying for mommy 😭",
+	"%s became a doormat 🧽",
+	"%s got absolutely folded 🫠",
+	"%s is going home in a bucket 🪣",
+	"%s forgot their own name 🤪",
 }
-C.FallMessages = { "%s ตกขอบโลก 🌍", "%s หาทางกลับบ้านไม่เจอ 🗺️" }
-C.StreakNames = { [3] = "🔥 ร้อนแรง!", [5] = "👹 อาละวาด!", [8] = "💀 เทพเจ้าแห่งซอย!", [12] = "👑 ยมทูตประจำซอย!" }
+C.FallMessages = { "%s fell off the world 🌍", "%s took a wrong turn 🗺️" }
+C.StreakNames = { [3] = "🔥 ON FIRE!", [5] = "👹 RAMPAGE!", [8] = "💀 GOD OF THE ALLEY!", [12] = "👑 GRIM REAPER!" }
 
 -- ===== เสียง (เปลี่ยนเป็น rbxassetid://เลขเสียงของคุณเองได้) =====
 C.Sounds = {

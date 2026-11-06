@@ -1,5 +1,5 @@
 -- ============================================================
---  ซอยเดือด : หน้าจอ HUD (ใช้รูป/อีโมจิแทนข้อความยาวๆ)
+--  ALLEY BRAWL : หน้าจอ HUD (ใช้รูป/อีโมจิแทนข้อความยาวๆ)
 -- ============================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -34,7 +34,7 @@ end
 local function label(parent, props)
 	local t = make("TextLabel", {
 		BackgroundTransparency = 1,
-		Font = Enum.Font.FredokaOne,
+		Font = Enum.Font.LuckiestGuy,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		TextScaled = true,
 	}, parent)
@@ -99,7 +99,7 @@ function Hud.comboHit()
 	combo.t = t
 	if combo.n >= 2 then
 		local c = ui.combo
-		c.Text = combo.n .. " คอมโบ!"
+		c.Text = combo.n .. "x COMBO!"
 		c.Visible = true
 		c.Rotation = math.random(-8, 8)
 		c.Size = UDim2.fromOffset(150, 50)
@@ -141,13 +141,13 @@ end
 
 -- ===== หน้าช่วยเหลือ (รูปปุ่ม) =====
 local HELP = {
-	{ "👊", "ต่อย", "คลิก / J", "กด 3 ทีติด = อัปเปอร์คัตลอยฟ้า" },
-	{ "🦶", "เตะ", "E / K", "ถีบกระเด็น  ใกล้คนล้ม = กระทืบ" },
-	{ "✊", "จับ / เก็บของ", "R / L", "จับทุ่มซูเพล็กซ์  ถือของอยู่ = ขว้าง" },
-	{ "🛡️", "การ์ด", "Q (กดค้าง)", "กันหมัด แต่โดนเตะ/จับทะลุ" },
-	{ "⭐", "หมัดจรวด", "F", "ใช้ได้เมื่อเกจเต็ม" },
-	{ "💃", "เต้นยั่ว", "T", "เติมเกจท่าไม้ตาย" },
-	{ "⬆️", "กระโดด", "Space", "กระโดด+ต่อย = ทุบลงพื้น" },
+	{ "👊", "Punch", "Click / J", "Hit 3 times for an uppercut launcher" },
+	{ "🦶", "Kick", "E / K", "Sends them flying. Near a downed guy = stomp" },
+	{ "✊", "Grab / Pick up", "R / L", "Suplex! Holding a weapon = throw it" },
+	{ "🛡️", "Block", "Q (hold)", "Stops punches. Kicks & grabs break it" },
+	{ "⭐", "Rocket Punch", "F", "Use when the star meter is full" },
+	{ "💃", "Taunt", "T", "Fills your star meter" },
+	{ "⬆️", "Jump", "Space", "Jump + punch = ground pound" },
 }
 
 local function buildHelp(parent)
@@ -165,7 +165,7 @@ local function buildHelp(parent)
 	stroke(panel, 3, Color3.fromRGB(255, 200, 40))
 	make("UISizeConstraint", { MaxSize = Vector2.new(560, 440) }, panel)
 	make("UIScale", { Name = "Scale" }, panel)
-	label(panel, { Size = UDim2.new(1, -20, 0, 44), Position = UDim2.fromOffset(10, 8), Text = "🔥 ซอยเดือด : วิธีเล่น", TextColor3 = Color3.fromRGB(255, 210, 60), ZIndex = 21 })
+	label(panel, { Size = UDim2.new(1, -20, 0, 44), Position = UDim2.fromOffset(10, 8), Text = "🔥 ALLEY BRAWL: HOW TO PLAY", TextColor3 = Color3.fromRGB(255, 210, 60), ZIndex = 21 })
 	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 	for i, h in ipairs(HELP) do
 		local y = 56 + (i - 1) * 48
@@ -183,7 +183,7 @@ local function buildHelp(parent)
 		Size = UDim2.fromOffset(160, 40),
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -10),
-		Text = "👍 ลุยเลย!",
+		Text = "👊 LET'S GO!",
 		Font = Enum.Font.FredokaOne,
 		TextScaled = true,
 		TextColor3 = Color3.fromRGB(30, 20, 10),
@@ -259,7 +259,7 @@ function Hud.init(config, remotes, effects)
 
 	-- คีย์ลัดแบบรูป (คอมพิวเตอร์)
 	if UserInputService.KeyboardEnabled then
-		ui.keys = label(gui, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(620, 26), Text = "🖱️👊ต่อย   E 🦶เตะ   R ✊จับ/เก็บ   Q 🛡️การ์ด   F ⭐ไม้ตาย   T 💃ยั่ว", TextColor3 = Color3.fromRGB(240, 240, 240) })
+		ui.keys = label(gui, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(620, 26), Text = "🖱️ 👊Punch   E 🦶Kick   R ✊Grab   Q 🛡️Block   F ⭐Super   T 💃Taunt", TextColor3 = Color3.fromRGB(240, 240, 240) })
 		stroke(ui.keys, 1.5)
 	end
 
@@ -304,20 +304,20 @@ function Hud.init(config, remotes, effects)
 		elseif kind == "round" then
 			local lines = {}
 			if d.king then
-				table.insert(lines, "👑 ราชาซอย: " .. d.king .. " (" .. d.kos .. " KO)")
+				table.insert(lines, "👑 King of the Alley: " .. d.king .. " (" .. d.kos .. " KOs)")
 			end
 			if d.brute then
-				table.insert(lines, "💪 หมัดหนักสุด: " .. d.brute .. " (" .. d.dmg .. ")")
+				table.insert(lines, "💪 Heaviest Hitter: " .. d.brute .. " (" .. d.dmg .. " dmg)")
 			end
 			if d.potato then
-				table.insert(lines, "🥔 กระสอบทรายแห่งปี: " .. d.potato .. " (ล้ม " .. d.deaths .. ")")
+				table.insert(lines, "🥔 Human Punching Bag: " .. d.potato .. " (" .. d.deaths .. " deaths)")
 			end
 			if d.dancer then
-				table.insert(lines, "💃 นักเต้นแห่งซอย: " .. d.dancer .. " (" .. d.taunts .. ")")
+				table.insert(lines, "💃 Dance Machine: " .. d.dancer .. " (" .. d.taunts .. " taunts)")
 			end
-			Hud.banner("🔔 จบรอบ!", Color3.fromRGB(255, 220, 60), Config.ResultTime, table.concat(lines, "   "))
+			Hud.banner("🔔 ROUND OVER!", Color3.fromRGB(255, 220, 60), Config.ResultTime, table.concat(lines, "   "))
 		elseif kind == "newround" then
-			Hud.banner("🔔 รอบใหม่! ลุย!", Color3.fromRGB(120, 255, 140), 2)
+			Hud.banner("🔔 NEW ROUND! FIGHT!", Color3.fromRGB(120, 255, 140), 2)
 		end
 	end)
 
@@ -339,7 +339,7 @@ function Hud.init(config, remotes, effects)
 			ui.spFill.Size = UDim2.fromScale(sf, 1)
 			if sf >= 1 then
 				local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-				ui.spText.Text = touch and "⭐ พร้อม! กด ⭐" or "⭐ พร้อม! กด F"
+				ui.spText.Text = touch and "⭐ READY! TAP ⭐" or "⭐ READY! PRESS F"
 				ui.spFill.BackgroundColor3 = Color3.fromRGB(255, 200, 40):Lerp(Color3.fromRGB(255, 90, 40), (math.sin(os.clock() * 8) + 1) / 2)
 			else
 				ui.spText.Text = "⭐ " .. math.floor(sf * 100) .. "%"
@@ -349,7 +349,7 @@ function Hud.init(config, remotes, effects)
 			if w and Config.Weapons[w] then
 				local def = Config.Weapons[w]
 				local uses = char:GetAttribute("WeaponUses") or 0
-				ui.weapon.Text = def.icon .. " " .. def.name .. (uses < 100 and ("  x" .. uses) or "") .. "   (R = ขว้าง)"
+				ui.weapon.Text = def.icon .. " " .. def.name .. (uses < 100 and ("  x" .. uses) or "") .. "   (R = throw)"
 				ui.weapon.Visible = true
 			else
 				ui.weapon.Visible = false
@@ -359,7 +359,7 @@ function Hud.init(config, remotes, effects)
 		if ui.deadUntil then
 			local left = ui.deadUntil - os.clock()
 			if left > 0 then
-				ui.dead.Text = "😵 เกิดใหม่ใน " .. math.ceil(left) .. "..."
+				ui.dead.Text = "😵 Respawning in " .. math.ceil(left) .. "..."
 			else
 				ui.dead.Visible = false
 				ui.deadUntil = nil
