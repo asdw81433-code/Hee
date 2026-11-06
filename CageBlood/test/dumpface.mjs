@@ -1,0 +1,15 @@
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PW_PATH || 'playwright');
+import path from 'node:path'; import fs from 'node:fs';
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+page.on('pageerror', (e) => console.log('pageerror', e.message));
+await page.goto('file://' + path.resolve('index.html') + '?test=1&a=5&b=8&warp=4');
+await page.waitForTimeout(1500);
+await page.evaluate(() => { const s = window.__game.scene; s.ais.clear(); const h = s.blue.health; h.addCut(0.7, 0.355, 'browL', 1.4); h.addCut(0.32, 0.36, 'browR', 1.0); h.noseBleed = 0.9; h.swell.eyeL = 0.9; h.swell.cheekR = 0.6; s.blue.fx.setDamage(s.blue.damageView()); });
+await page.waitForTimeout(9000);
+const info = await page.evaluate(() => { const fx = window.__game.scene.blue.fx; return { face: fx.face.toDataURL(), blood: fx.blood.toDataURL(), torso: fx.torso.toDataURL(), rivers: fx.rivers.slice(0, 5).map((r) => [r.x | 0, r.y | 0, r.vol.toFixed(2)]) }; });
+for (const k of ['face', 'blood', 'torso']) fs.writeFileSync(`test/out/tex_${k}.png`, Buffer.from(info[k].split(',')[1], 'base64'));
+console.log(JSON.stringify(info.rivers));
+await browser.close();
