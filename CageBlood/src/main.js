@@ -67,5 +67,6 @@ class App {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => { window.__game = new App(); });
+const boot = () => { if (!window.__game) window.__game = new App(); };
+if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot); else boot();
 export { makeNPC };

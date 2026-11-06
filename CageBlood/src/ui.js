@@ -35,6 +35,26 @@ export class UI {
     if (fn) { const node = fn.call(this, s.data); if (node) this.layer.appendChild(node); }
   }
   close() { this.screen = null; this.layer.innerHTML = ''; }
+  // in-page dialogs (browser alert/confirm/prompt are blocked in some embeds)
+  ask(text, onYes, yesLabel = 'ยืนยัน') {
+    const ov = el('div', { class: 'screen dim modal' }, el('div', { class: 'panel', style: { width: 'min(440px, 100%)' } },
+      el('p', { style: { fontSize: '16px' } }, text),
+      el('div', { class: 'row' },
+        el('button', { class: 'btn primary', onclick: () => { ov.remove(); onYes(); } }, yesLabel),
+        el('button', { class: 'btn', onclick: () => ov.remove() }, 'ยกเลิก'))));
+    this.app.uiRoot.appendChild(ov);
+  }
+  textBox(title, value, onOk, okLabel) {
+    const ta = el('textarea', { id: 'savecode', rows: 6, style: { width: '100%', background: '#121217', color: '#e9e6e1', border: '1px solid #34343e', borderRadius: '4px', padding: '8px', fontFamily: 'monospace', fontSize: '12px' } });
+    ta.value = value || '';
+    const ov = el('div', { class: 'screen dim modal' }, el('div', { class: 'panel', style: { width: 'min(560px, 100%)' } },
+      el('h3', {}, title), ta,
+      el('div', { class: 'row', style: { marginTop: '10px' } },
+        onOk ? el('button', { class: 'btn primary', onclick: () => { ov.remove(); onOk(ta.value); } }, okLabel || 'ตกลง') : null,
+        el('button', { class: 'btn', onclick: () => ov.remove() }, onOk ? 'ยกเลิก' : 'ปิด'))));
+    this.app.uiRoot.appendChild(ov);
+    setTimeout(() => { ta.focus(); if (value) ta.select(); }, 30);
+  }
   toast(t, ms = 2500) { const e = el('div', { class: 'toast' }, t); this.app.uiRoot.appendChild(e); setTimeout(() => e.remove(), ms); }
   frame() {}
   error(e) { if (!this._errShown) { this._errShown = true; this.toast('เกิดข้อผิดพลาด: ' + e.message, 6000); } }
@@ -152,8 +172,12 @@ export class UI {
       el('label', {}, el('input', { type: 'checkbox', checked: s.replay ? 'checked' : null, onchange: (e) => { s.replay = e.target.checked; writeSave(this.app.save); } }), ' แสดงรีเพลย์ตอนน็อก'),
       el('h3', {}, 'สำรองเซฟ'),
       el('div', { class: 'row' },
-        el('button', { class: 'btn small', onclick: () => { navigator.clipboard && navigator.clipboard.writeText(exportSave(this.app.save)); this.toast('คัดลอกรหัสเซฟแล้ว'); } }, 'คัดลอกรหัสเซฟ'),
-        el('button', { class: 'btn small', onclick: () => { const t = prompt('วางรหัสเซฟ'); if (!t) return; try { const d = importSave(t); Object.assign(this.app.save, d); writeSave(this.app.save); this.career = this.app.save.career ? new Career(this.app.save.career) : null; this.toast('นำเข้าเซฟแล้ว'); } catch (e) { this.toast('รหัสไม่ถูกต้อง'); } } }, 'นำเข้าเซฟ'),
+        el('button', { class: 'btn small', onclick: () => {
+          const code = exportSave(this.app.save);
+          const show = () => this.textBox('รหัสเซฟ (เลือกทั้งหมดแล้วคัดลอกเก็บไว้)', code);
+          try { navigator.clipboard.writeText(code).then(() => this.toast('คัดลอกรหัสเซฟแล้ว'), show); } catch (e) { show(); }
+        } }, 'คัดลอกรหัสเซฟ'),
+        el('button', { class: 'btn small', onclick: () => this.textBox('วางรหัสเซฟที่นี่', '', (t) => { if (!t.trim()) return; try { const d = importSave(t); Object.assign(this.app.save, d); writeSave(this.app.save); this.career = this.app.save.career ? new Career(this.app.save.career) : null; this.toast('นำเข้าเซฟแล้ว'); } catch (e) { this.toast('รหัสเซฟไม่ถูกต้อง ลองคัดลอกใหม่ทั้งหมด'); } }, 'นำเข้า') }, 'นำเข้าเซฟ'),
         el('button', { class: 'btn small', onclick: () => { Object.assign(s, DEFAULT_SETTINGS); this.app.applySettings(); writeSave(this.app.save); this.refresh(); } }, 'ค่าเริ่มต้น')),
       el('button', { class: 'btn', style: { marginTop: '14px' }, onclick: () => this.back() }, '← กลับ')));
   }
@@ -189,7 +213,7 @@ export class UI {
       ...list.map((p, i) => el('div', { class: 'card row', style: { marginBottom: '6px' } },
         el('div', { class: 'grow' }, el('b', {}, p.name), p.nick ? el('span', { class: 'muted' }, ` "${p.nick}"`) : null, el('div', { class: 'muted small' }, `${wcById(p.wc).name} · ${STYLES[p.style].name} · OVR ${Math.round(overall(p.attrs || computeAttrs(p)))}`)),
         el('button', { class: 'btn small', onclick: () => this.openCreator((np) => { list[i] = np; writeSave(this.app.save); this.go('fighters'); }, () => this.go('fighters'), { profile: p, title: 'แก้ไขนักสู้' }) }, 'แก้ไข'),
-        el('button', { class: 'btn small', onclick: () => { if (confirm('ลบนักสู้นี้?')) { list.splice(i, 1); writeSave(this.app.save); this.refresh(); } } }, 'ลบ'))),
+        el('button', { class: 'btn small', onclick: () => this.ask(`ลบนักสู้ ${p.name}?`, () => { list.splice(i, 1); writeSave(this.app.save); this.refresh(); }, 'ลบ') }, 'ลบ'))),
       el('div', { class: 'row', style: { marginTop: '10px' } },
         el('button', { class: 'btn primary', onclick: () => this.openCreator((p) => { list.push(p); writeSave(this.app.save); this.go('fighters'); }, () => this.go('fighters')) }, '+ สร้างนักสู้ใหม่'),
         el('button', { class: 'btn', onclick: () => this.go('title') }, '← กลับ'))));
@@ -205,8 +229,8 @@ export class UI {
   scr_creator() { return this.creator ? this.creator.render() : null; }
 
   // ---------- career ----------
-  newCareer() {
-    if (this.career && !this.career.d.ended && !confirm('มีเซฟอาชีพอยู่แล้ว เริ่มใหม่จะเขียนทับ ต้องการเริ่มใหม่?')) return;
+  newCareer(force) {
+    if (!force && this.career && !this.career.d.ended) { this.ask('มีเซฟอาชีพอยู่แล้ว ถ้าเริ่มใหม่ เซฟเดิมจะถูกเขียนทับ', () => this.newCareer(true), 'เริ่มอาชีพใหม่'); return; }
     this.openCreator((p) => {
       this.career = Career.create(p);
       if (!this.app.save.fighters.find((x) => x.id === p.id)) this.app.save.fighters.push(p);
@@ -299,7 +323,7 @@ export class UI {
         d.health.suspension > 0 ? el('div', { style: { color: '#ffb020' } }, `⛔ พักการชกทางการแพทย์อีก ${d.health.suspension} สัปดาห์`) : null,
         ...(d.health.injuries.length ? d.health.injuries.map((x) => el('div', { class: 'small', style: { color: '#ffb3b3' } }, `• ${x.name} (${x.weeks} สัปดาห์)`)) : [el('div', { class: 'muted small' }, 'ไม่มีอาการบาดเจ็บ')])),
       d.debt > 0 && d.money > 1000 ? el('button', { class: 'btn small', onclick: () => { const pay = Math.min(d.debt, Math.floor(d.money / 1000) * 1000); d.money -= pay; d.debt -= pay; this.toast(`จ่ายหนี้ ${money(pay)}`); this.save(); this.refresh(); } }, '💸 จ่ายหนี้วิกเตอร์') : null,
-      el('button', { class: 'btn small', onclick: () => { if (confirm('ประกาศเลิกชก? อาชีพจะจบลงพร้อมฉากจบ')) { c.retire(); this.save(); this.checkStory(); } } }, '🧤 ประกาศแขวนนวม'),
+      el('button', { class: 'btn small', onclick: () => this.ask('ประกาศแขวนนวม? อาชีพจะจบลงและไปสู่ฉากจบ', () => { c.retire(); this.save(); this.checkStory(); }, 'แขวนนวม') }, '🧤 ประกาศแขวนนวม'),
       el('button', { class: 'btn small ghost', onclick: () => this.leaveCareer() }, '← เมนูหลัก (บันทึกแล้ว)'),
     );
     const tabs = el('div', { class: 'tabs' });
@@ -579,7 +603,7 @@ export class UI {
         el('button', { class: 'btn primary', onclick: () => { sc.paused = false; this.close(); } }, '▶ เล่นต่อ'),
         el('button', { class: 'btn', onclick: () => this.go('help') }, '🎮 ปุ่มควบคุม'),
         el('button', { class: 'btn', onclick: () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4.5; sc.paused = false; this.close(); } }, '📷 สลับกล้อง (ถ่ายทอด / อิสระ: ลากเมาส์)'),
-        el('button', { class: 'btn', onclick: () => { if (!confirm(sc.career ? 'ยอมแพ้ไฟต์นี้? (นับเป็นแพ้ TKO - ถอนตัว)' : 'ออกจากไฟต์?')) return; sc.paused = false; this.close(); if (sc.career) { sc.endFight(sc.blue, 'TKO', 'ถอนตัว (Corner Stoppage)'); } else { this.exitFight(); } } }, sc.career ? '🏳 ยอมแพ้ (โยนผ้า)' : '🚪 ออกไปเมนูหลัก'))));
+        el('button', { class: 'btn', onclick: () => this.ask(sc.career ? 'โยนผ้ายอมแพ้? ไฟต์นี้จะนับเป็นแพ้ TKO' : 'ออกจากไฟต์นี้?', () => { sc.paused = false; this.close(); if (sc.career) { sc.endFight(sc.blue, 'TKO', 'ถอนตัว (Corner Stoppage)'); } else { this.exitFight(); } }, sc.career ? 'โยนผ้า' : 'ออก') }, sc.career ? '🏳 ยอมแพ้ (โยนผ้า)' : '🚪 ออกไปเมนูหลัก'))));
   }
 
   showCorner(sc, card) {
