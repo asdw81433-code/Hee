@@ -9,6 +9,7 @@ import { clamp, lerp, rng, fmtTime, makeRng } from './util.js';
 import { cageDist } from './render.js';
 
 // physics step: 240 Hz on desktop, 180 Hz on phones/tablets (lighter, still fine for hit detection)
+export const RAGDOLL_LEVELS = { off: 0, low: 0.45, mid: 0.24, full: 0.12 };
 const STEP = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 / 180 : 1 / 240;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 
@@ -64,6 +65,7 @@ export class FightScene {
     this.doctorPause = 0;
     this.koFrozen = 0;
     this.sandbox = !!opts.sandbox;
+    this.ragdollBase = RAGDOLL_LEVELS[(opts.settings && opts.settings.ragdoll) || 'full'] ?? 0.12;
     this.background = !!opts.background;
     this._AI = AI;
     this.settings = opts.settings || {};

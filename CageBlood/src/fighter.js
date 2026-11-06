@@ -150,10 +150,26 @@ export class Fighter {
     rig.stepSprings(dt);
     this.stepFeet(dt);
     rig.solve();
+    this.stepActiveRagdoll(dt);
     rig.applyBlend(dt);
     rig.trackVel(dt);
     // hit detection
     if (this.action && this.action.type === 'strike' && this.opp) this.checkHit(this.opp);
+  }
+
+  // full-body active ragdoll: muscles pull the physical body toward the animation; weaker when hurt or tired
+  stepActiveRagdoll(dt) {
+    const base = this.game.ragdollBase || 0, rig = this.rig;
+    if (!base || rig.mode !== 'anim') { rig.act = null; return; }
+    const h = this.health;
+    rig.muscle = (h.rocked > 0 ? 0.5 : 1) * (this.looseT > 0 ? 0.45 : 1) * (0.7 + 0.3 * h.stamina / 100) * (this.hitStun > 0 ? 0.75 : 1) * (0.6 + 0.4 * h.consc);
+    let others = null;
+    const o = this.opp;
+    if (o && o.rig.mode === 'anim' && this.state !== 'grapple' && o.state !== 'grapple' && !this.clinch) {
+      const op = o.rig.pts;
+      others = [{ c: op[P.abd], r: 0.17 * o.u }, { c: op[P.pelvis], r: 0.16 * o.u }, { c: o.rig.headCenter, r: 0.12 * o.u }];
+    }
+    rig.stepActive(dt, base, others, CAGE_APOTHEM - 0.05);
   }
 
   // ---------- standing / locomotion ----------
@@ -683,16 +699,17 @@ export class Fighter {
     const a = this.action;
     if (!a.active || a.hit || o.rig.mode !== 'anim' && o.state !== 'down') return;
     const def = a.def, rig = this.rig, u = this.u;
+    const VEL = rig.act && rig.animVel ? rig.animVel : rig.ptVel; // strike speed comes from the motion, not the floppy body
     // effector
     let eff, effVel, effR = 0.05 * u, seg = null;
-    if (def.limb === 'hand') { eff = a.hi === 0 ? rig.handTipL : rig.handTipR; effVel = rig.ptVel[a.hi === 0 ? P.haL : P.haR]; effR = 0.055 * u; }
-    else if (def.limb === 'elbow') { eff = rig.pts[a.hi === 0 ? P.elL : P.elR]; effVel = rig.ptVel[a.hi === 0 ? P.elL : P.elR]; effR = 0.06 * u; }
-    else if (def.limb === 'knee') { eff = rig.pts[a.hi === 0 ? P.knL : P.knR]; effVel = rig.ptVel[a.hi === 0 ? P.knL : P.knR]; effR = 0.08 * u; }
+    if (def.limb === 'hand') { eff = a.hi === 0 ? rig.handTipL : rig.handTipR; effVel = VEL[a.hi === 0 ? P.haL : P.haR]; effR = 0.055 * u; }
+    else if (def.limb === 'elbow') { eff = rig.pts[a.hi === 0 ? P.elL : P.elR]; effVel = VEL[a.hi === 0 ? P.elL : P.elR]; effR = 0.06 * u; }
+    else if (def.limb === 'knee') { eff = rig.pts[a.hi === 0 ? P.knL : P.knR]; effVel = VEL[a.hi === 0 ? P.knL : P.knR]; effR = 0.08 * u; }
     else { // foot: shin segment for roundhouse, foot for teep
       const kn = rig.pts[a.hi === 0 ? P.knL : P.knR], an = rig.pts[a.hi === 0 ? P.anL : P.anR], toe = rig.pts[a.hi === 0 ? P.toeL : P.toeR];
       if (def.path === 'teep') { eff = _e.lerpVectors(an, toe, 0.6); effR = 0.07 * u; }
       else { seg = [kn, an]; eff = _e.lerpVectors(kn, an, 0.6); effR = 0.065 * u; }
-      effVel = rig.ptVel[a.hi === 0 ? P.anL : P.anR];
+      effVel = VEL[a.hi === 0 ? P.anL : P.anR];
     }
     const or = o.rig, ou = o.u;
     const dist = (c) => seg ? pointSegDist(c, seg[0], seg[1]).d : eff.distanceTo(c);
@@ -854,6 +871,14 @@ export class Fighter {
       }
     }
     this.hitStun = Math.max(this.hitStun, blocked ? 0.06 + power * 0.06 : 0.08 + power * 0.18);
+    // physical impact on the active-ragdoll body
+    if (rig.act) {
+      const pv = _a.copy(dir).multiplyScalar(power);
+      if (zone === 'head' && !blocked) { rig.pushActive(P.head, pv.clone().multiplyScalar(3.2)); rig.pushActive(P.neck, pv.clone().multiplyScalar(1.2)); rig.pushActive(P.abd, pv.clone().multiplyScalar(0.5)); }
+      else if (zone === 'body') { rig.pushActive(P.abd, pv.clone().multiplyScalar(2.2)); rig.pushActive(P.pelvis, pv.clone().multiplyScalar(0.9)); rig.pushActive(P.head, pv.clone().multiplyScalar(-0.8)); }
+      else if (zone === 'leg') { const s = hit.side ?? 0; rig.pushActive(s === 0 ? P.knL : P.knR, pv.clone().multiplyScalar(2.6)); rig.pushActive(s === 0 ? P.anL : P.anR, pv.clone().multiplyScalar(1.6)); }
+      else { const s = hit.side ?? 0; rig.pushActive(s === 0 ? P.haL : P.haR, pv.clone().multiplyScalar(2.4)); rig.pushActive(s === 0 ? P.elL : P.elR, pv.clone().multiplyScalar(1.2)); rig.pushActive(P.head, pv.clone().multiplyScalar(0.8)); }
+    }
     // big shots make the body go briefly loose (partial ragdoll feel): springs weaken, momentum carries the body
     if (!blocked && power > 0.55) this.looseT = Math.max(this.looseT || 0, 0.18 + power * 0.22);
     // interrupt own strike if hit hard

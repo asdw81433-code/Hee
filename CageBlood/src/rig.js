@@ -12,6 +12,8 @@ export const S = Object.fromEntries(SEGS.map((s, i) => [s, i]));
 // Ragdoll particle / joint point indices
 export const P = { pelvis: 0, abd: 1, neck: 2, head: 3, shL: 4, elL: 5, haL: 6, shR: 7, elR: 8, haR: 9, hipL: 10, knL: 11, anL: 12, hipR: 13, knR: 14, anR: 15, toeL: 16, toeR: 17 };
 const NP = 18;
+// active-ragdoll muscle weights per particle (hands/feet track tightly, head is loosest so it snaps on impact)
+const ACT_W = [0.8, 0.7, 0.6, 0.33, 0.7, 0.55, 1.0, 0.7, 0.55, 1.0, 0.8, 0.7, 1.0, 0.8, 0.7, 1.0, 1.0, 1.0];
 const PMASS = [15, 18, 4, 5, 2.5, 1.6, 0.6, 2.5, 1.6, 0.6, 3, 7, 3.5, 3, 7, 3.5, 0.6, 0.6];
 const PRAD = [0.12, 0.13, 0.07, 0.12, 0.07, 0.05, 0.06, 0.07, 0.05, 0.06, 0.08, 0.06, 0.05, 0.08, 0.06, 0.05, 0.04, 0.04];
 
@@ -104,7 +106,7 @@ export class Rig {
       this.F.apply(_v.set(sx[i] * this.d.hipW * 1.2, 0, 0), f.world);
       f.world.y = this.d.ankle; f.yaw = yaw; f.stepping = false;
     }
-    this.mode = 'anim'; this.rag = null; this.blend = 0;
+    this.mode = 'anim'; this.rag = null; this.blend = 0; this.act = null;
   }
 
   // --- spring stepping ---
@@ -250,8 +252,74 @@ export class Rig {
     }
   }
 
+  // ======== ACTIVE RAGDOLL (always-on physical body driven by muscles toward the animation) ========
+  resetActive() { this.act = null; }
+  pushActive(idx, vel) { const A = this.act; if (A) A.prev[idx].addScaledVector(vel, -(this.lastDt || 1 / 240)); }
+  stepActive(dt, base, others, cageR) {
+    const pts = this.pts, seg = this.seg, d = this.d;
+    let A = this.act;
+    if (!A) {
+      A = this.act = { p: pts.map((v) => v.clone()), prev: pts.map((v) => v.clone()), apts: pts.map((v) => v.clone()), q: seg.map((x) => ({ pos: x.pos.clone(), quat: x.quat.clone() })), cons: [] };
+      const add = (a, b, L) => A.cons.push([a, b, L ?? pts[a].distanceTo(pts[b])]);
+      for (const g of [[P.pelvis, P.hipL, P.hipR], [P.abd, P.neck, P.shL, P.shR]]) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) add(g[i], g[j]);
+      add(P.pelvis, P.abd); add(P.neck, P.head);
+      add(P.shL, P.elL, d.uarm); add(P.elL, P.haL, d.farm); add(P.shR, P.elR, d.uarm); add(P.elR, P.haR, d.farm);
+      add(P.hipL, P.knL, d.thigh); add(P.knL, P.anL, d.shin); add(P.hipR, P.knR, d.thigh); add(P.knR, P.anR, d.shin);
+      add(P.anL, P.toeL, d.foot); add(P.anR, P.toeR, d.foot);
+    }
+    if (!this.animVel) this.animVel = pts.map(() => new THREE.Vector3());
+    for (let i = 0; i < NP; i++) { this.animVel[i].subVectors(pts[i], A.apts[i]).divideScalar(Math.max(dt, 1e-4)); A.apts[i].copy(pts[i]); }
+    for (let i = 0; i < seg.length; i++) { A.q[i].pos.copy(seg[i].pos); A.q[i].quat.copy(seg[i].quat); }
+    const g = -9.81 * dt * dt;
+    const m = base * (this.muscle ?? 1);
+    for (let i = 0; i < NP; i++) {
+      const p = A.p[i], pr = A.prev[i], t = A.apts[i];
+      const vx = (p.x - pr.x) * 0.985, vy = (p.y - pr.y) * 0.985, vz = (p.z - pr.z) * 0.985;
+      pr.copy(p); p.x += vx; p.y += vy + g; p.z += vz;
+      const k = Math.min(0.9, m * ACT_W[i]);
+      const dx = (t.x - p.x) * k, dy = (t.y - p.y) * k, dz = (t.z - p.z) * k;
+      p.x += dx; p.y += dy; p.z += dz;
+      pr.x += dx * 0.82; pr.y += dy * 0.82; pr.z += dz * 0.82;
+    }
+    for (let it = 0; it < 3; it++) {
+      for (const [a, b, L] of A.cons) {
+        const pa = A.p[a], pb = A.p[b];
+        const dx = pb.x - pa.x, dy = pb.y - pa.y, dz = pb.z - pa.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+        const wa = 1 / PMASS[a], wb = 1 / PMASS[b], f = (dist - L) / dist / (wa + wb);
+        pa.x += dx * f * wa; pa.y += dy * f * wa; pa.z += dz * f * wa;
+        pb.x -= dx * f * wb; pb.y -= dy * f * wb; pb.z -= dz * f * wb;
+      }
+      for (let i = 0; i < NP; i++) {
+        const pi = A.p[i], rad = PRAD[i] * 0.6;
+        if (pi.y < rad) { pi.y = rad; const pr = A.prev[i]; pr.x = lerp(pr.x, pi.x, 0.3); pr.z = lerp(pr.z, pi.z, 0.3); }
+        const rr = Math.hypot(pi.x, pi.z), lim = cageR - PRAD[i];
+        if (rr > lim) { pi.x *= lim / rr; pi.z *= lim / rr; }
+        if (others && i <= 3) for (const o of others) {
+          _v.subVectors(pi, o.c); const dd = _v.length(), md = PRAD[i] + o.r;
+          if (dd < md && dd > 1e-5) pi.addScaledVector(_v, ((md - dd) / dd) * 0.5);
+        }
+      }
+    }
+    // write the physical body back and rebuild segment transforms (animation twist + physical deviation)
+    for (let i = 0; i < NP; i++) pts[i].copy(A.p[i]);
+    for (const [si, a, b, base0] of ACT_SEGS) {
+      _v.subVectors(A.apts[b], A.apts[a]); const la = _v.length();
+      _v2.subVectors(pts[b], pts[a]); const lp = _v2.length();
+      if (la > 1e-5 && lp > 1e-5) { _q.setFromUnitVectors(_v.divideScalar(la), _v2.divideScalar(lp)); seg[si].quat.copy(_q).multiply(A.q[si].quat); }
+      seg[si].pos.copy(A.q[si].pos).add(_v3.subVectors(pts[base0], A.apts[base0]));
+    }
+    for (let i = 0; i < 2; i++) {
+      const el = pts[i === 0 ? P.elL : P.elR], ha = pts[i === 0 ? P.haL : P.haR];
+      (i === 0 ? this.handTipL : this.handTipR).copy(ha).addScaledVector(_v.subVectors(ha, el).normalize(), d.H * 0.045);
+    }
+    this.headCenter.copy(pts[P.head]);
+    this.headFwd.set(0, 0, 1).applyQuaternion(seg[S.head].quat);
+  }
+
   // ======== RAGDOLL ========
   startRagdoll(opts = {}) {
+    this.act = null;
     const n = NP;
     const p = this.pts.map((v) => v.clone());
     const sdt = this.lastDt || 1 / 240;
@@ -435,6 +503,12 @@ export class Rig {
   // impulse helpers in anim mode: add angular velocity to a torso spring (Euler rates)
   kick(spring, x, y, z) { spring.v.x += x; spring.v.y += y; spring.v.z += z; }
 }
+
+const ACT_SEGS = [
+  [S.pelvis, P.pelvis, P.abd, P.pelvis], [S.abdomen, P.pelvis, P.abd, P.pelvis], [S.chest, P.abd, P.neck, P.abd], [S.neck, P.neck, P.head, P.neck], [S.head, P.neck, P.head, P.neck],
+  [S.uarmL, P.shL, P.elL, P.shL], [S.farmL, P.elL, P.haL, P.elL], [S.handL, P.elL, P.haL, P.haL], [S.uarmR, P.shR, P.elR, P.shR], [S.farmR, P.elR, P.haR, P.elR], [S.handR, P.elR, P.haR, P.haR],
+  [S.thighL, P.hipL, P.knL, P.hipL], [S.shinL, P.knL, P.anL, P.knL], [S.footL, P.anL, P.toeL, P.anL], [S.thighR, P.hipR, P.knR, P.hipR], [S.shinR, P.knR, P.anR, P.knR], [S.footR, P.anR, P.toeR, P.anR],
+];
 
 export function angDiff(a, b) {
   let d = a - b;

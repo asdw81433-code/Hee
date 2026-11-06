@@ -244,11 +244,12 @@ export class UI {
     const [o7, i7] = rng_('brightness', 0.8, 2.2, 0.05, (v) => v < 1.1 ? 'มืด' : v < 1.6 ? 'ปกติ' : v < 1.9 ? 'สว่าง' : 'สว่างมาก');
     const presetSel = el('div', { class: 'iconbar' }, ...[['easy', '😊', 'ง่าย'], ['normal', '🙂', 'ปกติ'], ['hard', '😤', 'ยาก'], ['pro', '💀', 'โปร']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (s.preset === v ? ' sel' : ''), onclick: () => { s.preset = v; Object.assign(s, PRESETS[v]); writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     const ctrlSel = el('div', { class: 'iconbar' }, ...[['simple', '🎮', 'ง่าย (5 ปุ่ม)'], ['pro', '🧠', 'โปร (ทุกท่า)']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + ((s.controls || 'simple') === v ? ' sel' : ''), onclick: () => { s.controls = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
+    const ragSel = el('div', { class: 'iconbar' }, ...[['off', '🤖', 'ปิด'], ['low', '🧍', 'น้อย'], ['mid', '🤸', 'กลาง'], ['full', '🪆', 'เต็มที่']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + ((s.ragdoll || 'full') === v ? ' sel' : ''), onclick: () => { s.ragdoll = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     const touchSel = el('div', { class: 'iconbar' }, ...[['auto', '🤖', 'อัตโนมัติ'], ['on', '📱', 'เปิด'], ['off', '⌨️', 'ปิด']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (s.touch === v ? ' sel' : ''), onclick: () => { s.touch = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(560px, 100%)' } },
       el('h2', {}, '⚙️ ตั้งค่า'),
       row(el('span', {}, '☀️ ความสว่าง', o7), i7), row(el('span', {}, '🥔 ความละเอียดกราฟิก', o1), i1), row(el('span', {}, '🩸 ระดับเลือด', o2), i2), row(el('span', {}, '🔊 เสียง', o3), i3),
-      row(el('span', {}, '🎚️ ความยาก'), presetSel), row(el('span', {}, '🕹️ ปุ่มควบคุม'), ctrlSel),
+      row(el('span', {}, '🎚️ ความยาก'), presetSel), row(el('span', {}, '🪆 ร่างกาย Ragdoll (ทั้งตัวเป็นฟิสิกส์)'), ragSel), row(el('span', {}, '🕹️ ปุ่มควบคุม'), ctrlSel),
       row(el('span', {}, '⏱️ นาฬิกาในไฟต์', o4), i4), row(el('span', {}, '🧑‍⚖️ กรรมการหยุดไฟต์', o6), i6),
       row(el('span', {}, '📱 ปุ่มบนจอสัมผัส'), touchSel),
       el('label', {}, el('input', { type: 'checkbox', checked: s.replay ? 'checked' : null, onchange: (e) => { s.replay = e.target.checked; writeSave(this.app.save); } }), ' แสดงรีเพลย์ตอนน็อก'),

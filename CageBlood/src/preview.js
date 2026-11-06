@@ -14,7 +14,7 @@ export class Preview {
     this.offset = 0.55; // screen offset (UI panel on the left)
     this.shadowbox = true;
     this.zoom = 1;
-    this.game = { world: app.world, blood: app.blood, emit: () => {}, onImpact: () => {}, grapple: null, match: null, time: 0 };
+    this.game = { world: app.world, blood: app.blood, emit: () => {}, onImpact: () => {}, grapple: null, match: null, time: 0, ragdollBase: 0.24 };
   }
   show(profile, faceCanvas) {
     this.clear();

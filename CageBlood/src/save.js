@@ -1,7 +1,7 @@
 // ===== Persistence (localStorage, guarded) =====
 const KEY = 'cageblood_save_v1';
 export const DEFAULT_SETTINGS = {
-  potato: 0.75, brightness: 1.4, touch: 'auto', gore: 1, volume: 0.8, clockScale: 3, difficulty: 0.3, assist: 1, preset: 'easy', controls: 'simple', replay: true, refPatience: 0.5, showHints: true, settingsV: 2,
+  potato: 0.75, brightness: 1.4, touch: 'auto', gore: 1, volume: 0.8, clockScale: 3, difficulty: 0.3, assist: 1, preset: 'easy', controls: 'simple', ragdoll: 'full', replay: true, refPatience: 0.5, showHints: true, settingsV: 2,
 };
 
 export function loadSave() {
