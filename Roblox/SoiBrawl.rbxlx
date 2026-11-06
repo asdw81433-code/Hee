@@ -1,0 +1,5322 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<Meta name="ExplicitAutoJoints">true</Meta>
+	<Item class="ReplicatedStorage" referent="RBX00000000">
+		<Properties>
+			<string name="Name">ReplicatedStorage</string>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX00000001">
+			<Properties>
+				<string name="Name">BrawlConfig</string>
+				<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : SOI BRAWL  -  ตั้งค่าเกมทั้งหมดอยู่ไฟล์นี้
+--  (ReplicatedStorage > BrawlConfig)
+--  แก้ตัวเลขตรงนี้ได้เลย ไม่ต้องแตะสคริปต์อื่น
+-- ============================================================
+local C = {}
+
+C.GameName = "ซอยเดือด"
+C.GameNameEn = "SOI BRAWL"
+
+-- ===== กติกา =====
+C.BotCount = 5            -- จำนวนนักเลง AI (0 = ไม่มีบอท)
+C.BotsWhenPlayers = 3     -- ถ้ามีผู้เล่นจริง >= 4 คน ลดบอทเหลือเท่านี้
+C.BotSkill = 0.5          -- 0 = อ่อนปวกเปียก, 1 = โหดมาก
+C.RoundTime = 180         -- วินาทีต่อรอบ
+C.ResultTime = 8          -- โชว์ผลจบรอบกี่วินาที
+C.RespawnTime = 4
+C.CorpseTime = 14         -- ร่างที่ล้มจะนอนอยู่กี่วินาที
+C.MaxHealth = 100
+C.WalkSpeed = 18
+C.JumpPower = 52
+C.SpawnProtect = 2.0      -- อมตะหลังเกิดกี่วินาที
+C.GetUpProtect = 0.7      -- อมตะตอนลุกจากพื้น
+C.RegenDelay = 6          -- ไม่โดนตีกี่วินาทีถึงเริ่มฟื้นเลือด
+C.RegenRate = 3           -- เลือดต่อวินาที
+C.SuperMax = 100
+C.ComboWindow = 0.75      -- เวลาต่อคอมโบหมัด
+C.DizzyAt = 60            -- สะสมอาการมึนถึงเท่านี้ = มึนหัว
+C.DizzyTime = 2.4
+C.ImpactDamage = 1        -- ดาเมจตอนร่างลอยไปกระแทกพื้น/กำแพง (ตัวคูณ)
+
+-- ===== ความโหด =====
+-- Blood: 0 = ไม่มีเลือด (เป็นดาวการ์ตูนแทน), 0.5 = น้อย, 1 = ปกติ, 2 = สาดกระจาย
+-- ** ถ้าจะเปิดเกมสาธารณะ ให้กรอกแบบสอบถาม Maturity & Compliance ใน Creator Hub ตามจริง **
+C.Blood = 1
+C.Teeth = true            -- ฟันกระเด็น
+C.FaceDamage = true       -- หน้าเลือดออก ตาเขียว
+C.BloodColor = Color3.fromRGB(150, 8, 12)
+C.MaxStains = 350         -- จำนวนรอยเลือดสูงสุดบนพื้น
+C.StainLife = 90          -- รอยเลือดอยู่กี่วินาที
+C.CameraShake = 1
+
+-- ===== หน้าตาตัวละคร (ตามภาพอ้างอิง: เสื้อยืดเทา กางเกงเขียว ผมสั้นทรงกล่อง) =====
+C.Look = {
+	Skin = Color3.fromRGB(232, 188, 146),
+	Shirt = Color3.fromRGB(128, 131, 137),
+	Pants = Color3.fromRGB(66, 112, 58),
+	Hair = Color3.fromRGB(44, 33, 28),
+	Shoes = Color3.fromRGB(36, 36, 40),
+	Eyes = Color3.fromRGB(24, 20, 20),
+	Brows = Color3.fromRGB(44, 33, 28),
+	Mouth = Color3.fromRGB(150, 82, 70),
+	HairStyle = "box",
+	Nose = true,
+}
+-- ผู้เล่นคนแรกได้หน้าตาตามภาพเป๊ะ คนต่อไปเปลี่ยนสีเสื้อให้แยกออก
+C.PlayerShirts = {
+	Color3.fromRGB(128, 131, 137), Color3.fromRGB(196, 58, 52), Color3.fromRGB(52, 98, 190),
+	Color3.fromRGB(236, 190, 40), Color3.fromRGB(240, 240, 240), Color3.fromRGB(150, 70, 190),
+	Color3.fromRGB(30, 30, 34), Color3.fromRGB(240, 130, 40),
+}
+C.SkinTones = {
+	Color3.fromRGB(232, 188, 146), Color3.fromRGB(214, 160, 116), Color3.fromRGB(176, 120, 82),
+	Color3.fromRGB(120, 80, 56), Color3.fromRGB(245, 210, 180),
+}
+C.ShirtColors = {
+	Color3.fromRGB(128, 131, 137), Color3.fromRGB(196, 58, 52), Color3.fromRGB(52, 98, 190),
+	Color3.fromRGB(236, 190, 40), Color3.fromRGB(240, 240, 240), Color3.fromRGB(30, 30, 34),
+	Color3.fromRGB(240, 130, 40), Color3.fromRGB(60, 160, 120), Color3.fromRGB(230, 120, 170),
+}
+C.PantsColors = {
+	Color3.fromRGB(66, 112, 58), Color3.fromRGB(40, 52, 90), Color3.fromRGB(30, 30, 34),
+	Color3.fromRGB(120, 92, 60), Color3.fromRGB(90, 90, 96), Color3.fromRGB(150, 40, 40),
+}
+C.HairColors = {
+	Color3.fromRGB(44, 33, 28), Color3.fromRGB(20, 20, 22), Color3.fromRGB(120, 72, 36),
+	Color3.fromRGB(220, 190, 110), Color3.fromRGB(200, 200, 205), Color3.fromRGB(190, 50, 50),
+}
+C.HairStyles = { "box", "box", "flat", "spike", "mohawk", "bald", "cap", "long", "afro" }
+
+-- ===== ชื่อนักเลง AI =====
+C.BotNames = {
+	"ลุงพล ขาโหด", "ป้าแจ่ม กระทะทอง", "ไอ้ตี๋ หมัดเมา", "เฮียโต้ง ท้องพุ้ย", "น้องบอย ขาสั่น",
+	"พี่วิน มอไซค์", "เจ๊หมวย ตบไม่ยั้ง", "ตาเหม่ง นักเลงเก่า", "จ่าเฉื่อย", "หนุ่มยิม กล้ามโต",
+	"ไอ้หมึก แขนยาง", "พี่ช่าง ประแจหาย", "หมูแฮม ตัวกลม", "ยายเพ็ญ หมัดเหล็ก", "เสี่ยปุ้ย ทองหยอง",
+}
+
+-- ===== ท่าต่อสู้ =====
+-- wind = เวลาก่อนโดน(วินาที)  dur = ทั้งท่า  dmg = ดาเมจ  range/arc = ระยะ/มุม
+-- knock = แรงผลัก  lift = แรงยก  ragdoll = ล้มกี่วินาที  daze = สะสมมึน  super = เพิ่มเกจท่าไม้ตาย
+C.Moves = {
+	jab    = { anim = "jab",   wind = 0.08, dur = 0.30, dmg = 6,  range = 4.8, arc = 80, knock = 9,  lift = 0,  stun = 0.30, daze = 10, word = "punch", super = 6, zone = "head" },
+	cross  = { anim = "cross", wind = 0.09, dur = 0.34, dmg = 8,  range = 5.0, arc = 75, knock = 14, lift = 0,  stun = 0.34, daze = 14, word = "punch", super = 7, zone = "head" },
+	upper  = { anim = "upper", wind = 0.13, dur = 0.50, dmg = 12, range = 4.8, arc = 75, knock = 22, lift = 48, stun = 0.5, daze = 24, word = "upper", super = 10, zone = "head", ragdoll = 1.6, teeth = 0.7 },
+	kick   = { anim = "kick",  wind = 0.14, dur = 0.48, dmg = 11, range = 5.8, arc = 65, knock = 58, lift = 14, stun = 0.5, daze = 12, word = "kick", super = 8, zone = "body", ragdoll = 1.5, guardBreak = true },
+	stomp  = { anim = "stomp", wind = 0.15, dur = 0.42, dmg = 9,  range = 4.8, arc = 90, knock = 6,  lift = 4,  stun = 0,   daze = 0,  word = "stomp", super = 5, zone = "body", onlyDown = true },
+	dive   = { anim = "dive",  wind = 0.10, dur = 0.45, dmg = 13, range = 5.5, arc = 110, knock = 20, lift = 10, stun = 0.5, daze = 18, word = "slam", super = 8, zone = "head", ragdoll = 1.3, hitsDown = true },
+	grab   = { anim = "grab",  wind = 0.12, dur = 0.36, range = 4.4, arc = 75 },
+	suplex = { anim = "suplex", dur = 0.85, dmg = 10, knock = 15, lift = 46, daze = 20, super = 10, ragdoll = 2.2 },
+	swing  = { anim = "swing", wind = 0.17, dur = 0.50, range = 6.0, arc = 85, super = 6 },
+	throw  = { anim = "throw", wind = 0.10, dur = 0.36 },
+	super  = { anim = "super", wind = 0.42, dur = 1.05, dmg = 30, range = 7.0, arc = 85, knock = 95, lift = 60, stun = 1, daze = 60, word = "super", zone = "head", ragdoll = 3.2, unblockable = true, dash = 60, teeth = 1 },
+	taunt  = { anim = "taunt", dur = 1.6, super = 12 },
+	pickup = { anim = "pickup", dur = 0.30 },
+}
+-- คอมโบปุ่มต่อย: กด 3 ครั้งติด = หมัดแย็บ > หมัดตรง > อัปเปอร์คัต (ลอย!)
+C.PunchCombo = { "jab", "cross", "upper" }
+
+-- ===== อาวุธข้างถนน =====
+C.Weapons = {
+	pan    = { name = "กระทะเหล็ก",   icon = "🍳", dmg = 15, knock = 30, lift = 10, stun = 0.6, daze = 26, uses = 10, word = "pan",   ragdoll = 1.2, ragdollChance = 0.35, sound = "clang" },
+	plank  = { name = "ไม้หน้าสาม",   icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood" },
+	chair  = { name = "เก้าอี้พลาสติก", icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood" },
+	fish   = { name = "ปลาทูยักษ์",    icon = "🐟", dmg = 5,  knock = 75, lift = 38, stun = 0.4, daze = 6,  uses = 999, word = "fish", ragdoll = 2.0, ragdollChance = 1, sound = "slap" },
+	cone   = { name = "กรวยจราจร",    icon = "🔺", dmg = 7,  knock = 14, lift = 4,  stun = 0.6, daze = 12, uses = 1,  word = "cone",  ragdoll = 0, ragdollChance = 0, sound = "thud", hat = true },
+	bottle = { name = "ขวดน้ำปลา",    icon = "🧴", dmg = 17, knock = 16, lift = 4,  stun = 0.7, daze = 30, uses = 1,  word = "glass", ragdoll = 1.2, ragdollChance = 0.5, sound = "glass", extraBlood = 2 },
+}
+C.WeaponOrder = { "pan", "plank", "chair", "fish", "cone", "bottle" }
+C.WeaponRespawn = 10      -- วินาที
+C.MaxWeaponsOnMap = 9
+C.ThrowSpeed = 85
+
+-- ===== คำการ์ตูนเด้งตอนตี =====
+C.Words = {
+	punch = { "ปั้ก!", "ผัวะ!", "ปึ้ก!", "โป๊ก!", "พลั่ก!" },
+	upper = { "ปึ้ง!!", "ลอยยย!", "บินนน!", "เปรี้ยง!!" },
+	kick  = { "ตุ้บ!", "ปั้ง!", "เปรี้ยง!", "ถีบ!!" },
+	stomp = { "กระทืบ!", "แป้ก!", "ตุ้บ!", "เหยียบ!" },
+	slam  = { "โครม!!", "ตูม!!", "ตุ้บ!!", "อั่ก!" },
+	block = { "กัน!", "แป๊ก!", "ไม่เข้า!" },
+	guard = { "การ์ดแตก!!" },
+	crit  = { "คริ!!", "เจ็บจี๊ด!!", "โอ๊ยยย!!" },
+	pan   = { "เป๊ง!!", "แก๊ง!!", "เคร้ง!!" },
+	wood  = { "ป๊อก!!", "โป๊ก!!", "ปั้ก!!" },
+	chair = { "โครม!!", "เพี้ยะ!!", "ปัง!!" },
+	fish  = { "แปะ!", "ป้าบ!", "ปลาทู!!", "เหม็นคาว!" },
+	cone  = { "ป๊อก!", "หัวกรวย!" },
+	glass = { "เพล้ง!!", "แชร้ง!!" },
+	super = { "หมัดจรวด!!!", "ไปดาวอังคาร!!!" },
+	impact = { "ตุ้บ!", "โครม!", "อุ๊ก!", "ปึก!" },
+	melon = { "แตงโมแตก!!", "ชุ่มฉ่ำ!" },
+}
+
+-- ===== ข้อความ KO ฮาๆ (%s = ชื่อคนล้ม) =====
+C.KOMessages = {
+	"%s หลับปุ๋ยกลางซอย 💤",
+	"%s เห็นดาวเต็มฟ้า ⭐",
+	"%s ฟันร่วงหมดปาก 🦷",
+	"%s บินไปดาวอังคาร 🚀",
+	"%s ขอไปนอนก่อนนะ 😵",
+	"%s ร้องเรียกแม่ 😭",
+	"%s กลายเป็นพรมเช็ดเท้า 🧽",
+	"%s ไปไม่เป็นเลยทีเดียว 🫠",
+	"%s โดนส่งกลับบ้านเก่า 🏠",
+	"%s ลืมไปว่าตัวเองเป็นใคร 🤪",
+}
+C.FallMessages = { "%s ตกขอบโลก 🌍", "%s หาทางกลับบ้านไม่เจอ 🗺️" }
+C.StreakNames = { [3] = "🔥 ร้อนแรง!", [5] = "👹 อาละวาด!", [8] = "💀 เทพเจ้าแห่งซอย!", [12] = "👑 ยมทูตประจำซอย!" }
+
+-- ===== เสียง (เปลี่ยนเป็น rbxassetid://เลขเสียงของคุณเองได้) =====
+C.Sounds = {
+	swing  = { id = "rbxasset://sounds/swordlunge.wav", vol = 0.5 },
+	hit    = { id = "rbxasset://sounds/swordslash.wav", vol = 0.45, pitch = 0.6 },
+	heavy  = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 1.0, pitch = 0.7 },
+	thud   = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 0.9 },
+	clang  = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.8, pitch = 0.5 },
+	wood   = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 1.0, pitch = 1.4 },
+	slap   = { id = "rbxasset://sounds/swordslash.wav", vol = 0.6, pitch = 1.5 },
+	glass  = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.6, pitch = 1.8 },
+	ouch   = { id = "rbxasset://sounds/uuhhh.mp3", vol = 0.7 },
+	ko     = { id = "rbxasset://sounds/uuhhh.mp3", vol = 1.0, pitch = 0.8 },
+	getup  = { id = "rbxasset://sounds/action_get_up.mp3", vol = 0.5 },
+	super  = { id = "rbxasset://sounds/swordlunge.wav", vol = 1.0, pitch = 0.5 },
+	ui     = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.4 },
+}
+
+return C
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX00000002">
+			<Properties>
+				<string name="Name">BrawlAnim</string>
+				<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : ท่าทาง/แอนิเมชันแบบ procedural (ReplicatedStorage > BrawlAnim)
+--  มุมเป็นองศา {rx, ry, rz}
+--   แขน: rx 0 = ห้อยลง, 90 = ชี้ไปหน้า, 180 = ชูขึ้นฟ้า
+--        ry บวก = แขนขวาหุบเข้าใน (แขนซ้ายใช้ค่าลบ)   rz บวก = แขนขวากางออก (แขนซ้ายใช้ค่าลบ)
+--   ขา:  rx บวก = เตะไปหน้า, ลบ = ไปหลัง (ค่าขาเทียบกับโลก ระบบชดเชยการเอนตัวให้เอง)
+--   Root(ลำตัว): rx บวก = เอนหลัง, ry บวก = บิดไหล่ขวาไปหน้า, rz บวก = เอียงซ้าย
+--   N(คอ): rx บวก = เงยหน้า
+--   off = เลื่อนลำตัว {x, y, z} (z ลบ = พุ่งไปหน้า)
+--  key ที่มี hold = true จะก๊อปท่าก่อนหน้า (ค้างท่า)
+-- ============================================================
+local A = {}
+
+--@@DATA_BEGIN
+local DATA = {
+	Guard = {
+		RS = { 80, 30, 0 }, LS = { 92, -12, 0 }, RH = { -10, 0, 3 }, LH = { 16, 0, -3 },
+		N = { 0, 0, 0 }, Root = { 0, -15, 0 },
+	},
+	Block = {
+		RS = { 128, 46, 0 }, LS = { 128, -46, 0 }, N = { -14, 0, 0 }, Root = { 4, -6, 0 },
+	},
+	WeaponArm = { 52, 12, 0 },
+	Clips = {
+		jab = {
+			{ t = 0.00, LS = { 80, -18, 0 } },
+			{ t = 0.08, LS = { 96, 16, 0 }, RS = { 92, 40, 0 }, Root = { -4, -28, 0 }, off = { 0, 0, -0.3 } },
+			{ t = 0.15, hold = true },
+			{ t = 0.30, LS = { 86, -12, 0 } },
+		},
+		cross = {
+			{ t = 0.00, RS = { 70, 28, 0 }, Root = { 0, -24, 0 } },
+			{ t = 0.09, RS = { 97, -16, 0 }, LS = { 108, -40, 0 }, Root = { -6, 26, 0 }, off = { 0, 0, -0.4 }, RH = { -18, 0, 4 } },
+			{ t = 0.17, hold = true },
+			{ t = 0.34, RS = { 82, 26, 0 } },
+		},
+		upper = {
+			{ t = 0.00, RS = { 25, 10, 12 }, Root = { 6, -26, 0 }, off = { 0, -0.25, 0 }, N = { -8, 0, 0 } },
+			{ t = 0.13, RS = { 142, 16, 0 }, LS = { 110, -38, 0 }, Root = { 12, 22, 4 }, off = { 0, 0.3, -0.25 }, N = { 18, 0, 0 } },
+			{ t = 0.23, hold = true },
+			{ t = 0.50, RS = { 95, 22, 0 }, Root = { 4, -8, 0 } },
+		},
+		kick = {
+			{ t = 0.00, RH = { 45, 0, 0 }, Root = { 8, -10, 0 }, RS = { 70, 25, 15 }, LS = { 75, -20, -15 } },
+			{ t = 0.14, RH = { 98, 0, 0 }, LH = { -6, 0, 0 }, Root = { 16, -6, 0 }, off = { 0, 0.1, -0.3 }, RS = { 60, 10, 28 }, LS = { 70, -10, -28 } },
+			{ t = 0.25, hold = true },
+			{ t = 0.48, RH = { 20, 0, 0 }, Root = { 4, -10, 0 } },
+		},
+		stomp = {
+			{ t = 0.00, RH = { 65, 0, 0 }, Root = { -8, 0, 0 }, N = { -28, 0, 0 }, RS = { 50, 0, 30 }, LS = { 50, 0, -30 } },
+			{ t = 0.15, RH = { -4, 0, 0 }, LH = { 6, 0, 0 }, Root = { -14, 0, 0 }, off = { 0, -0.1, 0 }, N = { -32, 0, 0 }, RS = { 30, 0, 40 }, LS = { 30, 0, -40 } },
+			{ t = 0.24, hold = true },
+			{ t = 0.42, RH = { 0, 0, 0 }, Root = { -4, 0, 0 } },
+		},
+		dive = {
+			{ t = 0.00, RS = { 170, 10, 10 }, LS = { 170, -10, -10 }, Root = { 10, 0, 0 }, RH = { 30, 0, 0 }, LH = { -20, 0, 0 } },
+			{ t = 0.10, RS = { 50, 20, 0 }, LS = { 50, -20, 0 }, Root = { -24, 0, 0 }, N = { -20, 0, 0 }, RH = { 40, 0, 0 }, LH = { 10, 0, 0 } },
+			{ t = 0.25, hold = true },
+			{ t = 0.45, RS = { 80, 30, 0 }, LS = { 88, -28, 0 }, Root = { 0, -10, 0 } },
+		},
+		grab = {
+			{ t = 0.00, RS = { 70, 15, 0 }, LS = { 70, -15, 0 }, Root = { -6, 0, 0 } },
+			{ t = 0.12, RS = { 95, 18, 0 }, LS = { 95, -18, 0 }, Root = { -12, 0, 0 }, off = { 0, 0, -0.4 } },
+			{ t = 0.20, hold = true },
+			{ t = 0.36, RS = { 80, 25, 0 }, LS = { 85, -25, 0 } },
+		},
+		suplex = {
+			{ t = 0.00, RS = { 95, 20, 0 }, LS = { 95, -20, 0 }, Root = { -8, 0, 0 } },
+			{ t = 0.15, RS = { 130, 15, 0 }, LS = { 130, -15, 0 }, Root = { 10, 0, 0 }, off = { 0, 0.1, 0 } },
+			{ t = 0.35, RS = { 175, 5, 0 }, LS = { 175, -5, 0 }, Root = { 40, 0, 0 }, off = { 0, 0.25, 0.4 }, N = { 35, 0, 0 }, RH = { 15, 0, 0 }, LH = { 15, 0, 0 } },
+			{ t = 0.60, hold = true },
+			{ t = 0.85, Root = { 5, 0, 0 } },
+		},
+		swing = {
+			{ t = 0.00, RS = { 172, 8, 0 }, LS = { 70, -20, -10 }, Root = { 8, -18, 0 }, N = { 8, 0, 0 } },
+			{ t = 0.17, RS = { 86, 12, 0 }, LS = { 60, -10, -25 }, Root = { -12, 22, 0 }, off = { 0, -0.05, -0.35 }, N = { -8, 0, 0 } },
+			{ t = 0.27, RS = { 60, 14, 0 }, LS = { 60, -10, -25 }, Root = { -14, 24, 0 }, off = { 0, -0.05, -0.4 }, N = { -10, 0, 0 } },
+			{ t = 0.50, RS = { 45, 10, 0 }, Root = { 0, -6, 0 } },
+		},
+		throw = {
+			{ t = 0.00, RS = { 165, -10, 10 }, Root = { 6, -28, 0 } },
+			{ t = 0.10, RS = { 85, 0, 0 }, Root = { -12, 30, 0 }, off = { 0, 0, -0.3 } },
+			{ t = 0.18, hold = true },
+			{ t = 0.36, RS = { 60, 15, 0 }, Root = { 0, -8, 0 } },
+		},
+		super = {
+			{ t = 0.00, RS = { -35, 0, 20 }, LS = { 100, -35, 0 }, Root = { 6, -38, 0 }, off = { 0, -0.3, 0.2 }, N = { 0, 30, 0 }, RH = { -14, 0, 0 }, LH = { 22, 0, 0 } },
+			{ t = 0.36, RS = { -48, -6, 24 }, LS = { 104, -38, 0 }, Root = { 8, -44, 0 }, off = { 0, -0.35, 0.25 }, N = { 0, 34, 0 }, RH = { -16, 0, 0 }, LH = { 24, 0, 0 } },
+			{ t = 0.42, RS = { 96, -8, 0 }, LS = { 60, -10, -30 }, Root = { -16, 34, 0 }, off = { 0, 0, -0.9 }, N = { -5, -20, 0 }, RH = { -30, 0, 0 }, LH = { 30, 0, 0 } },
+			{ t = 0.75, hold = true },
+			{ t = 1.05, RS = { 84, 26, 0 }, Root = { 0, -10, 0 } },
+		},
+		pickup = {
+			{ t = 0.00, Root = { -30, 0, 0 }, RS = { 40, 10, 0 }, N = { -20, 0, 0 } },
+			{ t = 0.15, Root = { -32, 0, 0 }, RS = { 20, 10, 0 }, N = { -24, 0, 0 } },
+			{ t = 0.30, Root = { -5, 0, 0 } },
+		},
+		hurt = {
+			{ t = 0.00, Root = { 16, 0, -6 }, N = { 28, 0, 8 }, RS = { 40, 0, 40 }, LS = { 40, 0, -40 }, off = { 0, 0, 0.25 } },
+			{ t = 0.12, Root = { 10, 0, -3 }, N = { 14, 0, 4 }, RS = { 55, 10, 25 }, LS = { 55, -10, -25 }, off = { 0, 0, 0.15 } },
+			{ t = 0.40, Root = { 0, -8, 0 } },
+		},
+		hurtBody = {
+			{ t = 0.00, Root = { -24, 0, 4 }, N = { -12, 0, 0 }, RS = { 40, 40, 0 }, LS = { 40, -40, 0 }, off = { 0, -0.1, 0.3 } },
+			{ t = 0.15, Root = { -18, 0, 2 }, N = { -8, 0, 0 }, RS = { 45, 40, 0 }, LS = { 45, -40, 0 }, off = { 0, -0.05, 0.15 } },
+			{ t = 0.45, Root = { 0, -8, 0 } },
+		},
+		blockHit = {
+			{ t = 0.00, RS = { 120, 46, 0 }, LS = { 120, -46, 0 }, Root = { 10, 0, 0 }, N = { -6, 0, 0 }, off = { 0, 0, 0.3 } },
+			{ t = 0.20, RS = { 128, 46, 0 }, LS = { 128, -46, 0 }, Root = { 4, -6, 0 } },
+		},
+		taunt = {
+			{ t = 0.00, procedural = "dance" },
+			{ t = 1.60, procedural = "dance" },
+		},
+	},
+}
+--@@DATA_END
+
+-- ----- เตรียมข้อมูล: hold = ก๊อปท่าก่อนหน้า, แปลงองศาเป็นเรเดียน -----
+local JOINTS = { "Root", "N", "RS", "LS", "RH", "LH" }
+A.JOINTS = JOINTS
+local rad = math.rad
+
+local function toRad(v)
+	return { rad(v[1]), rad(v[2]), rad(v[3]) }
+end
+local function convertPose(p)
+	local out = {}
+	for _, j in ipairs(JOINTS) do
+		if p[j] then
+			out[j] = toRad(p[j])
+		end
+	end
+	if p.off then
+		out.off = { p.off[1], p.off[2], p.off[3] }
+	end
+	return out
+end
+
+A.Guard = convertPose(DATA.Guard)
+A.Block = convertPose(DATA.Block)
+A.WeaponArm = toRad(DATA.WeaponArm)
+A.Clips = {}
+for name, keys in pairs(DATA.Clips) do
+	local clip = { keys = {}, len = 0, procedural = nil }
+	local prev = nil
+	for i, k in ipairs(keys) do
+		local ck
+		if k.hold and prev then
+			ck = {}
+			for key, val in pairs(prev) do
+				ck[key] = val
+			end
+		else
+			ck = convertPose(k)
+		end
+		ck.t = k.t
+		if k.procedural then
+			clip.procedural = k.procedural
+		end
+		clip.keys[i] = ck
+		prev = ck
+		if k.t > clip.len then
+			clip.len = k.t
+		end
+	end
+	A.Clips[name] = clip
+end
+
+-- smoothstep
+local function ease(a)
+	return a * a * (3 - 2 * a)
+end
+A.ease = ease
+
+-- ค่าของ joint j จาก pose (ถ้าไม่มี ใช้ base)
+local function jv(pose, base, j)
+	return pose[j] or base[j]
+end
+
+-- ประเมินท่าของคลิป ณ เวลา t; เขียนผลทับลงใน out (ตาราง joint -> {rx,ry,rz})
+-- คืนค่า น้ำหนัก(0..1) ของคลิป (ใช้เฟดออก)
+function A.sampleClip(clip, t, base, out)
+	local keys = clip.keys
+	local n = #keys
+	if n == 0 then
+		return 0
+	end
+	local fade = 0.14
+	if t >= keys[n].t then
+		-- จบคลิปแล้ว เฟดจาก key สุดท้ายกลับไป base
+		local w = 1 - math.clamp((t - keys[n].t) / fade, 0, 1)
+		local last = keys[n]
+		for _, j in ipairs(JOINTS) do
+			local v = last[j]
+			if v then
+				local b = base[j]
+				out[j] = { b[1] + (v[1] - b[1]) * w, b[2] + (v[2] - b[2]) * w, b[3] + (v[3] - b[3]) * w }
+			end
+		end
+		if last.off then
+			out.off = { last.off[1] * w, last.off[2] * w, last.off[3] * w }
+		end
+		return w
+	end
+	local k1, k2 = keys[1], keys[1]
+	for i = 1, n - 1 do
+		if t >= keys[i].t and t < keys[i + 1].t then
+			k1, k2 = keys[i], keys[i + 1]
+			break
+		end
+	end
+	local span = k2.t - k1.t
+	local a = 1
+	if span > 0 then
+		a = ease(math.clamp((t - k1.t) / span, 0, 1))
+	end
+	for _, j in ipairs(JOINTS) do
+		if k1[j] or k2[j] then
+			local v1 = jv(k1, base, j)
+			local v2 = jv(k2, base, j)
+			out[j] = { v1[1] + (v2[1] - v1[1]) * a, v1[2] + (v2[2] - v1[2]) * a, v1[3] + (v2[3] - v1[3]) * a }
+		end
+	end
+	local o1 = k1.off or { 0, 0, 0 }
+	local o2 = k2.off or { 0, 0, 0 }
+	if k1.off or k2.off then
+		out.off = { o1[1] + (o2[1] - o1[1]) * a, o1[2] + (o2[2] - o1[2]) * a, o1[3] + (o2[3] - o1[3]) * a }
+	end
+	return 1
+end
+
+-- ท่าเต้นยั่ว (ไก่ย่างแดนซ์)
+function A.dance(t, out)
+	local s = math.sin(t * 9)
+	local flap = rad(50 + math.sin(t * 18) * 35)
+	out.RS = { rad(20), 0, flap }
+	out.LS = { rad(20), 0, -flap }
+	out.RH = { rad(math.max(0, s) * 45), 0, rad(4) }
+	out.LH = { rad(math.max(0, -s) * 45), 0, rad(-4) }
+	out.Root = { rad(-4), rad(math.sin(t * 4.5) * 20), rad(s * 8) }
+	out.N = { rad(math.abs(s) * 10), rad(math.sin(t * 4.5) * 25), rad(-s * 10) }
+	out.off = { 0, math.abs(s) * 0.25, 0 }
+end
+
+return A
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+	<Item class="ServerScriptService" referent="RBX00000003">
+		<Properties>
+			<string name="Name">ServerScriptService</string>
+		</Properties>
+		<Item class="Script" referent="RBX00000004">
+			<Properties>
+				<string name="Name">BrawlServer</string>
+				<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : SOI BRAWL  -  สคริปต์หลักฝั่ง Server
+--  (ServerScriptService > BrawlServer  + ModuleScript ลูก 6 ตัว)
+-- ============================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+local MapBuilder = require(script:WaitForChild("MapBuilder"))
+local CB = require(script:WaitForChild("CharacterBuilder"))
+local Ragdoll = require(script:WaitForChild("Ragdoll"))
+local Combat = require(script:WaitForChild("Combat"))
+local Weapons = require(script:WaitForChild("Weapons"))
+local Bots = require(script:WaitForChild("Bots"))
+
+Players.CharacterAutoLoads = false
+
+-- ===== RemoteEvents =====
+local remotes = {}
+local rf = Instance.new("Folder")
+rf.Name = "BrawlRemotes"
+for _, n in ipairs({ "Action", "Fx", "Knock", "Ragdoll", "Notify" }) do
+	local e = Instance.new("RemoteEvent")
+	e.Name = n
+	e.Parent = rf
+	remotes[n] = e
+end
+rf.Parent = ReplicatedStorage
+
+-- ===== สถานะเกม (client อ่าน) =====
+local stateF = Instance.new("Folder")
+stateF.Name = "BrawlState"
+local phaseV = Instance.new("StringValue")
+phaseV.Name = "Phase"
+phaseV.Value = "fight"
+phaseV.Parent = stateF
+local endV = Instance.new("NumberValue")
+endV.Name = "RoundEnd"
+endV.Parent = stateF
+local scoresF = Instance.new("Folder")
+scoresF.Name = "Scores"
+scoresF.Parent = stateF
+stateF.Parent = ReplicatedStorage
+
+-- ===== สร้างโลก =====
+local map = MapBuilder.build(remotes)
+local fightersFolder = Instance.new("Folder")
+fightersFolder.Name = "Fighters"
+fightersFolder.Parent = workspace
+
+Ragdoll.init(remotes)
+Combat.init({ remotes = remotes, Ragdoll = Ragdoll, CB = CB, Weapons = Weapons })
+Weapons.init({ Combat = Combat, remotes = remotes, spawners = map.weaponSpawns })
+Bots.init({ Combat = Combat, Ragdoll = Ragdoll, Weapons = Weapons })
+
+-- ===== สถิติผู้เข้าแข่ง =====
+local statsList = {} -- ทุกคน (ผู้เล่น+บอท)
+local playerStats = {} -- [player] = stats
+local scoreSeq = 0
+
+local function newStats(name, isBot, player)
+	scoreSeq = scoreSeq + 1
+	local st = { name = name, isBot = isBot, player = player, kos = 0, deaths = 0, streak = 0, taunts = 0, dmg = 0 }
+	local v = Instance.new("IntValue")
+	v.Name = "S" .. scoreSeq
+	v:SetAttribute("DisplayName", name)
+	v:SetAttribute("IsBot", isBot)
+	v.Parent = scoresF
+	st.value = v
+	table.insert(statsList, st)
+	return st
+end
+
+local function removeStats(st)
+	for i, s in ipairs(statsList) do
+		if s == st then
+			table.remove(statsList, i)
+			break
+		end
+	end
+	if st.value then
+		st.value:Destroy()
+	end
+end
+
+local function syncScores()
+	for _, st in ipairs(statsList) do
+		if st.value then
+			st.value.Value = st.kos
+			st.value:SetAttribute("Deaths", st.deaths)
+		end
+		if st.player and st.player.Parent then
+			local ls = st.player:FindFirstChild("leaderstats")
+			if ls then
+				ls.KO.Value = st.kos
+				ls["ล้ม"].Value = st.deaths
+			end
+		end
+	end
+end
+Combat.onScore = syncScores
+
+-- ===== จุดเกิด: เลือกที่ห่างคนอื่นที่สุด =====
+local function pickSpawn()
+	local best, bestScore = map.spawns[1], -1
+	for _, sp in ipairs(map.spawns) do
+		local minD = 1e9
+		for _, F in pairs(Combat.fighters) do
+			if F.alive then
+				minD = math.min(minD, (F.root.Position - sp).Magnitude)
+			end
+		end
+		local score = minD + math.random() * 8
+		if score > bestScore then
+			best, bestScore = sp, score
+		end
+	end
+	return best
+end
+
+local function placeModel(model)
+	local sp = pickSpawn()
+	model:PivotTo(CFrame.new(sp + Vector3.new(0, 3.3, 0)) * CFrame.Angles(0, math.random() * math.pi * 2, 0))
+end
+
+-- ===== ผู้เล่น =====
+local playerIndex = 0
+local spawnPlayer
+
+local function scheduleRespawn(player)
+	task.delay(Config.RespawnTime, function()
+		if player.Parent then
+			spawnPlayer(player)
+		end
+	end)
+end
+
+spawnPlayer = function(player)
+	local st = playerStats[player]
+	if not st or not player.Parent then
+		return
+	end
+	local model = CB.build(CB.playerLook(st.index), player.DisplayName, player)
+	Ragdoll.setup(model)
+	placeModel(model)
+	player.Character = model
+	model.Parent = fightersFolder
+	pcall(function()
+		model.HumanoidRootPart:SetNetworkOwner(player)
+	end)
+	Combat.register(model, { player = player, name = player.DisplayName, stats = st })
+end
+
+local function onPlayerAdded(player)
+	playerIndex = playerIndex + 1
+	local ls = Instance.new("Folder")
+	ls.Name = "leaderstats"
+	local ko = Instance.new("IntValue")
+	ko.Name = "KO"
+	ko.Parent = ls
+	local dn = Instance.new("IntValue")
+	dn.Name = "ล้ม"
+	dn.Parent = ls
+	ls.Parent = player
+	player.CameraMaxZoomDistance = 40
+	player.CameraMinZoomDistance = 6
+	local st = newStats(player.DisplayName, false, player)
+	st.index = playerIndex
+	playerStats[player] = st
+	task.delay(0.5, function()
+		spawnPlayer(player)
+	end)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, p in ipairs(Players:GetPlayers()) do
+	task.spawn(onPlayerAdded, p)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+	local char = player.Character
+	if char then
+		local F = Combat.fighters[char]
+		if F then
+			Bots.remove(F)
+		end
+		Combat.unregister(char)
+		char:Destroy()
+	end
+	local st = playerStats[player]
+	if st then
+		removeStats(st)
+		playerStats[player] = nil
+	end
+end)
+
+-- ===== บอท =====
+local botSlots = {}
+local usedNames = {}
+
+local function botName()
+	local pool = {}
+	for _, n in ipairs(Config.BotNames) do
+		if not usedNames[n] then
+			table.insert(pool, n)
+		end
+	end
+	if #pool == 0 then
+		return "นักเลง #" .. math.random(10, 99)
+	end
+	local n = pool[math.random(1, #pool)]
+	usedNames[n] = true
+	return n
+end
+
+local function spawnBot(slot)
+	if not slot.active then
+		return
+	end
+	local model = CB.build(slot.look, slot.name, nil)
+	Ragdoll.setup(model)
+	placeModel(model)
+	model.Parent = fightersFolder
+	pcall(function()
+		model.HumanoidRootPart:SetNetworkOwner(nil)
+	end)
+	local F = Combat.register(model, { name = slot.name, isBot = true, stats = slot.stats })
+	slot.F = F
+	Bots.add(F)
+end
+
+local function desiredBots()
+	local n = #Players:GetPlayers()
+	if n >= 4 then
+		return math.min(Config.BotCount, Config.BotsWhenPlayers)
+	end
+	return Config.BotCount
+end
+
+local function updateBots()
+	local want = desiredBots()
+	local active = 0
+	for _, s in ipairs(botSlots) do
+		if s.active then
+			active = active + 1
+		end
+	end
+	while active < want do
+		local rng = Random.new()
+		local slot = { active = true, name = botName(), look = CB.randomLook(rng) }
+		slot.stats = newStats(slot.name, true, nil)
+		table.insert(botSlots, slot)
+		spawnBot(slot)
+		active = active + 1
+	end
+	if active > want then
+		for i = #botSlots, 1, -1 do
+			local s = botSlots[i]
+			if s.active and active > want then
+				s.active = false
+				active = active - 1
+				if s.F then
+					Bots.remove(s.F)
+					Combat.unregister(s.F.model)
+					s.F.model:Destroy()
+				end
+				usedNames[s.name] = nil
+				removeStats(s.stats)
+				table.remove(botSlots, i)
+			end
+		end
+	end
+end
+
+Combat.onDeath = function(F)
+	-- ร่างนอนสักพักแล้วหายไป
+	local model = F.model
+	task.delay(Config.CorpseTime, function()
+		Combat.unregister(model)
+		if model.Parent then
+			model:Destroy()
+		end
+	end)
+	if F.player then
+		scheduleRespawn(F.player)
+	elseif F.isBot then
+		Bots.remove(F)
+		for _, s in ipairs(botSlots) do
+			if s.F == F then
+				task.delay(Config.RespawnTime, function()
+					if s.active then
+						s.look = CB.randomLook(Random.new())
+						spawnBot(s)
+					end
+				end)
+			end
+		end
+	end
+end
+
+task.delay(1, updateBots)
+Players.PlayerAdded:Connect(function()
+	task.delay(1, updateBots)
+end)
+Players.PlayerRemoving:Connect(function()
+	task.delay(1, updateBots)
+end)
+
+-- ===== คำสั่งจากผู้เล่น =====
+local rate = {}
+remotes.Action.OnServerEvent:Connect(function(player, action, payload)
+	if typeof(action) ~= "string" then
+		return
+	end
+	local t = os.clock()
+	local r = rate[player]
+	if not r or t - r.t > 1 then
+		r = { t = t, n = 0 }
+		rate[player] = r
+	end
+	r.n = r.n + 1
+	if r.n > 25 then
+		return
+	end
+	local F = Combat.get(player.Character)
+	if not F then
+		return
+	end
+	if typeof(payload) ~= "table" then
+		payload = {}
+	end
+	local dir = payload.dir
+	if typeof(dir) == "Vector3" then
+		dir = Vector3.new(dir.X, 0, dir.Z)
+		if dir.Magnitude > 0.1 and dir.Magnitude == dir.Magnitude then
+			dir = dir.Unit
+		else
+			dir = nil
+		end
+	else
+		dir = nil
+	end
+	Combat.request(F, action, { dir = dir, air = payload.air == true, on = payload.on == true })
+end)
+Players.PlayerRemoving:Connect(function(p)
+	rate[p] = nil
+end)
+
+-- ===== ลูปหลัก =====
+RunService.Heartbeat:Connect(function(dt)
+	Combat.step(dt)
+	Bots.step(dt)
+end)
+
+-- กันผู้เล่นค้างไม่มีตัว
+task.spawn(function()
+	while true do
+		task.wait(3)
+		for player, st in pairs(playerStats) do
+			local char = player.Character
+			if player.Parent and (not char or not char.Parent) and not st.pending then
+				st.pending = true
+				task.delay(1, function()
+					st.pending = false
+					local c = player.Character
+					if player.Parent and (not c or not c.Parent) then
+						spawnPlayer(player)
+					end
+				end)
+			end
+		end
+	end
+end)
+
+-- ===== รอบการแข่ง =====
+local function bestBy(field)
+	local best, bv = nil, -1
+	for _, st in ipairs(statsList) do
+		local v = st[field] or 0
+		if v > bv then
+			best, bv = st, v
+		end
+	end
+	if bv <= 0 then
+		return nil, 0
+	end
+	return best, bv
+end
+
+task.spawn(function()
+	while true do
+		phaseV.Value = "fight"
+		endV.Value = workspace:GetServerTimeNow() + Config.RoundTime
+		task.wait(Config.RoundTime)
+		local king, kos = bestBy("kos")
+		local potato, deaths = bestBy("deaths")
+		local dancer, taunts = bestBy("taunts")
+		local brute, dmg = bestBy("dmg")
+		remotes.Notify:FireAllClients("round", {
+			king = king and king.name, kos = kos,
+			potato = potato and potato.name, deaths = deaths,
+			dancer = dancer and dancer.name, taunts = taunts,
+			brute = brute and brute.name, dmg = math.floor(dmg),
+		})
+		phaseV.Value = "results"
+		endV.Value = workspace:GetServerTimeNow() + Config.ResultTime
+		task.wait(Config.ResultTime)
+		for _, st in ipairs(statsList) do
+			st.kos, st.deaths, st.streak, st.taunts, st.dmg = 0, 0, 0, 0, 0
+		end
+		syncScores()
+		remotes.Notify:FireAllClients("newround", {})
+	end
+end)
+
+print("[ซอยเดือด] พร้อมตีกันแล้ว! 🔥")
+]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+			</Properties>
+			<Item class="ModuleScript" referent="RBX00000005">
+				<Properties>
+					<string name="Name">MapBuilder</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : สร้างแมพ "ซอยตึกแถว" ด้วยโค้ดทั้งหมด
+--  ถนน 2 เลน + ฟุตบาท + ตึกแถว + เสาไฟสายไฟพันกัน + สังเวียนข้างทาง
+-- ============================================================
+local Lighting = game:GetService("Lighting")
+local Debris = game:GetService("Debris")
+
+local MapBuilder = {}
+
+local ROAD_HW = 16   -- ครึ่งความกว้างถนน
+local FACADE = 22    -- แนวหน้าตึก
+local LEN = 70       -- ครึ่งความยาวซอย
+local rng = Random.new(20261106)
+local folder
+local remotes
+
+local M = Enum.Material
+
+local function P(name, size, cf, color, material, props)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or M.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	if props then
+		for k, v in pairs(props) do
+			p[k] = v
+		end
+	end
+	p.Parent = (props and props.Parent) or folder
+	return p
+end
+
+local function at(x, y, z)
+	return CFrame.new(x, y, z)
+end
+
+local function rgb(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
+
+local function label(part, face, text, color, bg, font)
+	local g = Instance.new("SurfaceGui")
+	g.Face = face
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	g.PixelsPerStud = 30
+	g.LightInfluence = 0.4
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(1, 1)
+	t.BackgroundTransparency = bg and 0 or 1
+	if bg then
+		t.BackgroundColor3 = bg
+	end
+	t.Text = text
+	t.TextScaled = true
+	t.Font = font or Enum.Font.GothamBlack
+	t.TextColor3 = color
+	t.Parent = g
+	g.Parent = part
+	return g
+end
+
+-- เส้นลวด/สายไฟระหว่าง 2 จุด (หย่อนตรงกลาง)
+local function wire(a, b, sag, color)
+	local mid = (a + b) / 2 - Vector3.new(0, sag, 0)
+	for _, seg in ipairs({ { a, mid }, { mid, b } }) do
+		local p0, p1 = seg[1], seg[2]
+		local len = (p1 - p0).Magnitude
+		P("Wire", Vector3.new(0.12, 0.12, len), CFrame.lookAt((p0 + p1) / 2, p1), color or rgb(20, 20, 22), M.SmoothPlastic, { CanCollide = false, CanQuery = false, CanTouch = false, CastShadow = false })
+	end
+end
+
+local SHOPS = {
+	"ข้าวมันไก่", "ก๋วยเตี๋ยวเรือ", "ร้านตัดผม", "นวดแผนไทย", "ร้านชำ", "ซ่อมมือถือ", "หมูกระทะ",
+	"ร้านยา", "ส้มตำแซ่บ", "เสริมสวย", "ผัดไทย", "ชานมไข่มุก", "ซักรีด", "ร้านเกม", "อู่ซ่อมรถ",
+	"คลินิกทำฟัน 🦷", "ประกันชีวิต", "ร้านโลงศพ", "ข้าวต้มโต้รุ่ง", "ยาดม ยาหม่อง",
+}
+local PASTEL = {
+	rgb(236, 222, 190), rgb(198, 222, 200), rgb(236, 200, 200), rgb(196, 214, 236), rgb(240, 232, 170),
+	rgb(222, 200, 236), rgb(210, 210, 205), rgb(240, 214, 180),
+}
+local SIGN = {
+	rgb(220, 40, 40), rgb(30, 110, 200), rgb(250, 200, 30), rgb(30, 160, 80), rgb(240, 120, 20), rgb(140, 40, 160),
+}
+
+-- ===== ของแตกได้ =====
+local function breakGlass(glass)
+	if glass:GetAttribute("Broken") then
+		return
+	end
+	glass:SetAttribute("Broken", true)
+	local cf, size = glass.CFrame, glass.Size
+	glass.Transparency = 1
+	glass.CanCollide = false
+	glass.CanQuery = false
+	for _ = 1, 12 do
+		local s = P("Shard", Vector3.new(0.1, rng:NextNumber(0.4, 1.4), rng:NextNumber(0.4, 1.4)),
+			cf * CFrame.new(0, rng:NextNumber(-size.Y / 2, size.Y / 2), rng:NextNumber(-size.Z / 2, size.Z / 2)) * CFrame.Angles(rng:NextNumber(0, 6), rng:NextNumber(0, 6), 0),
+			rgb(190, 220, 235), M.Glass, { Anchored = false, Transparency = 0.35, CanQuery = false })
+		s.AssemblyLinearVelocity = Vector3.new(rng:NextNumber(-14, 14), rng:NextNumber(2, 16), rng:NextNumber(-14, 14))
+		Debris:AddItem(s, 6)
+	end
+	if remotes then
+		remotes.Fx:FireAllClients("break", { pos = glass.Position, glass = true })
+	end
+	task.delay(25, function()
+		glass.Transparency = 0.45
+		glass.CanCollide = true
+		glass.CanQuery = true
+		glass:SetAttribute("Broken", false)
+	end)
+end
+
+local function makeBreakable(part, kind)
+	part:SetAttribute("Breakable", kind)
+	part.Touched:Connect(function(hit)
+		if hit.Anchored then
+			return
+		end
+		local v = hit.AssemblyLinearVelocity.Magnitude
+		if kind == "glass" and v > 26 then
+			breakGlass(part)
+		end
+	end)
+end
+
+local function spawnMelon(pos)
+	local melon = P("Watermelon", Vector3.new(1.5, 1.5, 1.5), CFrame.new(pos), rgb(40, 130, 40), M.SmoothPlastic, { Anchored = false, Shape = Enum.PartType.Ball })
+	local done = false
+	melon.Touched:Connect(function(hit)
+		if done or hit.Anchored or hit:IsDescendantOf(melon) then
+			return
+		end
+		local rel = (hit.AssemblyLinearVelocity - melon.AssemblyLinearVelocity).Magnitude
+		if rel > 24 then
+			done = true
+			local p = melon.Position
+			for i = 1, 8 do
+				local red = i % 2 == 0
+				local c = P("MelonChunk", Vector3.new(0.5, 0.5, 0.5), CFrame.new(p), red and rgb(230, 60, 80) or rgb(40, 130, 40), M.SmoothPlastic, { Anchored = false, CanQuery = false })
+				c.AssemblyLinearVelocity = Vector3.new(rng:NextNumber(-18, 18), rng:NextNumber(6, 22), rng:NextNumber(-18, 18))
+				Debris:AddItem(c, 5)
+			end
+			if remotes then
+				remotes.Fx:FireAllClients("melon", { pos = p })
+			end
+			melon:Destroy()
+			task.delay(30, function()
+				spawnMelon(pos)
+			end)
+		end
+	end)
+	return melon
+end
+
+-- ===== ตึกแถว 1 ห้อง =====
+local function shophouse(side, z, w)
+	local floors = rng:NextInteger(2, 4)
+	local H = floors * 9 + 0.5
+	local depth = 12
+	local x = side * (FACADE + depth / 2)
+	local fx = side * FACADE -- ระนาบหน้าตึก
+	local col = PASTEL[rng:NextInteger(1, #PASTEL)]
+	local face = side > 0 and Enum.NormalId.Left or Enum.NormalId.Right -- ด้านที่หันเข้าถนน
+	P("Building", Vector3.new(depth, H, w), at(x, H / 2, z), col, M.Concrete)
+	-- ชั้นล่าง: ร้านค้า
+	local shopC = rgb(30, 26, 24)
+	P("ShopInside", Vector3.new(0.2, 7, w - 1.6), at(fx - side * 0.1, 4, z), shopC, M.SmoothPlastic)
+	local shutterOpen = rng:NextNumber(0.25, 0.6)
+	local sh = 7 * shutterOpen
+	P("Shutter", Vector3.new(0.3, sh, w - 1.4), at(fx - side * 0.25, 7.5 - sh / 2, z), rgb(150, 152, 156), M.CorrodedMetal)
+	-- ป้ายร้าน
+	local sign = P("ShopSign", Vector3.new(0.5, 1.8, w - 1), at(fx - side * 0.35, 8.5, z), SIGN[rng:NextInteger(1, #SIGN)], M.SmoothPlastic)
+	label(sign, face, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
+	-- กระจกหน้าร้าน (แตกได้!)
+	if rng:NextNumber() < 0.55 then
+		local g = P("ShopGlass", Vector3.new(0.3, 5.2, w - 2.2), at(fx - side * 0.62, 3.1, z), rgb(170, 210, 230), M.Glass, { Transparency = 0.45 })
+		makeBreakable(g, "glass")
+	end
+	-- ชั้นบน: หน้าต่าง แอร์ ระเบียง
+	for f = 1, floors - 1 do
+		local y = f * 9 + 0.5
+		P("Ledge", Vector3.new(0.8, 0.4, w), at(fx - side * 0.2, y, z), col:Lerp(rgb(0, 0, 0), 0.15), M.Concrete)
+		for i = -1, 1, 2 do
+			local wz = z + i * w * 0.22
+			P("Window", Vector3.new(0.3, 3.4, 2.8), at(fx - side * 0.1, y + 4.5, wz), rgb(40, 60, 90), M.Glass, { Reflectance = 0.15 })
+			P("Frame", Vector3.new(0.25, 3.8, 3.2), at(fx - side * 0.04, y + 4.5, wz), rgb(235, 235, 230))
+			if rng:NextNumber() < 0.35 then
+				P("AC", Vector3.new(1.3, 1.4, 2.2), at(fx - side * 0.75, y + 2, wz), rgb(232, 232, 228), M.SmoothPlastic)
+			end
+		end
+		if rng:NextNumber() < 0.4 then
+			P("Balcony", Vector3.new(1.6, 0.3, w * 0.7), at(fx - side * 0.8, y + 1, z), col:Lerp(rgb(0, 0, 0), 0.2), M.Concrete)
+			P("Rail", Vector3.new(0.15, 1.4, w * 0.7), at(fx - side * 1.55, y + 1.85, z), rgb(60, 60, 64), M.Metal)
+			-- ผ้าตากหลากสี ฮาๆ
+			for k = 1, 3 do
+				P("Laundry", Vector3.new(0.1, 1.2, 0.9), at(fx - side * 1.5, y + 2.6, z - w * 0.25 + k * w * 0.13), SIGN[rng:NextInteger(1, #SIGN)], M.Fabric, { CanCollide = false })
+			end
+		end
+	end
+	P("Parapet", Vector3.new(depth, 1, w), at(x, H + 0.5, z), col:Lerp(rgb(0, 0, 0), 0.1), M.Concrete)
+	-- ป้ายนีออนแนวตั้ง
+	if rng:NextNumber() < 0.35 then
+		local ns = P("NeonSign", Vector3.new(3, 5, 0.4), at(fx - side * 1.8, 12 + rng:NextNumber(0, 3), z + w / 2 - 0.6), SIGN[rng:NextInteger(1, #SIGN)], M.Neon)
+		label(ns, Enum.NormalId.Front, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
+		label(ns, Enum.NormalId.Back, SHOPS[rng:NextInteger(1, #SHOPS)], rgb(255, 255, 255))
+	end
+end
+
+local function pole(x, z)
+	P("Pole", Vector3.new(0.9, 24, 0.9), at(x, 12.5, z), rgb(160, 158, 150), M.Concrete)
+	P("CrossArm", Vector3.new(0.4, 0.4, 6), at(x, 22.5, z), rgb(70, 70, 70), M.Metal)
+	if rng:NextNumber() < 0.4 then
+		P("Transformer", Vector3.new(1.6, 2.4, 1.6), at(x - math.sign(x) * 0.9, 18, z), rgb(110, 115, 110), M.Metal)
+	end
+	-- โคมไฟถนน
+	local arm = P("LampArm", Vector3.new(3.5, 0.3, 0.3), at(x - math.sign(x) * 1.8, 16, z), rgb(70, 70, 70), M.Metal)
+	local lamp = P("Lamp", Vector3.new(1.2, 0.4, 0.8), at(x - math.sign(x) * 3.4, 15.7, z), rgb(255, 220, 160), M.Neon)
+	local light = Instance.new("PointLight")
+	light.Range = 26
+	light.Brightness = 1.3
+	light.Color = rgb(255, 210, 150)
+	light.Shadows = false
+	light.Parent = lamp
+	return arm
+end
+
+-- ===== ตุ๊กตุ๊ก =====
+local function tuktuk(cf)
+	local blue, yellow, dark = rgb(30, 90, 190), rgb(250, 200, 30), rgb(25, 25, 28)
+	P("TukBase", Vector3.new(4.2, 1.2, 7), cf * at(0, 1.6, 0), blue, M.Metal)
+	P("TukNose", Vector3.new(2.2, 2.6, 1.6), cf * at(0, 2.6, -3.4), blue, M.Metal)
+	P("TukRoof", Vector3.new(4.6, 0.3, 5.4), cf * at(0, 6.4, 0.6), yellow, M.Metal)
+	for _, px in ipairs({ -2, 2 }) do
+		P("TukPost", Vector3.new(0.2, 4.2, 0.2), cf * at(px, 4.3, 3), dark, M.Metal)
+		P("TukPost", Vector3.new(0.2, 4.2, 0.2), cf * at(px, 4.3, -1.8), dark, M.Metal)
+	end
+	P("TukSeat", Vector3.new(3.8, 1.4, 1.6), cf * at(0, 2.9, 2.2), rgb(150, 30, 30), M.Fabric)
+	P("TukWindshield", Vector3.new(3.8, 2, 0.15), cf * at(0, 4.6, -2), rgb(180, 220, 240), M.Glass, { Transparency = 0.5 })
+	for _, w in ipairs({ { 0, -3.2 }, { -2.1, 2.4 }, { 2.1, 2.4 } }) do
+		P("Wheel", Vector3.new(0.6, 1.8, 1.8), cf * at(w[1], 0.9, w[2]), dark, M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+	end
+	local plate = P("TukSign", Vector3.new(4.2, 0.9, 0.2), cf * at(0, 7.0, -2.0), yellow, M.SmoothPlastic)
+	label(plate, Enum.NormalId.Front, "TAXI ตุ๊กตุ๊ก", dark)
+end
+
+local function motorbike(cf, color)
+	local dark = rgb(25, 25, 28)
+	P("BikeBody", Vector3.new(0.9, 1.4, 3.6), cf * at(0, 1.9, 0), color, M.Metal)
+	P("BikeSeat", Vector3.new(1, 0.4, 1.8), cf * at(0, 2.8, 0.6), dark, M.Fabric)
+	P("BikeBar", Vector3.new(2.4, 0.2, 0.2), cf * at(0, 3.4, -1.6), dark, M.Metal)
+	for _, z in ipairs({ -1.6, 1.6 }) do
+		P("Wheel", Vector3.new(0.4, 1.8, 1.8), cf * at(0, 0.9, z), dark, M.SmoothPlastic, { Shape = Enum.PartType.Cylinder })
+	end
+end
+
+local function stall(cf)
+	local steel = rgb(190, 192, 196)
+	P("Cart", Vector3.new(5, 2.6, 2.6), cf * at(0, 1.8, 0), steel, M.DiamondPlate)
+	P("Display", Vector3.new(4.6, 1.6, 2.2), cf * at(0, 3.9, 0), rgb(200, 230, 240), M.Glass, { Transparency = 0.5 })
+	P("UmbrellaPole", Vector3.new(0.2, 8, 0.2), cf * at(2.6, 4.5, 0), rgb(60, 60, 60), M.Metal)
+	P("Umbrella", Vector3.new(0.4, 9, 9), cf * at(2.6, 8.6, 0) * CFrame.Angles(0, 0, math.pi / 2), rgb(220, 50, 50), M.Fabric, { Shape = Enum.PartType.Cylinder, CanCollide = false })
+	local s = P("StallSign", Vector3.new(4.6, 1, 0.2), cf * at(0, 5.2, -1.2), rgb(250, 200, 30))
+	label(s, Enum.NormalId.Front, "หมูปิ้ง ไม้ละ 10.-", rgb(120, 20, 20))
+end
+
+-- ของฟิสิกส์ที่เตะกระจาย
+local function prop(name, size, pos, color, material, shape)
+	local p = P(name, size, CFrame.new(pos), color, material, { Anchored = false })
+	if shape then
+		p.Shape = shape
+	end
+	return p
+end
+
+function MapBuilder.build(r)
+	remotes = r
+	-- ลบ Baseplate / SpawnLocation จากเทมเพลต (ถ้ามี) กันพื้นซ้อนกัน
+	for _, d in ipairs(workspace:GetChildren()) do
+		if (d.Name == "Baseplate" and d:IsA("BasePart")) or d:IsA("SpawnLocation") then
+			d:Destroy()
+		end
+	end
+	folder = Instance.new("Folder")
+	folder.Name = "SoiMap"
+	folder.Parent = workspace
+
+	-- พื้นถนน + ฟุตบาท
+	P("Road", Vector3.new(ROAD_HW * 2, 2, LEN * 2 + 10), at(0, -1, 0), rgb(62, 62, 66), M.Asphalt)
+	for _, s in ipairs({ -1, 1 }) do
+		P("Sidewalk", Vector3.new(FACADE - ROAD_HW, 1.5, LEN * 2 + 10), at(s * (ROAD_HW + FACADE) / 2, -0.25, 0), rgb(176, 170, 160), M.Pavement)
+		-- ขอบฟุตบาทแดงขาว
+		local segs = math.floor((LEN * 2) / 6)
+		for i = 0, segs - 1 do
+			local z = -LEN + i * 6 + 3
+			P("Curb", Vector3.new(0.4, 0.54, 6), at(s * (ROAD_HW + 0.2), 0.24, z), (i % 2 == 0) and rgb(210, 40, 40) or rgb(240, 240, 240), M.SmoothPlastic)
+		end
+	end
+	-- เส้นถนน
+	for z = -LEN + 5, LEN - 5, 10 do
+		P("LaneMark", Vector3.new(0.4, 0.05, 4.5), at(0, 0.01, z), rgb(250, 200, 30), M.SmoothPlastic, { CanCollide = false })
+	end
+	for i = -6, 6 do
+		P("Zebra", Vector3.new(1.3, 0.05, 6), at(i * 2.3, 0.01, -32), rgb(240, 240, 240), M.SmoothPlastic, { CanCollide = false })
+	end
+	-- แอ่งน้ำ
+	for _ = 1, 6 do
+		P("Puddle", Vector3.new(rng:NextNumber(3, 7), 0.04, rng:NextNumber(2, 5)), at(rng:NextNumber(-12, 12), 0.02, rng:NextNumber(-60, 60)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), rgb(40, 52, 64), M.Glass, { CanCollide = false, Reflectance = 0.35, Transparency = 0.2 })
+	end
+
+	-- ตึกแถวสองฝั่ง
+	local w = 10
+	for _, s in ipairs({ -1, 1 }) do
+		for z = -LEN + w / 2, LEN - w / 2, w do
+			shophouse(s, z, w)
+		end
+	end
+	-- ปลายซอย
+	local wallC = rgb(150, 92, 72)
+	P("EndWallS", Vector3.new(FACADE * 2 + 4, 16, 2), at(0, 8, -LEN - 2), wallC, M.Brick)
+	local gs = P("Graffiti", Vector3.new(30, 6, 0.3), at(0, 7, -LEN - 0.85), rgb(255, 255, 255), M.SmoothPlastic, { Transparency = 1 })
+	label(gs, Enum.NormalId.Back, "ซอยเดือด 🔥 SOI BRAWL", rgb(255, 70, 40))
+	P("EndWallN", Vector3.new(FACADE * 2 + 4, 16, 2), at(0, 8, LEN + 2), wallC, M.Brick)
+	local dead = P("DeadEnd", Vector3.new(12, 3, 0.3), at(0, 9, LEN + 0.85), rgb(250, 200, 30), M.SmoothPlastic)
+	label(dead, Enum.NormalId.Front, "ทางตัน ⛔ ห้ามต่อยกันในซอย", rgb(160, 20, 20))
+	-- ป้ายซุ้มทางเข้า
+	local banner = P("Banner", Vector3.new(ROAD_HW * 2 + 2, 4, 0.4), at(0, 17, -LEN + 6), rgb(190, 30, 30), M.Fabric, { CanCollide = false })
+	label(banner, Enum.NormalId.Front, "ยินดีต้อนรับสู่ ซอยเดือด", rgb(255, 230, 120))
+	label(banner, Enum.NormalId.Back, "ซอยเดือด  SOI BRAWL", rgb(255, 230, 120))
+
+	-- กำแพงล่องหน (กันร่างบินออก/ขึ้นหลังคา)
+	local inv = { Transparency = 1, CanQuery = false, CastShadow = false }
+	for _, s in ipairs({ -1, 1 }) do
+		P("InvisWall", Vector3.new(1, 200, LEN * 2 + 8), at(s * (FACADE - 0.6), 112, 0), rgb(0, 0, 0), M.SmoothPlastic, inv)
+	end
+	P("InvisWall", Vector3.new(FACADE * 2, 220, 1), at(0, 110, -LEN - 0.5), rgb(0, 0, 0), M.SmoothPlastic, inv)
+	P("InvisWall", Vector3.new(FACADE * 2, 220, 1), at(0, 110, LEN + 0.5), rgb(0, 0, 0), M.SmoothPlastic, inv)
+
+	-- เสาไฟ + สายไฟพันกันระโยงระยาง
+	local poles = {}
+	for _, s in ipairs({ -1, 1 }) do
+		for z = -60, 60, 20 do
+			pole(s * (ROAD_HW + 1.2), z)
+			table.insert(poles, { x = s * (ROAD_HW + 1.2), z = z })
+		end
+	end
+	for _, s in ipairs({ -1, 1 }) do
+		for z = -60, 40, 20 do
+			for k = 1, 3 do
+				local y = 21 + k * 0.6
+				wire(Vector3.new(s * (ROAD_HW + 1.2), y, z), Vector3.new(s * (ROAD_HW + 1.2), y, z + 20), 1.2 + k * 0.5)
+			end
+		end
+	end
+	for z = -60, 60, 20 do
+		for k = 1, 4 do
+			local y = 19 + k * 0.9
+			wire(Vector3.new(-(ROAD_HW + 1.2), y, z + rng:NextNumber(-1, 1)), Vector3.new(ROAD_HW + 1.2, y + rng:NextNumber(-1, 1), z + rng:NextNumber(-3, 3)), 1.5 + k * 0.6)
+		end
+	end
+
+	-- สังเวียนข้างทาง
+	local ringZ = 30
+	local ring = P("Ring", Vector3.new(16, 1.2, 16), at(0, 0.6, ringZ), rgb(40, 90, 170), M.Fabric)
+	label(ring, Enum.NormalId.Top, "สังเวียนซอย", rgb(255, 255, 255))
+	P("RingApron", Vector3.new(17, 1, 17), at(0, 0.4, ringZ), rgb(30, 30, 34), M.SmoothPlastic)
+	local cornerC = { rgb(220, 40, 40), rgb(40, 80, 220), rgb(240, 240, 240), rgb(240, 240, 240) }
+	local corners = { { -7.7, -7.7 }, { 7.7, 7.7 }, { 7.7, -7.7 }, { -7.7, 7.7 } }
+	for i, c in ipairs(corners) do
+		P("RingPost", Vector3.new(0.6, 5, 0.6), at(c[1], 3.4, ringZ + c[2]), cornerC[i], M.Metal)
+	end
+	local ropeC = { rgb(220, 40, 40), rgb(240, 240, 240) }
+	for k, y in ipairs({ 3.0, 4.4 }) do
+		for i = 1, 4 do
+			local a = corners[({ 1, 3, 2, 4 })[i]]
+			local b = corners[({ 3, 2, 4, 1 })[i]]
+			local pa = Vector3.new(a[1], y, ringZ + a[2])
+			local pb = Vector3.new(b[1], y, ringZ + b[2])
+			P("Rope", Vector3.new(0.25, 0.25, (pb - pa).Magnitude), CFrame.lookAt((pa + pb) / 2, pb), ropeC[k], M.Fabric, { CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 1, 1, 100) })
+		end
+	end
+
+	-- ยานพาหนะ ร้านรถเข็น
+	tuktuk(at(-11, 0, -44) * CFrame.Angles(0, math.rad(8), 0))
+	motorbike(at(13, 0, -40) * CFrame.Angles(0, math.rad(-20), 0), rgb(200, 30, 30))
+	motorbike(at(14.5, 0, -36) * CFrame.Angles(0, math.rad(-15), 0), rgb(30, 30, 30))
+	stall(at(-12.5, 0, 52) * CFrame.Angles(0, math.rad(90), 0))
+	-- รถเข็นแตงโม
+	P("MelonCart", Vector3.new(5, 1.6, 3), at(12, 1.6, 50), rgb(130, 90, 50), M.Wood)
+	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 48.6), rgb(130, 90, 50), M.Wood)
+	P("CartRim", Vector3.new(5, 0.8, 0.2), at(12, 2.8, 51.4), rgb(130, 90, 50), M.Wood)
+	for i = 0, 5 do
+		spawnMelon(Vector3.new(10.6 + (i % 3) * 1.45, 3.3, 49.3 + math.floor(i / 3) * 1.45))
+	end
+
+	-- ของเตะได้: ถังขยะ กล่อง เก้าอี้พลาสติก
+	for i = 1, 8 do
+		local s = (i % 2 == 0) and 1 or -1
+		local z = -55 + i * 13 + rng:NextNumber(-2, 2)
+		local bin = prop("TrashBin", Vector3.new(2, 2.6, 2), Vector3.new(s * (ROAD_HW + 3), 2, z), (i % 3 == 0) and rgb(240, 130, 30) or rgb(40, 130, 60), M.SmoothPlastic)
+		local lid = P("Lid", Vector3.new(2.1, 0.3, 2.1), bin.CFrame * at(0, 1.45, 0), rgb(30, 30, 30), M.SmoothPlastic, { Anchored = false, Massless = true })
+		local wc = Instance.new("WeldConstraint")
+		wc.Part0 = bin
+		wc.Part1 = lid
+		wc.Parent = lid
+	end
+	for _, st in ipairs({ { -13, -14 }, { 13, 6 }, { -13, 20 } }) do
+		for i = 0, 4 do
+			prop("Box", Vector3.new(1.6, 1.6, 1.6), Vector3.new(st[1] + (i % 2) * 1.7 - 0.8, 0.85 + math.floor(i / 2) * 1.62, st[2] + (i % 3) * 0.2), rgb(176, 136, 90), M.Cardboard)
+		end
+	end
+	for i = 1, 10 do
+		prop("Stool", Vector3.new(1.1, 1.3, 1.1), Vector3.new(-9 + (i % 5) * 1.8, 0.7, 47 + math.floor(i / 5) * 3), (i % 2 == 0) and rgb(220, 40, 40) or rgb(40, 90, 210), M.SmoothPlastic)
+	end
+	prop("Table", Vector3.new(4, 0.25, 2.6), Vector3.new(-6, 2.2, 50), rgb(240, 240, 240), M.SmoothPlastic)
+	for _, pz in ipairs({ { -7.7, 49 }, { -4.3, 49 }, { -7.7, 51 }, { -4.3, 51 } }) do
+		prop("TableLeg", Vector3.new(0.25, 2, 0.25), Vector3.new(pz[1], 1, pz[2]), rgb(200, 200, 200), M.Metal)
+	end
+
+	-- จุดอาวุธ
+	local weaponSpawns = {
+		Vector3.new(0, 0, -50), Vector3.new(-11, 0, -22), Vector3.new(11, 0, -15), Vector3.new(-11, 0, 8),
+		Vector3.new(11, 0, 14), Vector3.new(0, 0, 58), Vector3.new(0, 1.2, 30),
+	}
+	for _, p in ipairs(weaponSpawns) do
+		P("WeaponPad", Vector3.new(0.12, 3.4, 3.4), at(p.X, p.Y + 0.04, p.Z) * CFrame.Angles(0, 0, math.pi / 2), rgb(255, 210, 40), M.Neon, { Shape = Enum.PartType.Cylinder, CanCollide = false, CanQuery = false })
+	end
+	-- จุดเกิด
+	local spawns = {
+		Vector3.new(-9, 0, -60), Vector3.new(9, 0, -58), Vector3.new(-10, 0, -36), Vector3.new(10, 0, -30),
+		Vector3.new(-8, 0, -6), Vector3.new(8, 0, -2), Vector3.new(-6, 0, 12), Vector3.new(6, 0, 18),
+		Vector3.new(-10, 0, 60), Vector3.new(10, 0, 62),
+	}
+
+	-- แสงยามเย็น
+	Lighting.ClockTime = 17.4
+	Lighting.Brightness = 2.4
+	Lighting.Ambient = rgb(90, 80, 80)
+	Lighting.OutdoorAmbient = rgb(160, 150, 145)
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.5
+	Lighting.GlobalShadows = true
+	Lighting.ColorShift_Top = rgb(255, 210, 170)
+	local atmo = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
+	atmo.Density = 0.3
+	atmo.Offset = 0.15
+	atmo.Color = rgb(255, 200, 160)
+	atmo.Decay = rgb(130, 90, 100)
+	atmo.Glare = 0.3
+	atmo.Haze = 1.4
+	atmo.Parent = Lighting
+	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
+	bloom.Intensity = 0.5
+	bloom.Size = 22
+	bloom.Threshold = 1.7
+	bloom.Parent = Lighting
+	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
+	cc.Saturation = 0.15
+	cc.Contrast = 0.08
+	cc.Brightness = 0.02
+	cc.TintColor = rgb(255, 246, 236)
+	cc.Parent = Lighting
+
+	return { spawns = spawns, weaponSpawns = weaponSpawns, folder = folder }
+end
+
+return MapBuilder
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000006">
+				<Properties>
+					<string name="Name">CharacterBuilder</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : สร้างตัวละครเหลี่ยม R6 ด้วยโค้ด (หน้าวาดแบบพิกเซล)
+-- ============================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+
+local CB = {}
+
+local HEAD = 1.6 -- หัวเหลี่ยมใหญ่ (ลูกบาศก์)
+local GRID = 16  -- หน้า 16x16 พิกเซล
+
+local function newPart(props)
+	local p = Instance.new("Part")
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Material = Enum.Material.SmoothPlastic
+	p.Anchored = false
+	for k, v in pairs(props) do
+		p[k] = v
+	end
+	return p
+end
+
+local function cosmetic(main, name, size, offset, color, material)
+	local p = newPart({
+		Name = name,
+		Size = size,
+		Color = color,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Massless = true,
+		CastShadow = true,
+	})
+	if material then
+		p.Material = material
+	end
+	p.CFrame = main.CFrame * offset
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = main
+	w.Part1 = p
+	w.Parent = p
+	p.Parent = main
+	return p
+end
+
+local function motor(name, p0, p1, c0, c1, parent)
+	local m = Instance.new("Motor6D")
+	m.Name = name
+	m.Part0 = p0
+	m.Part1 = p1
+	m.C0 = c0
+	m.C1 = c1
+	m.Parent = parent
+	return m
+end
+
+local function pick(list, rng)
+	return list[rng:NextInteger(1, #list)]
+end
+
+-- ===== หน้าตาแบบสุ่ม (บอท) =====
+function CB.randomLook(rng)
+	rng = rng or Random.new()
+	local L = {}
+	for k, v in pairs(Config.Look) do
+		L[k] = v
+	end
+	L.Skin = pick(Config.SkinTones, rng)
+	L.Shirt = pick(Config.ShirtColors, rng)
+	L.Pants = pick(Config.PantsColors, rng)
+	L.Hair = pick(Config.HairColors, rng)
+	L.Brows = L.Hair
+	L.HairStyle = pick(Config.HairStyles, rng)
+	if L.HairStyle == "bald" then
+		L.Brows = Color3.fromRGB(60, 45, 38)
+	end
+	L.Belly = rng:NextNumber() < 0.25 -- พุงยื่น ฮาๆ
+	return L
+end
+
+function CB.playerLook(index)
+	local L = {}
+	for k, v in pairs(Config.Look) do
+		L[k] = v
+	end
+	local shirts = Config.PlayerShirts
+	L.Shirt = shirts[((index - 1) % #shirts) + 1]
+	return L
+end
+
+-- ===== ทรงผม (ไม่บังหน้า: อยู่ด้านบน/หลัง/ข้างเท่านั้น) =====
+local function buildHair(head, style, color)
+	local h = HEAD / 2
+	if style == "bald" then
+		return
+	end
+	local mat = Enum.Material.SmoothPlastic
+	if style == "box" or style == "long" then
+		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.12, 0.34, HEAD + 0.12), CFrame.new(0, h + 0.13, 0.02), color, mat)
+		cosmetic(head, "HairFringe", Vector3.new(HEAD + 0.12, 0.26, 0.16), CFrame.new(0, h - 0.1, -h - 0.04), color, mat)
+		cosmetic(head, "HairSideL", Vector3.new(0.14, 0.62, HEAD * 0.75), CFrame.new(-h - 0.06, h - 0.3, 0.2), color, mat)
+		cosmetic(head, "HairSideR", Vector3.new(0.14, 0.62, HEAD * 0.75), CFrame.new(h + 0.06, h - 0.3, 0.2), color, mat)
+		if style == "long" then
+			cosmetic(head, "HairBack", Vector3.new(HEAD + 0.12, HEAD + 0.6, 0.22), CFrame.new(0, -0.15, h + 0.09), color, mat)
+		else
+			cosmetic(head, "HairBack", Vector3.new(HEAD + 0.12, HEAD * 0.7, 0.2), CFrame.new(0, h * 0.35, h + 0.08), color, mat)
+		end
+	elseif style == "flat" then
+		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.08, 0.22, HEAD + 0.08), CFrame.new(0, h + 0.08, 0), color, mat)
+		cosmetic(head, "HairBack", Vector3.new(HEAD + 0.08, HEAD * 0.5, 0.14), CFrame.new(0, h * 0.5, h + 0.05), color, mat)
+	elseif style == "spike" then
+		cosmetic(head, "HairTop", Vector3.new(HEAD + 0.08, 0.22, HEAD + 0.08), CFrame.new(0, h + 0.08, 0), color, mat)
+		for i = -1, 1 do
+			cosmetic(head, "Spike" .. i, Vector3.new(0.38, 0.55, 0.38), CFrame.new(i * 0.5, h + 0.4, 0.1 * i) * CFrame.Angles(0, math.rad(45), math.rad(i * 12)), color, mat)
+		end
+		cosmetic(head, "HairBack", Vector3.new(HEAD + 0.08, HEAD * 0.6, 0.14), CFrame.new(0, h * 0.4, h + 0.05), color, mat)
+	elseif style == "mohawk" then
+		cosmetic(head, "Mohawk", Vector3.new(0.36, 0.6, HEAD + 0.1), CFrame.new(0, h + 0.28, 0.05), color, mat)
+	elseif style == "cap" then
+		cosmetic(head, "Cap", Vector3.new(HEAD + 0.14, 0.42, HEAD + 0.14), CFrame.new(0, h + 0.12, 0), color, mat)
+		cosmetic(head, "Brim", Vector3.new(HEAD * 0.8, 0.1, 0.7), CFrame.new(0, h - 0.04, -h - 0.3), color, mat)
+	elseif style == "afro" then
+		cosmetic(head, "Afro", Vector3.new(HEAD + 0.9, 1.25, HEAD + 0.8), CFrame.new(0, h + 0.42, 0.3), color, mat)
+	end
+end
+
+-- ===== ใบหน้าพิกเซล =====
+local function px(parent, name, x, y, w, hgt, color, z)
+	local f = Instance.new("Frame")
+	f.Name = name
+	f.BorderSizePixel = 0
+	f.BackgroundColor3 = color
+	f.Position = UDim2.fromScale(x / GRID, y / GRID)
+	f.Size = UDim2.fromScale(w / GRID, hgt / GRID)
+	f.ZIndex = z or 2
+	f.Parent = parent
+	return f
+end
+
+local function makeSurface(part, face, name)
+	local g = Instance.new("SurfaceGui")
+	g.Name = name
+	g.Face = face
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	g.PixelsPerStud = 40
+	g.LightInfluence = 1
+	g.ClipsDescendants = true
+	g.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	g.Parent = part
+	return g
+end
+
+local EXPR = {
+	-- brows = ความสูงของคิ้ว 3 พิกเซล (ซ้าย->ขวา ของคิ้วซ้าย, คิ้วขวาสะท้อน)
+	normal = { brows = { 5, 5, 5 }, eyes = "dot", mouth = "line" },
+	angry = { brows = { 4, 5, 6 }, eyes = "dot", mouth = "line" },
+	hurt = { brows = { 6, 5, 4 }, eyes = "squint", mouth = "open" },
+	dizzy = { brows = { 6, 5, 4 }, eyes = "spiral", mouth = "wavy" },
+	ko = { brows = { 6, 6, 6 }, eyes = "x", mouth = "tongue" },
+	taunt = { brows = { 4, 5, 5 }, eyes = "dot", mouth = "smile" },
+	block = { brows = { 4, 5, 6 }, eyes = "squint", mouth = "line" },
+}
+
+function CB.setFace(char, expr)
+	local head = char:FindFirstChild("Head")
+	local gui = head and head:FindFirstChild("Face")
+	if not gui then
+		return
+	end
+	if gui:GetAttribute("Expr") == expr then
+		return
+	end
+	gui:SetAttribute("Expr", expr)
+	local look = char:GetAttribute("BrowColor") or Config.Look.Brows
+	local eyeC = Config.Look.Eyes
+	local mouthC = Config.Look.Mouth
+	local old = gui:FindFirstChild("Features")
+	if old then
+		old:Destroy()
+	end
+	local f = Instance.new("Frame")
+	f.Name = "Features"
+	f.BackgroundTransparency = 1
+	f.Size = UDim2.fromScale(1, 1)
+	f.ZIndex = 3
+	f.Parent = gui
+	local e = EXPR[expr] or EXPR.normal
+	-- คิ้ว
+	for i = 1, 3 do
+		px(f, "BrowL" .. i, 2 + i, e.brows[i], 1, 1, look, 3)
+		px(f, "BrowR" .. i, 13 - i, e.brows[i], 1, 1, look, 3)
+	end
+	-- ตา
+	if e.eyes == "dot" then
+		px(f, "EyeL", 4, 7, 2, 2, eyeC, 3)
+		px(f, "EyeR", 10, 7, 2, 2, eyeC, 3)
+		px(f, "GlintL", 4, 7, 1, 1, Color3.fromRGB(255, 255, 255), 4).BackgroundTransparency = 0.25
+		px(f, "GlintR", 10, 7, 1, 1, Color3.fromRGB(255, 255, 255), 4).BackgroundTransparency = 0.25
+	elseif e.eyes == "squint" then
+		px(f, "EyeL", 3, 8, 3, 1, eyeC, 3)
+		px(f, "EyeR", 10, 8, 3, 1, eyeC, 3)
+	else
+		local txt = (e.eyes == "x") and "X" or "@"
+		for i, x in ipairs({ 3.2, 9.2 }) do
+			local t = Instance.new("TextLabel")
+			t.Name = "Eye" .. i
+			t.BackgroundTransparency = 1
+			t.Text = txt
+			t.Font = Enum.Font.GothamBlack
+			t.TextScaled = true
+			t.TextColor3 = eyeC
+			t.Position = UDim2.fromScale(x / GRID, 6 / GRID)
+			t.Size = UDim2.fromScale(3.6 / GRID, 3.6 / GRID)
+			t.ZIndex = 3
+			t.Parent = f
+		end
+	end
+	-- ปาก
+	if e.mouth == "line" then
+		px(f, "Mouth", 6, 12, 4, 1, mouthC, 3)
+	elseif e.mouth == "open" then
+		px(f, "Mouth", 6, 11, 4, 2, Color3.fromRGB(70, 20, 20), 3)
+	elseif e.mouth == "wavy" then
+		px(f, "M1", 5, 12, 1, 1, mouthC, 3)
+		px(f, "M2", 6, 11, 2, 1, mouthC, 3)
+		px(f, "M3", 8, 12, 2, 1, mouthC, 3)
+		px(f, "M4", 10, 11, 1, 1, mouthC, 3)
+	elseif e.mouth == "tongue" then
+		px(f, "Mouth", 6, 12, 4, 1, mouthC, 3)
+		px(f, "Tongue", 8, 13, 2, 1, Color3.fromRGB(230, 110, 120), 3)
+	elseif e.mouth == "smile" then
+		px(f, "M1", 5, 11, 1, 1, mouthC, 3)
+		px(f, "M2", 6, 12, 4, 1, mouthC, 3)
+		px(f, "M3", 10, 11, 1, 1, mouthC, 3)
+	end
+end
+
+-- ===== เลือดบนหน้า (สะสมตามดาเมจ) =====
+local BLOOD_STAGES = {
+	-- {x, y, w, h, color?}
+	{ { 7, 11, 1, 1 }, { 8, 11, 1, 2 } },                       -- 1 เลือดกำเดา
+	{ { 3, 4, 2, 1 }, { 3, 5, 1, 2 } },                         -- 2 คิ้วแตก
+	{ { 7, 12, 1, 2 }, { 8, 13, 1, 2 } },                       -- 3 กำเดาไหลยาว
+	{ { 9, 6, 4, 1, "bruise" }, { 9, 9, 4, 1, "bruise" }, { 12, 7, 1, 2, "bruise" }, { 9, 7, 1, 2, "bruise" } }, -- 4 ตาเขียว
+	{ { 10, 13, 1, 2 }, { 10, 15, 1, 1 } },                     -- 5 มุมปากแตก
+	{ { 3, 7, 1, 3 }, { 2, 10, 1, 2 } },                        -- 6 เลือดจากคิ้วไหลลงแก้ม
+	{ { 13, 10, 2, 2, "bruise" } },                             -- 7 แก้มช้ำ
+	{ { 7, 14, 2, 2 }, { 6, 15, 1, 1 } },                       -- 8 คางเลือดเต็ม
+}
+
+function CB.addFaceBlood(char, amount)
+	if not Config.FaceDamage then
+		return
+	end
+	local head = char:FindFirstChild("Head")
+	local gui = head and head:FindFirstChild("Face")
+	if not gui then
+		return
+	end
+	local lvl = char:GetAttribute("FaceLvl") or 0
+	local target = math.min(#BLOOD_STAGES + 6, lvl + amount)
+	local holder = gui:FindFirstChild("Blood")
+	if not holder then
+		holder = Instance.new("Frame")
+		holder.Name = "Blood"
+		holder.BackgroundTransparency = 1
+		holder.Size = UDim2.fromScale(1, 1)
+		holder.ZIndex = 1
+		holder.Parent = gui
+	end
+	local blood = Config.Blood > 0 and Config.BloodColor or Color3.fromRGB(140, 90, 160)
+	local bruise = Color3.fromRGB(110, 70, 120)
+	for s = lvl + 1, target do
+		local stage = BLOOD_STAGES[s]
+		if stage then
+			for _, r in ipairs(stage) do
+				local c = (r[5] == "bruise") and bruise or blood
+				local fr = px(holder, "B" .. s, r[1], r[2], r[3], r[4], c, 2)
+				if r[5] == "bruise" then
+					fr.BackgroundTransparency = 0.35
+				end
+			end
+		elseif Config.Blood > 0 then
+			-- สะสมเพิ่มแบบสุ่ม
+			px(holder, "BX" .. s, math.random(2, 13), math.random(9, 15), 1, math.random(1, 2), blood, 2)
+		end
+	end
+	char:SetAttribute("FaceLvl", target)
+end
+
+-- เลือดหยดบนเสื้อ
+function CB.addShirtBlood(char, n)
+	if Config.Blood <= 0 then
+		return
+	end
+	local torso = char:FindFirstChild("Torso")
+	local gui = torso and torso:FindFirstChild("ShirtBlood")
+	if not gui then
+		return
+	end
+	local count = #gui:GetChildren()
+	for _ = 1, n do
+		if count > 60 then
+			return
+		end
+		count = count + 1
+		local f = Instance.new("Frame")
+		f.BorderSizePixel = 0
+		f.BackgroundColor3 = Config.BloodColor:Lerp(Color3.new(0.2, 0, 0), math.random() * 0.4)
+		local w = math.random(2, 7) / 100
+		f.Size = UDim2.fromScale(w, w * math.random(10, 30) / 10)
+		f.Position = UDim2.fromScale(0.3 + math.random() * 0.4 + (math.random() - 0.5) * 0.3, math.random() * 0.55)
+		f.Parent = gui
+	end
+end
+
+-- ===== ป้ายชื่อ + หลอดเลือดเหนือหัว =====
+local function buildTag(head, displayName, player)
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "Tag"
+	bb.Size = UDim2.new(0, 170, 0, 46)
+	bb.StudsOffset = Vector3.new(0, HEAD / 2 + 1.6, 0)
+	bb.MaxDistance = 90
+	bb.AlwaysOnTop = false
+	bb.LightInfluence = 0
+	if player then
+		bb.PlayerToHideFrom = player
+	end
+	local name = Instance.new("TextLabel")
+	name.Name = "NameLabel"
+	name.BackgroundTransparency = 1
+	name.Size = UDim2.new(1, 0, 0, 24)
+	name.Font = Enum.Font.GothamBlack
+	name.TextScaled = true
+	name.Text = displayName
+	name.TextColor3 = Color3.fromRGB(255, 255, 255)
+	name.TextStrokeTransparency = 0.2
+	name.Parent = bb
+	local back = Instance.new("Frame")
+	back.Name = "Bar"
+	back.Position = UDim2.new(0.1, 0, 0, 28)
+	back.Size = UDim2.new(0.8, 0, 0, 10)
+	back.BackgroundColor3 = Color3.fromRGB(30, 10, 10)
+	back.BorderSizePixel = 0
+	back.Parent = bb
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 4)
+	corner.Parent = back
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = Color3.fromRGB(90, 220, 90)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	local c2 = corner:Clone()
+	c2.Parent = fill
+	bb.Parent = head
+	return bb
+end
+
+function CB.updateTag(char, frac)
+	local head = char:FindFirstChild("Head")
+	local tag = head and head:FindFirstChild("Tag")
+	if not tag then
+		return
+	end
+	local fill = tag.Bar.Fill
+	frac = math.clamp(frac, 0, 1)
+	fill.Size = UDim2.fromScale(frac, 1)
+	fill.BackgroundColor3 = Color3.fromRGB(230, 60, 50):Lerp(Color3.fromRGB(90, 220, 90), frac)
+end
+
+-- ===== สร้างตัวละคร =====
+-- คืนค่า model (ยังไม่ parent)
+function CB.build(look, displayName, player)
+	local model = Instance.new("Model")
+	model.Name = player and player.Name or displayName
+
+	local root = newPart({ Name = "HumanoidRootPart", Size = Vector3.new(2, 2, 1), Transparency = 1, CanCollide = false })
+	local torso = newPart({ Name = "Torso", Size = Vector3.new(2, 2, 1), Color = look.Shirt })
+	local head = newPart({ Name = "Head", Size = Vector3.new(HEAD, HEAD, HEAD), Color = look.Skin })
+	local ra = newPart({ Name = "Right Arm", Size = Vector3.new(1, 2, 1), Color = look.Skin, CanCollide = false })
+	local la = newPart({ Name = "Left Arm", Size = Vector3.new(1, 2, 1), Color = look.Skin, CanCollide = false })
+	local rl = newPart({ Name = "Right Leg", Size = Vector3.new(1, 2, 1), Color = look.Pants, CanCollide = false })
+	local ll = newPart({ Name = "Left Leg", Size = Vector3.new(1, 2, 1), Color = look.Pants, CanCollide = false })
+
+	local base = CFrame.new(0, 3, 0)
+	root.CFrame = base
+	torso.CFrame = base
+	head.CFrame = base * CFrame.new(0, 1 + HEAD / 2, 0)
+	ra.CFrame = base * CFrame.new(1.5, 0, 0)
+	la.CFrame = base * CFrame.new(-1.5, 0, 0)
+	rl.CFrame = base * CFrame.new(0.5, -2, 0)
+	ll.CFrame = base * CFrame.new(-0.5, -2, 0)
+	for _, p in ipairs({ root, torso, head, ra, la, rl, ll }) do
+		p.Parent = model
+	end
+
+	-- ข้อต่อ (C0/C1 ไม่หมุน -> Transform หมุนในแกนของลำตัวตรงๆ)
+	motor("RootJoint", root, torso, CFrame.new(0, -1, 0), CFrame.new(0, -1, 0), root)
+	motor("Neck", torso, head, CFrame.new(0, 1, 0), CFrame.new(0, -HEAD / 2, 0), torso)
+	motor("Right Shoulder", torso, ra, CFrame.new(1.5, 0.5, 0), CFrame.new(0, 0.5, 0), torso)
+	motor("Left Shoulder", torso, la, CFrame.new(-1.5, 0.5, 0), CFrame.new(0, 0.5, 0), torso)
+	motor("Right Hip", torso, rl, CFrame.new(0.5, -1, 0), CFrame.new(0, 1, 0), torso)
+	motor("Left Hip", torso, ll, CFrame.new(-0.5, -1, 0), CFrame.new(0, 1, 0), torso)
+
+	-- เสื้อแขนสั้น รองเท้า ฯลฯ
+	cosmetic(ra, "Sleeve", Vector3.new(1.06, 0.78, 1.06), CFrame.new(0, 0.62, 0), look.Shirt)
+	cosmetic(la, "Sleeve", Vector3.new(1.06, 0.78, 1.06), CFrame.new(0, 0.62, 0), look.Shirt)
+	cosmetic(rl, "Shoe", Vector3.new(1.06, 0.42, 1.2), CFrame.new(0, -0.8, -0.08), look.Shoes)
+	cosmetic(ll, "Shoe", Vector3.new(1.06, 0.42, 1.2), CFrame.new(0, -0.8, -0.08), look.Shoes)
+	cosmetic(torso, "Collar", Vector3.new(0.9, 0.12, 0.08), CFrame.new(0, 0.94, -0.52), look.Shirt:Lerp(Color3.new(0, 0, 0), 0.25))
+	if look.Belly then
+		cosmetic(torso, "Belly", Vector3.new(1.7, 1.1, 0.5), CFrame.new(0, -0.35, -0.6), look.Shirt)
+	end
+	-- หู + จมูกเล็ก (ตามภาพอ้างอิง)
+	local h = HEAD / 2
+	local earC = look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.12)
+	cosmetic(head, "EarL", Vector3.new(0.14, 0.4, 0.32), CFrame.new(-h - 0.07, 0, 0.08), earC)
+	cosmetic(head, "EarR", Vector3.new(0.14, 0.4, 0.32), CFrame.new(h + 0.07, 0, 0.08), earC)
+	if look.Nose then
+		cosmetic(head, "Nose", Vector3.new(0.26, 0.28, 0.12), CFrame.new(0, -0.18, -h - 0.06), look.Skin:Lerp(Color3.new(0.5, 0.25, 0.2), 0.08))
+	end
+	buildHair(head, look.HairStyle, look.Hair)
+
+	-- หน้า + เลือดบนเสื้อ
+	makeSurface(head, Enum.NormalId.Front, "Face")
+	local sb = makeSurface(torso, Enum.NormalId.Front, "ShirtBlood")
+	sb.PixelsPerStud = 30
+
+	local hum = Instance.new("Humanoid")
+	hum.RigType = Enum.HumanoidRigType.R6
+	hum.MaxHealth = Config.MaxHealth
+	hum.Health = Config.MaxHealth
+	hum.WalkSpeed = Config.WalkSpeed
+	hum.UseJumpPower = true
+	hum.JumpPower = Config.JumpPower
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	hum.BreakJointsOnDeath = false
+	hum.RequiresNeck = false
+	hum.Parent = model
+
+	model.PrimaryPart = root
+	model:SetAttribute("BrowColor", look.Brows)
+	model:SetAttribute("DisplayName", displayName)
+	CB.setFace(model, "normal")
+	buildTag(head, displayName, player)
+	CollectionService:AddTag(model, "BrawlChar")
+	return model
+end
+
+return CB
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000007">
+				<Properties>
+					<string name="Name">Ragdoll</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : Ragdoll ฟิสิกส์จริง (BallSocketConstraint)
+--  ตอนปกติข้อต่อเป็น Motor6D -> ตอนล้มสลับเป็นลูกหมากหมุนอิสระ
+-- ============================================================
+local Players = game:GetService("Players")
+
+local Ragdoll = {}
+local data = {} -- [model] = {sockets, motors, colliders, nocollide, token}
+local remotes
+
+-- ข้อต่อ -> (ขีดจำกัดกรวย, ขีดจำกัดบิด, ทิศแกนหลัก)
+local LIMITS = {
+	["Neck"] = { cone = 45, twist = 55, up = true },
+	["Right Shoulder"] = { cone = 125, twist = 70 },
+	["Left Shoulder"] = { cone = 125, twist = 70 },
+	["Right Hip"] = { cone = 75, twist = 35 },
+	["Left Hip"] = { cone = 75, twist = 35 },
+}
+local LIMBS = { "Right Arm", "Left Arm", "Right Leg", "Left Leg" }
+
+function Ragdoll.init(r)
+	remotes = r
+end
+
+local function axisCF(pos, up)
+	-- แกน X ของ Attachment = แกนกรวย: ชี้ลง (แขน/ขา) หรือชี้ขึ้น (คอ)
+	if up then
+		return CFrame.new(pos) * CFrame.Angles(0, 0, math.pi / 2)
+	end
+	return CFrame.new(pos) * CFrame.Angles(0, 0, -math.pi / 2)
+end
+
+function Ragdoll.setup(model)
+	local d = { sockets = {}, motors = {}, colliders = {}, nocollide = {}, token = 0 }
+	local torso = model:FindFirstChild("Torso")
+	for _, m in ipairs(model:GetDescendants()) do
+		if m:IsA("Motor6D") and LIMITS[m.Name] then
+			local lim = LIMITS[m.Name]
+			local a0 = Instance.new("Attachment")
+			a0.Name = "RD0_" .. m.Name
+			a0.CFrame = axisCF(m.C0.Position, lim.up)
+			a0.Parent = m.Part0
+			local a1 = Instance.new("Attachment")
+			a1.Name = "RD1_" .. m.Name
+			a1.CFrame = axisCF(m.C1.Position, lim.up)
+			a1.Parent = m.Part1
+			local s = Instance.new("BallSocketConstraint")
+			s.Name = "RD_" .. m.Name
+			s.Attachment0 = a0
+			s.Attachment1 = a1
+			s.LimitsEnabled = true
+			s.UpperAngle = lim.cone
+			s.TwistLimitsEnabled = true
+			s.TwistLowerAngle = -lim.twist
+			s.TwistUpperAngle = lim.twist
+			s.Restitution = 0
+			s.MaxFrictionTorque = 4
+			s.Enabled = false
+			s.Parent = m.Part0
+			table.insert(d.sockets, s)
+			table.insert(d.motors, m)
+		end
+	end
+	-- ตัวชนของแขนขา (Humanoid ปิดการชนของแขนขา R6 เลยต้องมีตัวชนแยก)
+	for _, name in ipairs(LIMBS) do
+		local limb = model:FindFirstChild(name)
+		if limb then
+			local c = Instance.new("Part")
+			c.Name = "RDCollider"
+			c.Size = Vector3.new(0.9, 1.8, 0.9)
+			c.Transparency = 1
+			c.CanCollide = false
+			c.CanQuery = false
+			c.CanTouch = true
+			c.Massless = true
+			c.CFrame = limb.CFrame
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = limb
+			w.Part1 = c
+			w.Parent = c
+			c.Parent = limb
+			table.insert(d.colliders, c)
+		end
+	end
+	-- ไม่ให้ชิ้นส่วนตัวเองชนกันเอง (กันสั่น)
+	local head = model:FindFirstChild("Head")
+	local function nc(a, b)
+		if a and b then
+			local n = Instance.new("NoCollisionConstraint")
+			n.Part0 = a
+			n.Part1 = b
+			n.Enabled = true
+			n.Parent = a
+			table.insert(d.nocollide, n)
+		end
+	end
+	nc(torso, head)
+	for i, c in ipairs(d.colliders) do
+		nc(c, torso)
+		nc(c, head)
+		for j = i + 1, #d.colliders do
+			nc(c, d.colliders[j])
+		end
+	end
+	data[model] = d
+	model.Destroying:Connect(function()
+		data[model] = nil
+	end)
+end
+
+function Ragdoll.isRagdolled(model)
+	return model:GetAttribute("Ragdoll") == true
+end
+
+local function setOwner(model, owner)
+	for _, p in ipairs(model:GetChildren()) do
+		if p:IsA("BasePart") and not p.Anchored then
+			pcall(function()
+				p:SetNetworkOwner(owner)
+			end)
+		end
+	end
+end
+
+-- เริ่มล้ม: vel = ความเร็ว (studs/s), spin = ความเร็วหมุน, duration = วินาที (nil = ตลอดไป/ตาย)
+function Ragdoll.start(model, vel, spin, duration)
+	local d = data[model]
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	if not d or not hum then
+		return
+	end
+	local player = Players:GetPlayerFromCharacter(model)
+	d.token = d.token + 1
+	local token = d.token
+	if not Ragdoll.isRagdolled(model) then
+		model:SetAttribute("Ragdoll", true)
+		hum.AutoRotate = false
+		hum.PlatformStand = true
+		pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.Physics)
+		end)
+		for _, s in ipairs(d.sockets) do
+			s.Enabled = true
+		end
+		for _, m in ipairs(d.motors) do
+			m.Enabled = false
+		end
+		for _, c in ipairs(d.colliders) do
+			c.CanCollide = true
+		end
+		-- ฟิสิกส์ฝั่ง server เพื่อให้ทุกคนเห็นตรงกัน
+		setOwner(model, nil)
+		if player and remotes then
+			remotes.Ragdoll:FireClient(player, true)
+		end
+	end
+	if vel then
+		local rng = Random.new()
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") then
+				local jitter = Vector3.new(rng:NextNumber(-1, 1), rng:NextNumber(-0.5, 1), rng:NextNumber(-1, 1)) * (vel.Magnitude * 0.12)
+				p.AssemblyLinearVelocity = vel + jitter
+			end
+		end
+	end
+	local torso = model:FindFirstChild("Torso")
+	if spin and torso then
+		torso.AssemblyAngularVelocity = spin
+	end
+	if duration then
+		model:SetAttribute("DownUntil", os.clock() + duration)
+		task.delay(duration, function()
+			if data[model] and data[model].token == token then
+				Ragdoll.recover(model)
+			end
+		end)
+	else
+		model:SetAttribute("DownUntil", math.huge)
+	end
+end
+
+function Ragdoll.recover(model)
+	local d = data[model]
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	if not d or not hum or hum.Health <= 0 or not model.Parent then
+		return
+	end
+	if not Ragdoll.isRagdolled(model) then
+		return
+	end
+	d.token = d.token + 1
+	local root = model:FindFirstChild("HumanoidRootPart")
+	local torso = model:FindFirstChild("Torso")
+	-- ตั้งตัวตรงก่อนเปิดข้อต่อ
+	if root and torso then
+		local pos = torso.Position
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { model }
+		local hit = workspace:Raycast(pos + Vector3.new(0, 2, 0), Vector3.new(0, -12, 0), params)
+		local floorY = hit and hit.Position.Y or (pos.Y - 1)
+		local look = torso.CFrame.LookVector * Vector3.new(1, 0, 1)
+		if look.Magnitude < 0.2 then
+			look = torso.CFrame.UpVector * Vector3.new(1, 0, 1)
+		end
+		if look.Magnitude < 0.2 then
+			look = Vector3.new(0, 0, -1)
+		end
+		local p = Vector3.new(pos.X, floorY + 3.05, pos.Z)
+		root.CFrame = CFrame.lookAt(p, p + look.Unit)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	for _, s in ipairs(d.sockets) do
+		s.Enabled = false
+	end
+	for _, m in ipairs(d.motors) do
+		m.Enabled = true
+	end
+	for _, c in ipairs(d.colliders) do
+		c.CanCollide = false
+	end
+	hum.PlatformStand = false
+	hum.AutoRotate = true
+	pcall(function()
+		hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end)
+	model:SetAttribute("Ragdoll", false)
+	model:SetAttribute("DownUntil", 0)
+	local player = Players:GetPlayerFromCharacter(model)
+	if player then
+		if root then
+			pcall(function()
+				root:SetNetworkOwner(player)
+			end)
+		end
+		if remotes then
+			remotes.Ragdoll:FireClient(player, false)
+		end
+	else
+		setOwner(model, nil)
+	end
+end
+
+return Ragdoll
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000008">
+				<Properties>
+					<string name="Name">Combat</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : ระบบต่อสู้ (ฝั่ง server ตัดสินทุกอย่าง)
+-- ============================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+
+local Combat = {}
+Combat.fighters = {} -- [model] = F
+Combat.corpses = {}  -- [model] = true
+Combat.onDeath = nil -- function(F, killerF)
+Combat.onScore = nil -- function()
+
+local remotes, Ragdoll, CB, Weapons
+local fighters = Combat.fighters
+local corpses = Combat.corpses
+
+local function now()
+	return os.clock()
+end
+
+local function flat(v)
+	local f = Vector3.new(v.X, 0, v.Z)
+	if f.Magnitude < 1e-3 then
+		return nil
+	end
+	return f.Unit
+end
+
+local function pickWord(kind)
+	local list = Config.Words[kind] or Config.Words.punch
+	return list[math.random(1, #list)]
+end
+
+local function fx(kind, data)
+	remotes.Fx:FireAllClients(kind, data)
+end
+Combat.fx = fx
+
+function Combat.init(deps)
+	remotes = deps.remotes
+	Ragdoll = deps.Ragdoll
+	CB = deps.CB
+	Weapons = deps.Weapons
+end
+
+function Combat.get(model)
+	if not model then
+		return nil
+	end
+	local F = fighters[model]
+	if F and F.alive then
+		return F
+	end
+	return nil
+end
+
+function Combat.findFighterByPart(part)
+	local inst = part and part.Parent
+	while inst and inst ~= workspace do
+		local F = fighters[inst]
+		if F then
+			return F
+		end
+		inst = inst.Parent
+	end
+	return nil
+end
+
+local function setAct(F, anim)
+	F.actN = F.actN + 1
+	F.model:SetAttribute("Act", anim)
+	F.model:SetAttribute("ActN", F.actN)
+	return F.actN
+end
+Combat.setAct = setAct
+
+local function setSuper(F, v)
+	F.super = math.clamp(v, 0, Config.SuperMax)
+	F.model:SetAttribute("Super", F.super)
+end
+Combat.setSuper = setSuper
+
+-- ผลักตัวละคร (ไม่ล้ม)
+function Combat.push(F, vel, dur)
+	if F.player then
+		remotes.Knock:FireClient(F.player, vel, dur)
+		return
+	end
+	local att = F.root:FindFirstChild("PushAtt")
+	if not att then
+		return
+	end
+	local lv = Instance.new("LinearVelocity")
+	lv.Attachment0 = att
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	lv.PrimaryTangentAxis = Vector3.xAxis
+	lv.SecondaryTangentAxis = Vector3.zAxis
+	lv.PlaneVelocity = Vector2.new(vel.X, vel.Z)
+	lv.MaxForce = 9e4
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.Parent = F.root
+	Debris:AddItem(lv, dur)
+end
+
+function Combat.ragdoll(F, vel, spin, dur)
+	F.impactGrace = now() + 0.15
+	F.prevVel = nil
+	Ragdoll.start(F.model, vel, spin, dur)
+	if dur then
+		F.stunUntil = now() + dur
+	end
+	if F.blocking then
+		F.blocking = false
+		F.model:SetAttribute("Block", false)
+	end
+	if F.weapon and Weapons then
+		Weapons.drop(F, (vel or Vector3.zero) * 0.5 + Vector3.new(0, 10, 0))
+	end
+end
+
+local function randomSpin(mag)
+	return Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * mag
+end
+
+-- ===== ความเสียหาย =====
+local function damage(G, amount, by)
+	if not G.alive then
+		return
+	end
+	local hum = G.hum
+	G.lastDamageT = now()
+	if by and by ~= G then
+		G.lastHitBy = by
+		G.lastHitT = now()
+		if by.stats then
+			by.stats.dmg = (by.stats.dmg or 0) + amount
+		end
+	end
+	hum.Health = math.max(0, hum.Health - amount)
+end
+Combat.damage = damage
+
+-- สร้างตารางท่าจากอาวุธ
+function Combat.weaponMove(wdef, thrown)
+	local mult = thrown and 1.15 or 1
+	return {
+		dmg = wdef.dmg * mult,
+		knock = wdef.knock * (thrown and 1.3 or 1),
+		lift = wdef.lift + (thrown and 8 or 0),
+		stun = wdef.stun,
+		daze = wdef.daze,
+		ragdoll = (wdef.ragdoll and wdef.ragdoll > 0) and wdef.ragdoll or nil,
+		ragdollChance = thrown and math.min(1, wdef.ragdollChance + 0.3) or wdef.ragdollChance,
+		word = wdef.word,
+		super = 6,
+		zone = "head",
+		teeth = 0.25,
+		guardBreak = wdef.dmg >= 19,
+		sound = wdef.sound,
+		extraBlood = wdef.extraBlood,
+		weapon = wdef,
+	}
+end
+
+-- ===== โดนตี =====
+-- F = ผู้ตี (อาจเป็น nil), G = ผู้โดน, mv = ตารางท่า, dir = ทิศทาง
+function Combat.hit(F, G, mv, dir)
+	local t = now()
+	if not G or not G.alive then
+		return false
+	end
+	if t < G.invulnUntil then
+		return false
+	end
+	local victim = G.model
+	local down = Ragdoll.isRagdolled(victim)
+	dir = dir or (F and F.root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+	local dmg = (mv.dmg or 5) * (0.9 + math.random() * 0.2)
+
+	-- ===== การ์ด =====
+	if G.blocking and not down and not mv.unblockable then
+		local attPos = F and F.root.Position or (G.root.Position - dir * 3)
+		local toAtt = flat(attPos - G.root.Position)
+		local facing = toAtt and G.root.CFrame.LookVector:Dot(toAtt) > 0.15
+		if facing then
+			if mv.guardBreak then
+				G.blocking = false
+				victim:SetAttribute("Block", false)
+				G.stunUntil = t + 0.9
+				setAct(G, "hurt")
+				damage(G, dmg * 0.3, F)
+				Combat.push(G, dir * 26, 0.2)
+				fx("block", { pos = G.head.Position, word = pickWord("guard"), big = true, attacker = F and F.model, victim = victim })
+			else
+				damage(G, dmg * 0.12, F)
+				setAct(G, "blockHit")
+				Combat.push(G, dir * 10, 0.12)
+				setSuper(G, G.super + 3)
+				fx("block", { pos = G.head.Position + dir * -0.8, word = pickWord("block"), attacker = F and F.model, victim = victim })
+			end
+			return true
+		end
+	end
+
+	-- ===== โดนจริง =====
+	local crit = math.random() < 0.08
+	if crit then
+		dmg = dmg * 1.6
+	end
+	if t < G.dizzyUntil then
+		dmg = dmg * 1.25
+	end
+	if down then
+		dmg = dmg * 0.8
+	end
+	damage(G, dmg, F)
+	if F and F.alive then
+		setSuper(F, F.super + (mv.super or 6))
+	end
+	setSuper(G, G.super + 4)
+
+	local zone = mv.zone or "body"
+	local pos = (zone == "head") and G.head.Position or G.torso.Position
+	local bloodN = 0
+	if Config.Blood > 0 then
+		bloodN = math.floor((dmg * 0.9 + (mv.extraBlood or 0) * 6) * (crit and 1.6 or 1) * Config.Blood)
+	end
+	local teeth = 0
+	if Config.Teeth and zone == "head" and math.random() < (mv.teeth or 0.08) * (crit and 2 or 1) then
+		teeth = math.random(1, 3)
+	end
+	if zone == "head" then
+		local fl = (dmg >= 12 or crit) and 2 or 1
+		if math.random() < 0.55 + dmg * 0.02 then
+			CB.addFaceBlood(victim, fl)
+		end
+		if (victim:GetAttribute("FaceLvl") or 0) >= 3 then
+			CB.addShirtBlood(victim, math.floor(dmg / 4))
+		end
+	elseif Config.Blood > 0 and math.random() < 0.3 then
+		CB.addShirtBlood(victim, 1)
+	end
+
+	local word = pickWord(mv.word or "punch")
+	if crit then
+		word = pickWord("crit")
+	end
+	fx("hit", {
+		pos = pos,
+		dir = dir,
+		power = dmg,
+		word = word,
+		crit = crit,
+		blood = bloodN,
+		teeth = teeth,
+		attacker = F and F.model,
+		victim = victim,
+		sound = mv.sound or ((dmg >= 12) and "heavy" or "hit"),
+		big = dmg >= 14 or crit,
+	})
+
+	-- มึนหัว
+	if not down and G.hum.Health > 0 then
+		G.daze = G.daze + (mv.daze or 8) * (crit and 1.5 or 1)
+		G.dazeT = t
+		if G.daze >= Config.DizzyAt and t > G.dizzyUntil then
+			G.daze = 0
+			G.dizzyUntil = t + Config.DizzyTime
+			victim:SetAttribute("Dizzy", true)
+			fx("dizzy", { victim = victim, time = Config.DizzyTime })
+		end
+	end
+
+	-- ล้ม / กระเด็น
+	local dead = G.hum.Health <= 0
+	local wantRag = mv.ragdoll ~= nil
+	if mv.ragdollChance and math.random() > mv.ragdollChance then
+		wantRag = false
+	end
+	if dead or wantRag or down then
+		local vel = dir * (mv.knock or 10) + Vector3.new(0, mv.lift or 4, 0)
+		if dead then
+			vel = vel * 1.25 + Vector3.new(0, 12, 0)
+		end
+		local spin = randomSpin(dead and 26 or 14)
+		Combat.ragdoll(G, vel, spin, (not dead) and (mv.ragdoll or 1.2) or nil)
+	else
+		G.stunUntil = t + (mv.stun or 0.3)
+		setAct(G, zone == "body" and "hurtBody" or "hurt")
+		Combat.push(G, dir * (mv.knock or 8) * 0.6, 0.15)
+	end
+	G.hurtT = t
+	return true
+end
+
+-- ===== หาเป้า =====
+local function findTarget(F, dir, mv)
+	local origin = F.root.Position
+	local best, bestD = nil, math.huge
+	for _, G in pairs(fighters) do
+		if G ~= F and G.alive and G.model.Parent then
+			local down = Ragdoll.isRagdolled(G.model)
+			local ok = true
+			if mv.onlyDown and not down then
+				ok = false
+			end
+			if down and not (mv.hitsDown or mv.onlyDown) then
+				ok = false
+			end
+			if ok then
+				local tp = down and G.torso.Position or G.root.Position
+				local d = tp - origin
+				local fd = Vector3.new(d.X, 0, d.Z)
+				local dist = fd.Magnitude
+				if dist <= (mv.range or 4.5) + 0.8 and math.abs(d.Y) < (down and 5.5 or 4.2) then
+					local ang = 0
+					if dist > 0.8 then
+						ang = math.deg(math.acos(math.clamp(fd.Unit:Dot(dir), -1, 1)))
+					end
+					if ang <= (mv.arc or 70) / 2 and dist < bestD then
+						best, bestD = G, dist
+					end
+				end
+			end
+		end
+	end
+	return best, bestD
+end
+Combat.findTarget = findTarget
+
+-- เตะ/ทุบศพ (ฟิสิกส์ล้วน ฮาๆ)
+local function hitCorpse(F, dir, mv)
+	for model in pairs(corpses) do
+		local torso = model.Parent and model:FindFirstChild("Torso")
+		if torso then
+			local d = torso.Position - F.root.Position
+			if Vector3.new(d.X, 0, d.Z).Magnitude < (mv.range or 4.5) + 1 and math.abs(d.Y) < 5 then
+				local vel = dir * ((mv.knock or 20) * 1.1 + 10) + Vector3.new(0, (mv.lift or 0) + 22, 0)
+				for _, p in ipairs(model:GetChildren()) do
+					if p:IsA("BasePart") then
+						p.AssemblyLinearVelocity = vel + randomSpin(8)
+					end
+				end
+				fx("hit", { pos = torso.Position, dir = dir, power = 8, word = pickWord("impact"), blood = math.floor(6 * Config.Blood), teeth = 0, attacker = F.model, victim = model, sound = "thud" })
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- ===== ท่าโจมตี =====
+local function valid(F, id)
+	return F.alive and F.actN == id and F.model.Parent ~= nil and not Ragdoll.isRagdolled(F.model)
+end
+
+local function faceDir(F, dir)
+	if F.player then
+		return -- client หมุนตัวเองแล้ว (aim assist)
+	end
+	local p = F.root.Position
+	F.root.CFrame = CFrame.lookAt(p, p + dir)
+end
+
+local function doMove(F, name, dir)
+	local mv = Config.Moves[name]
+	local t = now()
+	F.busyUntil = t + mv.dur
+	local id = setAct(F, mv.anim)
+	faceDir(F, dir)
+	if mv.dash then
+		task.delay(math.max(0, mv.wind - 0.06), function()
+			if valid(F, id) then
+				Combat.push(F, dir * mv.dash, 0.22)
+			end
+		end)
+	end
+	task.delay(mv.wind, function()
+		if not valid(F, id) then
+			return
+		end
+		local G = findTarget(F, dir, mv)
+		if G then
+			Combat.hit(F, G, mv, dir)
+		else
+			hitCorpse(F, dir, mv)
+		end
+	end)
+	return id
+end
+
+local function doSwing(F, dir)
+	local W = F.weapon
+	local wdef = Config.Weapons[W.id]
+	local mv = Config.Moves.swing
+	local t = now()
+	F.busyUntil = t + mv.dur
+	local id = setAct(F, mv.anim)
+	faceDir(F, dir)
+	task.delay(mv.wind, function()
+		if not valid(F, id) or F.weapon ~= W then
+			return
+		end
+		local G = findTarget(F, dir, mv)
+		if G then
+			local m = Combat.weaponMove(wdef, false)
+			if Combat.hit(F, G, m, dir) then
+				Weapons.onHit(F, G)
+			end
+		else
+			hitCorpse(F, dir, { range = mv.range, knock = wdef.knock, lift = wdef.lift })
+		end
+	end)
+end
+
+local function doGrab(F, dir)
+	local mv = Config.Moves.grab
+	local t = now()
+	F.busyUntil = t + mv.dur
+	local id = setAct(F, mv.anim)
+	faceDir(F, dir)
+	task.delay(mv.wind, function()
+		if not valid(F, id) then
+			return
+		end
+		local G = findTarget(F, dir, mv)
+		if not G or now() < G.invulnUntil then
+			return
+		end
+		-- จับได้! ซูเพล็กซ์
+		local sx = Config.Moves.suplex
+		local t2 = now()
+		F.busyUntil = t2 + sx.dur
+		local id2 = setAct(F, sx.anim)
+		G.stunUntil = t2 + 1.2
+		if G.blocking then
+			G.blocking = false
+			G.model:SetAttribute("Block", false)
+		end
+		setAct(G, "hurt")
+		fx("word", { pos = G.head.Position, word = "จับได้!", big = false })
+		task.delay(0.3, function()
+			if not G.alive or not F.alive or F.actN ~= id2 then
+				return
+			end
+			local vel = -dir * sx.knock + Vector3.new(0, sx.lift, 0)
+			local spin = F.root.CFrame.RightVector * 12
+			damage(G, sx.dmg, F)
+			setSuper(F, F.super + sx.super)
+			G.daze = G.daze + sx.daze
+			fx("hit", { pos = G.head.Position, dir = -dir, power = sx.dmg, word = "ซูเพล็กซ์!!", blood = math.floor(4 * Config.Blood), teeth = 0, attacker = F.model, victim = G.model, sound = "heavy", big = true })
+			Combat.ragdoll(G, vel, spin, G.hum.Health > 0 and sx.ragdoll or nil)
+		end)
+	end)
+end
+
+-- ===== คำสั่งจากผู้เล่น/บอท =====
+function Combat.request(F, action, payload)
+	if not F or not F.alive then
+		return
+	end
+	payload = payload or {}
+	local t = now()
+	local model = F.model
+	if Ragdoll.isRagdolled(model) then
+		return
+	end
+	if action == "block" then
+		local on = payload.on == true
+		if on and (t < F.stunUntil or t < F.dizzyUntil) then
+			on = false
+		end
+		if F.blocking ~= on then
+			F.blocking = on
+			model:SetAttribute("Block", on)
+		end
+		return
+	end
+	-- เผื่อเวลา 0.06 วิ ให้ปุ่มที่กดรัวจาก client ไม่ถูกทิ้ง
+	if t < F.busyUntil - 0.06 or t < F.stunUntil or t < F.dizzyUntil then
+		return
+	end
+	if F.blocking then
+		F.blocking = false
+		model:SetAttribute("Block", false)
+	end
+	local dir = payload.dir or flat(F.root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+	F.lastDir = dir
+
+	if action == "punch" then
+		if F.weapon then
+			doSwing(F, dir)
+		elseif payload.air then
+			doMove(F, "dive", dir)
+		else
+			if t - F.lastPunchEnd < Config.ComboWindow then
+				F.combo = (F.combo % #Config.PunchCombo) + 1
+			else
+				F.combo = 1
+			end
+			local name = Config.PunchCombo[F.combo]
+			doMove(F, name, dir)
+			F.lastPunchEnd = t + Config.Moves[name].dur
+		end
+	elseif action == "kick" then
+		local downed = findTarget(F, dir, Config.Moves.stomp)
+		if downed then
+			doMove(F, "stomp", dir)
+		else
+			doMove(F, "kick", dir)
+		end
+	elseif action == "grab" then
+		if F.weapon then
+			local mv = Config.Moves.throw
+			F.busyUntil = t + mv.dur
+			local id = setAct(F, mv.anim)
+			faceDir(F, dir)
+			task.delay(mv.wind, function()
+				if valid(F, id) and F.weapon then
+					Weapons.throw(F, dir)
+				end
+			end)
+			return
+		end
+		local w, wd = Weapons.findNear(F.root.Position, 6)
+		local enemy, ed = findTarget(F, dir, Config.Moves.grab)
+		if w and (not enemy or wd < ed) then
+			local mv = Config.Moves.pickup
+			F.busyUntil = t + mv.dur
+			setAct(F, mv.anim)
+			Weapons.equip(F, w)
+		else
+			doGrab(F, dir)
+		end
+	elseif action == "super" then
+		if F.super < Config.SuperMax then
+			return
+		end
+		setSuper(F, 0)
+		fx("super", { char = model, name = F.name })
+		doMove(F, "super", dir)
+	elseif action == "taunt" then
+		local mv = Config.Moves.taunt
+		F.busyUntil = t + mv.dur
+		local id = setAct(F, mv.anim)
+		fx("taunt", { char = model })
+		task.delay(mv.dur, function()
+			if F.alive and F.actN == id then
+				setSuper(F, F.super + mv.super)
+				if F.stats then
+					F.stats.taunts = (F.stats.taunts or 0) + 1
+				end
+			end
+		end)
+	end
+end
+
+-- ===== ลงทะเบียนนักสู้ =====
+function Combat.register(model, opts)
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	local F = {
+		model = model,
+		hum = hum,
+		root = model:FindFirstChild("HumanoidRootPart"),
+		torso = model:FindFirstChild("Torso"),
+		head = model:FindFirstChild("Head"),
+		player = opts.player,
+		name = opts.name,
+		isBot = opts.isBot,
+		stats = opts.stats,
+		busyUntil = 0,
+		stunUntil = 0,
+		invulnUntil = now() + Config.SpawnProtect,
+		dizzyUntil = 0,
+		blocking = false,
+		combo = 0,
+		lastPunchEnd = -10,
+		super = 0,
+		daze = 0,
+		dazeT = 0,
+		lastHitBy = nil,
+		lastHitT = -100,
+		lastDamageT = -100,
+		hurtT = -100,
+		weapon = nil,
+		actN = 0,
+		alive = true,
+		exprT = 0,
+	}
+	local att = Instance.new("Attachment")
+	att.Name = "PushAtt"
+	att.Parent = F.root
+	model:SetAttribute("Super", 0)
+	model:SetAttribute("ActN", 0)
+	model:SetAttribute("Block", false)
+	model:SetAttribute("Dizzy", false)
+	model:SetAttribute("Ragdoll", false)
+	local ff = Instance.new("ForceField")
+	ff.Visible = true
+	ff.Parent = model
+	Debris:AddItem(ff, Config.SpawnProtect)
+
+	hum.HealthChanged:Connect(function(h)
+		CB.updateTag(model, h / hum.MaxHealth)
+	end)
+	hum.Died:Connect(function()
+		Combat.kill(F)
+	end)
+	fighters[model] = F
+	return F
+end
+
+function Combat.unregister(model)
+	fighters[model] = nil
+	corpses[model] = nil
+end
+
+-- ===== KO =====
+function Combat.kill(F, reason)
+	if not F.alive then
+		return
+	end
+	F.alive = false
+	local model = F.model
+	local t = now()
+	if F.hum.Health > 0 then
+		F.hum.Health = 0
+	end
+	if not Ragdoll.isRagdolled(model) then
+		Combat.ragdoll(F, F.root.CFrame.LookVector * -12 + Vector3.new(0, 10, 0), randomSpin(10), nil)
+	else
+		Ragdoll.start(model, nil, nil, nil) -- ทำให้ล้มถาวร
+	end
+	if F.weapon then
+		Weapons.drop(F, Vector3.new(0, 12, 0))
+	end
+	model:SetAttribute("Dizzy", false)
+	model:SetAttribute("Block", false)
+	model:SetAttribute("Dead", true)
+	CB.setFace(model, "ko")
+	fighters[model] = nil
+	corpses[model] = true
+	model.Destroying:Connect(function()
+		corpses[model] = nil
+	end)
+
+	local killer = nil
+	if F.lastHitBy and F.lastHitBy ~= F and t - F.lastHitT < 10 then
+		killer = F.lastHitBy
+	end
+	local msgList = (reason == "fall") and Config.FallMessages or Config.KOMessages
+	local msg = string.format(msgList[math.random(1, #msgList)], F.name)
+	if F.stats then
+		F.stats.deaths = (F.stats.deaths or 0) + 1
+		F.stats.streak = 0
+	end
+	local streakText = nil
+	if killer and killer.stats then
+		killer.stats.kos = (killer.stats.kos or 0) + 1
+		killer.stats.streak = (killer.stats.streak or 0) + 1
+		streakText = Config.StreakNames[killer.stats.streak]
+		if killer.alive then
+			setSuper(killer, killer.super + 25)
+			-- ฟื้นเลือดนิดหน่อยเป็นรางวัล
+			killer.hum.Health = math.min(killer.hum.MaxHealth, killer.hum.Health + 15)
+		end
+	end
+	remotes.Notify:FireAllClients("ko", {
+		victim = F.name,
+		killer = killer and killer.name or nil,
+		msg = msg,
+		victimModel = model,
+		killerModel = killer and killer.model or nil,
+		streak = streakText,
+	})
+	task.delay(0.9, function()
+		if model.Parent then
+			local torso = model:FindFirstChild("Torso")
+			if torso then
+				fx("pool", { pos = torso.Position })
+			end
+		end
+	end)
+	if Combat.onScore then
+		Combat.onScore()
+	end
+	if Combat.onDeath then
+		Combat.onDeath(F, killer)
+	end
+end
+
+-- ===== อัปเดตทุกเฟรม =====
+local exprAcc = 0
+function Combat.step(dt)
+	local t = now()
+	exprAcc = exprAcc + dt
+	local doExpr = exprAcc > 0.15
+	if doExpr then
+		exprAcc = 0
+	end
+	for model, F in pairs(fighters) do
+		if F.alive and model.Parent then
+			local hum = F.hum
+			local rag = Ragdoll.isRagdolled(model)
+			-- ตกแมพ
+			if F.root.Position.Y < -40 then
+				Combat.kill(F, "fall")
+			else
+				-- มึนหัวหาย
+				if F.dizzyUntil > 0 and t > F.dizzyUntil then
+					F.dizzyUntil = 0
+					model:SetAttribute("Dizzy", false)
+				end
+				if t - F.dazeT > 1.5 and F.daze > 0 then
+					F.daze = math.max(0, F.daze - 20 * dt)
+				end
+				-- ฟื้นเลือด
+				if t - F.lastDamageT > Config.RegenDelay and hum.Health < hum.MaxHealth then
+					hum.Health = math.min(hum.MaxHealth, hum.Health + Config.RegenRate * dt)
+				end
+				-- ความเร็วเดิน
+				if not rag then
+					local speed = Config.WalkSpeed
+					if t < F.dizzyUntil then
+						speed = 4
+					elseif t < F.stunUntil then
+						speed = 3
+					elseif F.blocking then
+						speed = 7
+					elseif t < F.busyUntil then
+						speed = 8
+					end
+					if hum.WalkSpeed ~= speed then
+						hum.WalkSpeed = speed
+					end
+					local jp = (t < F.stunUntil or t < F.dizzyUntil) and 0 or Config.JumpPower
+					if hum.JumpPower ~= jp then
+						hum.JumpPower = jp
+					end
+				end
+				-- กระแทกพื้น/กำแพงตอนลอย = เจ็บ + เลือด
+				if rag then
+					local v = F.torso.AssemblyLinearVelocity
+					if F.prevVel and t > (F.impactGrace or 0) then
+						local dv = (F.prevVel - v).Magnitude
+						if dv > 40 and t - (F.lastImpactT or 0) > 0.3 then
+							F.lastImpactT = t
+							local dmg = math.min(22, (dv - 40) * 0.33) * Config.ImpactDamage
+							if dmg >= 1 then
+								local by = (t - F.lastHitT < 4) and F.lastHitBy or nil
+								damage(F, dmg, by)
+								local fdir = F.prevVel.Magnitude > 0.1 and F.prevVel.Unit or Vector3.new(0, -1, 0)
+								fx("hit", {
+									pos = F.torso.Position,
+									dir = fdir,
+									power = dmg,
+									word = pickWord(dmg > 8 and "slam" or "impact"),
+									blood = math.floor(dmg * 0.8 * Config.Blood),
+									teeth = 0,
+									victim = model,
+									sound = "thud",
+									big = dmg > 10,
+									impact = true,
+								})
+								if dmg > 6 then
+									CB.addFaceBlood(model, 1)
+								end
+							end
+						end
+					end
+					F.prevVel = v
+				else
+					F.prevVel = nil
+				end
+				-- สีหน้า
+				if doExpr then
+					local e = "normal"
+					if t < F.dizzyUntil then
+						e = "dizzy"
+					elseif rag or t - F.hurtT < 0.45 then
+						e = "hurt"
+					elseif F.blocking then
+						e = "block"
+					elseif model:GetAttribute("Act") == "taunt" and t < F.busyUntil then
+						e = "taunt"
+					elseif t < F.busyUntil then
+						e = "angry"
+					end
+					CB.setFace(model, e)
+				end
+			end
+		end
+	end
+end
+
+return Combat
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX00000009">
+				<Properties>
+					<string name="Name">Weapons</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : อาวุธข้างถนน (กระทะ ไม้หน้าสาม เก้าอี้ ปลาทู กรวย ขวดน้ำปลา)
+--  อาวุธสร้างใน "พื้นที่มือ": จุด (0,0,0) = มือ, ตัวอาวุธยื่นไปทางแกน -Y
+-- ============================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+
+local Weapons = {}
+local Combat, remotes
+local folder
+local spawners = {} -- {pos, current, nextT}
+
+local function now()
+	return os.clock()
+end
+
+local function wpart(model, name, size, cf, color, material, shape)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	if shape then
+		p.Shape = shape
+	end
+	p.CanCollide = false
+	p.Anchored = true
+	p.Parent = model
+	return p
+end
+
+local CYL = Enum.PartType.Cylinder
+local DEG = math.rad
+
+local BUILD = {
+	pan = function(m)
+		wpart(m, "Handle", Vector3.new(0.24, 1.4, 0.24), CFrame.new(0, -0.4, 0), Color3.fromRGB(40, 28, 22), Enum.Material.Wood)
+		wpart(m, "Pan", Vector3.new(0.18, 1.9, 1.9), CFrame.new(0, -1.95, 0) * CFrame.Angles(0, math.pi / 2, 0), Color3.fromRGB(55, 55, 60), Enum.Material.Metal, CYL)
+		wpart(m, "Rim", Vector3.new(0.3, 1.5, 1.5), CFrame.new(0, -1.95, 0.05) * CFrame.Angles(0, math.pi / 2, 0), Color3.fromRGB(35, 35, 38), Enum.Material.Metal, CYL)
+		return 2.9
+	end,
+	plank = function(m)
+		wpart(m, "Plank", Vector3.new(0.32, 3.8, 0.75), CFrame.new(0, -1.55, 0), Color3.fromRGB(176, 132, 84), Enum.Material.Wood)
+		wpart(m, "Nail", Vector3.new(0.06, 0.06, 0.45), CFrame.new(0.05, -3.1, 0.45), Color3.fromRGB(140, 140, 145), Enum.Material.Metal)
+		wpart(m, "Tape", Vector3.new(0.36, 0.5, 0.79), CFrame.new(0, 0.05, 0), Color3.fromRGB(30, 30, 30))
+		return 3.8
+	end,
+	chair = function(m)
+		local red = Color3.fromRGB(205, 40, 40)
+		wpart(m, "Back", Vector3.new(1.6, 1.4, 0.16), CFrame.new(0, -0.6, 0), red)
+		wpart(m, "Seat", Vector3.new(1.6, 0.16, 1.6), CFrame.new(0, -1.35, -0.72), red)
+		for i, x in ipairs({ -0.68, 0.68 }) do
+			wpart(m, "LegB" .. i, Vector3.new(0.18, 1.5, 0.18), CFrame.new(x, -2.05, 0) * CFrame.Angles(DEG(-8), 0, 0), red)
+			wpart(m, "LegF" .. i, Vector3.new(0.18, 1.5, 0.18), CFrame.new(x, -2.05, -1.45) * CFrame.Angles(DEG(8), 0, 0), red)
+		end
+		return 2.8
+	end,
+	fish = function(m)
+		local silver = Color3.fromRGB(128, 150, 170)
+		wpart(m, "Tail", Vector3.new(0.12, 0.55, 0.95), CFrame.new(0, -0.15, 0), Color3.fromRGB(90, 110, 130))
+		wpart(m, "Body", Vector3.new(0.5, 2.6, 0.95), CFrame.new(0, -1.75, 0), silver, Enum.Material.Metal)
+		wpart(m, "Belly", Vector3.new(0.52, 2.0, 0.3), CFrame.new(0, -1.85, -0.36), Color3.fromRGB(220, 225, 230))
+		wpart(m, "Head", Vector3.new(0.5, 0.7, 0.85), CFrame.new(0, -3.35, 0), Color3.fromRGB(110, 130, 150), Enum.Material.Metal)
+		wpart(m, "EyeL", Vector3.new(0.54, 0.16, 0.16), CFrame.new(0, -3.3, 0.2), Color3.fromRGB(15, 15, 15))
+		wpart(m, "Mouth", Vector3.new(0.3, 0.12, 0.3), CFrame.new(0, -3.72, -0.2), Color3.fromRGB(170, 70, 70))
+		return 3.8
+	end,
+	cone = function(m)
+		local orange = Color3.fromRGB(255, 110, 20)
+		local white = Color3.fromRGB(245, 245, 245)
+		wpart(m, "Tip", Vector3.new(0.35, 0.35, 0.35), CFrame.new(0, -0.15, 0), orange)
+		wpart(m, "C1", Vector3.new(0.55, 0.45, 0.55), CFrame.new(0, -0.55, 0), white)
+		wpart(m, "C2", Vector3.new(0.8, 0.45, 0.8), CFrame.new(0, -0.98, 0), orange)
+		wpart(m, "C3", Vector3.new(1.05, 0.45, 1.05), CFrame.new(0, -1.42, 0), orange)
+		wpart(m, "Base", Vector3.new(1.5, 0.16, 1.5), CFrame.new(0, -1.72, 0), Color3.fromRGB(25, 25, 25))
+		return 1.8
+	end,
+	bottle = function(m)
+		local glass = Color3.fromRGB(120, 66, 22)
+		wpart(m, "Cap", Vector3.new(0.28, 0.14, 0.28), CFrame.new(0, 0.12, 0), Color3.fromRGB(200, 30, 30))
+		local neck = wpart(m, "Neck", Vector3.new(0.24, 0.65, 0.24), CFrame.new(0, -0.3, 0), glass, Enum.Material.Glass)
+		neck.Transparency = 0.15
+		local body = wpart(m, "Body", Vector3.new(0.55, 1.2, 0.55), CFrame.new(0, -1.2, 0), glass, Enum.Material.Glass)
+		body.Transparency = 0.15
+		wpart(m, "Label", Vector3.new(0.57, 0.45, 0.57), CFrame.new(0, -1.2, 0), Color3.fromRGB(240, 220, 120))
+		return 1.9
+	end,
+}
+
+-- สร้างโมเดลอาวุธ
+local function make(id)
+	local m = Instance.new("Model")
+	m.Name = "W_" .. id
+	local grip = wpart(m, "Grip", Vector3.new(0.2, 0.2, 0.2), CFrame.new(), Color3.new(1, 1, 1))
+	grip.Transparency = 1
+	local len = BUILD[id](m)
+	for _, p in ipairs(m:GetChildren()) do
+		if p:IsA("BasePart") and p ~= grip then
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = grip
+			w.Part1 = p
+			w.Parent = p
+		end
+	end
+	m.PrimaryPart = grip
+	m:SetAttribute("WeaponId", id)
+	m:SetAttribute("Uses", Config.Weapons[id].uses)
+	m:SetAttribute("Len", len)
+	-- ไอคอนลอยเหนืออาวุธ
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "Icon"
+	bb.Size = UDim2.fromOffset(46, 46)
+	bb.StudsOffset = Vector3.new(0, 1.8, 0)
+	bb.AlwaysOnTop = true
+	bb.MaxDistance = 70
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromScale(1, 1)
+	t.Text = Config.Weapons[id].icon
+	t.TextScaled = true
+	t.Font = Enum.Font.GothamBlack
+	t.Parent = bb
+	bb.Parent = grip
+	return m
+end
+
+local function setPhysics(m, held)
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored = false
+			p.Massless = held
+			p.CanQuery = not held
+			p.CanCollide = (not held) and p.Name ~= "Grip"
+			p.CanTouch = true
+		end
+	end
+end
+
+local function placeOnPad(m, pos)
+	local len = m:GetAttribute("Len") or 2
+	local spin = math.random() * math.pi * 2
+	local cf = CFrame.new(pos + Vector3.new(0, 1.3, 0)) * CFrame.Angles(0, spin, 0) * CFrame.new(0, 0, len / 2) * CFrame.Angles(math.pi / 2, 0, 0)
+	m:PivotTo(cf)
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored = true
+			p.CanCollide = false
+		end
+	end
+	m:SetAttribute("OnPad", true)
+end
+
+function Weapons.init(deps)
+	Combat = deps.Combat
+	remotes = deps.remotes
+	folder = Instance.new("Folder")
+	folder.Name = "BrawlWeapons"
+	folder.Parent = workspace
+	for _, pos in ipairs(deps.spawners or {}) do
+		table.insert(spawners, { pos = pos, current = nil, nextT = now() + math.random() * 3 })
+	end
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			Weapons.tick()
+		end
+	end)
+end
+
+function Weapons.tick()
+	local t = now()
+	local count = 0
+	for _, m in ipairs(folder:GetChildren()) do
+		if not m:GetAttribute("Broken") then
+			count = count + 1
+		end
+		-- อาวุธที่ตกพื้นนานเกินไป หายไป
+		local dt = m:GetAttribute("DroppedT")
+		if dt and t - dt > 45 and not m:GetAttribute("Held") then
+			m:Destroy()
+		end
+	end
+	for _, s in ipairs(spawners) do
+		if s.current and (not s.current.Parent or s.current.Parent ~= folder or s.current:GetAttribute("Held")) then
+			s.current = nil
+			s.nextT = t + Config.WeaponRespawn
+		end
+		if not s.current and t >= s.nextT and count < Config.MaxWeaponsOnMap then
+			local id = Config.WeaponOrder[math.random(1, #Config.WeaponOrder)]
+			local m = make(id)
+			placeOnPad(m, s.pos)
+			m.Parent = folder
+			s.current = m
+			count = count + 1
+		end
+	end
+end
+
+-- หาอาวุธใกล้ๆ ที่หยิบได้
+function Weapons.findNear(pos, radius)
+	local best, bestD = nil, radius
+	for _, m in ipairs(folder:GetChildren()) do
+		if m.PrimaryPart and not m:GetAttribute("Held") and not m:GetAttribute("Broken") and not m:GetAttribute("Thrown") then
+			local d = (m.PrimaryPart.Position - pos).Magnitude
+			if m:GetAttribute("OnPad") then
+				d = d - 1
+			end
+			if d < bestD then
+				best, bestD = m, d
+			end
+		end
+	end
+	return best, bestD
+end
+
+function Weapons.equip(F, m)
+	if F.weapon or not m.Parent then
+		return
+	end
+	local arm = F.model:FindFirstChild("Right Arm")
+	if not arm then
+		return
+	end
+	local id = m:GetAttribute("WeaponId")
+	m:SetAttribute("Held", true)
+	m:SetAttribute("OnPad", false)
+	m:SetAttribute("DroppedT", nil)
+	setPhysics(m, true)
+	local grip = m.PrimaryPart
+	m:PivotTo(arm.CFrame * CFrame.new(0, -1, 0))
+	local w = Instance.new("Weld")
+	w.Name = "GripWeld"
+	w.Part0 = arm
+	w.Part1 = grip
+	w.C0 = CFrame.new(0, -1, 0)
+	w.C1 = CFrame.new()
+	w.Parent = grip
+	local icon = grip:FindFirstChild("Icon")
+	if icon then
+		icon.Enabled = false
+	end
+	m.Parent = F.model
+	F.weapon = { model = m, id = id }
+	F.model:SetAttribute("Weapon", id)
+	F.model:SetAttribute("WeaponUses", m:GetAttribute("Uses"))
+	Combat.fx("word", { pos = F.head.Position, word = Config.Weapons[id].icon .. " " .. Config.Weapons[id].name, small = true })
+end
+
+-- ปล่อยอาวุธ (คืนค่าโมเดล)
+function Weapons.drop(F, vel)
+	local W = F.weapon
+	if not W then
+		return nil
+	end
+	F.weapon = nil
+	F.model:SetAttribute("Weapon", nil)
+	F.model:SetAttribute("WeaponUses", nil)
+	local m = W.model
+	if not m or not m.Parent then
+		return nil
+	end
+	local grip = m.PrimaryPart
+	local gw = grip:FindFirstChild("GripWeld")
+	if gw then
+		gw:Destroy()
+	end
+	m.Parent = folder
+	setPhysics(m, false)
+	m:SetAttribute("Held", false)
+	m:SetAttribute("DroppedT", now())
+	local icon = grip:FindFirstChild("Icon")
+	if icon then
+		icon.Enabled = true
+	end
+	pcall(function()
+		grip:SetNetworkOwner(nil)
+	end)
+	grip.AssemblyLinearVelocity = vel or Vector3.zero
+	grip.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 10
+	return m
+end
+
+-- อาวุธแตกเป็นชิ้นๆ
+function Weapons.shatter(m, pos)
+	m:SetAttribute("Broken", true)
+	m:SetAttribute("Held", false)
+	m.Parent = folder
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("WeldConstraint") or d:IsA("Weld") or d:IsA("BillboardGui") then
+			d:Destroy()
+		end
+	end
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored = false
+			p.Massless = false
+			p.CanCollide = p.Name ~= "Grip"
+			p.CanQuery = false
+			p.AssemblyLinearVelocity = Vector3.new(math.random() - 0.5, math.random() * 0.8 + 0.3, math.random() - 0.5) * 34
+			p.AssemblyAngularVelocity = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 30
+		end
+	end
+	Combat.fx("break", { pos = pos or (m.PrimaryPart and m.PrimaryPart.Position) or Vector3.zero, glass = m:GetAttribute("WeaponId") == "bottle" })
+	Debris:AddItem(m, 5)
+end
+
+-- กรวยติดหัว
+local function coneHat(m, G)
+	m.Parent = G.model
+	setPhysics(m, true)
+	local grip = m.PrimaryPart
+	for _, d in ipairs(grip:GetChildren()) do
+		if d:IsA("Weld") then
+			d:Destroy()
+		end
+	end
+	local icon = grip:FindFirstChild("Icon")
+	if icon then
+		icon.Enabled = false
+	end
+	local hs = G.head.Size.Y / 2
+	local w = Instance.new("Weld")
+	w.Name = "GripWeld"
+	w.Part0 = G.head
+	w.Part1 = grip
+	w.C0 = CFrame.new(0, hs + 1.82, 0) * CFrame.Angles(0, math.random() * 6.28, math.rad(math.random(-12, 12)))
+	w.Parent = grip
+	m:SetAttribute("Held", true)
+	task.delay(12, function()
+		if m.Parent == G.model then
+			if w.Parent then
+				w:Destroy()
+			end
+			m.Parent = folder
+			setPhysics(m, false)
+			m:SetAttribute("Held", false)
+			m:SetAttribute("DroppedT", now())
+			if icon then
+				icon.Enabled = true
+			end
+		end
+	end)
+end
+
+-- ตีโดนแล้ว: ลดความทนทาน / แตก / กรวยติดหัว
+function Weapons.onHit(F, G)
+	local W = F.weapon
+	if not W then
+		return
+	end
+	local wdef = Config.Weapons[W.id]
+	local m = W.model
+	local uses = (m:GetAttribute("Uses") or 1) - 1
+	m:SetAttribute("Uses", uses)
+	F.model:SetAttribute("WeaponUses", uses)
+	if wdef.hat and G and G.alive then
+		F.weapon = nil
+		F.model:SetAttribute("Weapon", nil)
+		F.model:SetAttribute("WeaponUses", nil)
+		coneHat(m, G)
+		Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "หัวกรวย! 🤡", big = true })
+		return
+	end
+	if uses <= 0 then
+		F.weapon = nil
+		F.model:SetAttribute("Weapon", nil)
+		F.model:SetAttribute("WeaponUses", nil)
+		Weapons.shatter(m, G and G.head.Position)
+	end
+end
+
+-- ขว้างอาวุธ!
+function Weapons.throw(F, dir)
+	local W = F.weapon
+	if not W then
+		return
+	end
+	local wdef = Config.Weapons[W.id]
+	local start = F.root.Position + dir * 2.6 + Vector3.new(0, 1.2, 0)
+	local m = Weapons.drop(F, Vector3.zero)
+	if not m then
+		return
+	end
+	local grip = m.PrimaryPart
+	m:PivotTo(CFrame.lookAt(start, start + dir) * CFrame.Angles(math.pi / 2, 0, 0))
+	grip.AssemblyLinearVelocity = dir * Config.ThrowSpeed + Vector3.new(0, 12, 0)
+	grip.AssemblyAngularVelocity = F.root.CFrame.RightVector * -18
+	m:SetAttribute("Thrown", true)
+	local conns = {}
+	local done = false
+	local function finish()
+		if done then
+			return
+		end
+		done = true
+		for _, c in ipairs(conns) do
+			c:Disconnect()
+		end
+		if m.Parent then
+			m:SetAttribute("Thrown", false)
+		end
+	end
+	local function onTouch(hit)
+		if done then
+			return
+		end
+		local G = Combat.findFighterByPart(hit)
+		if G and G ~= F and G.alive then
+			local speed = grip.AssemblyLinearVelocity.Magnitude
+			if speed > 20 then
+				finish()
+				local mv = Combat.weaponMove(wdef, true)
+				if Combat.hit(F, G, mv, dir) then
+					local uses = (m:GetAttribute("Uses") or 1) - 1
+					m:SetAttribute("Uses", uses)
+					if wdef.hat then
+						coneHat(m, G)
+						Combat.fx("word", { pos = G.head.Position + Vector3.new(0, 2, 0), word = "หัวกรวย! 🤡", big = true })
+					elseif uses <= 0 then
+						Weapons.shatter(m, hit.Position)
+					end
+				end
+			end
+		end
+	end
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") then
+			table.insert(conns, p.Touched:Connect(onTouch))
+		end
+	end
+	Combat.fx("word", { pos = start, word = "ขว้าง!", small = true })
+	task.delay(2.2, finish)
+end
+
+return Weapons
+]]></ProtectedString>
+				</Properties>
+			</Item>
+			<Item class="ModuleScript" referent="RBX0000000A">
+				<Properties>
+					<string name="Name">Bots</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : นักเลง AI
+-- ============================================================
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+
+local Bots = {}
+local Combat, Ragdoll, Weapons
+local brains = {} -- [F] = brain
+
+local STRIKES = { jab = true, cross = true, upper = true, kick = true, swing = true, super = true, dive = true, grab = true }
+
+local function now()
+	return os.clock()
+end
+
+function Bots.init(deps)
+	Combat = deps.Combat
+	Ragdoll = deps.Ragdoll
+	Weapons = deps.Weapons
+end
+
+function Bots.add(F)
+	local root = F.root
+	brains[F] = {
+		target = nil,
+		retargetT = 0,
+		nextThink = now() + 1 + math.random(),
+		blockUntil = 0,
+		lastPos = root.Position,
+		stuckT = 0,
+		strafe = (math.random() < 0.5) and 1 or -1,
+		strafeT = 0,
+		wantWeapon = nil,
+		face = nil,
+		wanderT = 0,
+		aggression = 0.6 + math.random() * 0.4,
+	}
+end
+
+function Bots.remove(F)
+	brains[F] = nil
+end
+
+local function flat(v)
+	local f = Vector3.new(v.X, 0, v.Z)
+	if f.Magnitude < 1e-3 then
+		return nil
+	end
+	return f.Unit
+end
+
+local function pickTarget(F)
+	local pos = F.root.Position
+	local best, bestScore = nil, math.huge
+	-- นับว่ามีบอทรุมใครอยู่บ้าง (กันรุมผู้เล่นคนเดียว)
+	local crowd = {}
+	for G, B in pairs(brains) do
+		if G ~= F and B.target then
+			crowd[B.target] = (crowd[B.target] or 0) + 1
+		end
+	end
+	for _, G in pairs(Combat.fighters) do
+		if G ~= F and G.alive and G.model.Parent then
+			local d = (G.root.Position - pos).Magnitude
+			local score = d + (crowd[G] or 0) * 10
+			if G.player then
+				score = score * 0.85
+			end
+			if Ragdoll.isRagdolled(G.model) then
+				score = score + 6
+			end
+			if score < bestScore then
+				best, bestScore = G, score
+			end
+		end
+	end
+	return best
+end
+
+local function think(F, B)
+	local t = now()
+	local skill = Config.BotSkill
+	local hum = F.hum
+	local pos = F.root.Position
+
+	-- ติดอยู่กับที่ -> กระโดด
+	if (pos - B.lastPos).Magnitude < 0.4 and hum.MoveDirection.Magnitude > 0.1 then
+		B.stuckT = B.stuckT + 0.1
+		if B.stuckT > 0.8 then
+			hum.Jump = true
+			B.stuckT = 0
+			B.strafe = -B.strafe
+		end
+	else
+		B.stuckT = 0
+	end
+	B.lastPos = pos
+
+	if not B.target or not B.target.alive or t > B.retargetT then
+		B.target = pickTarget(F)
+		B.retargetT = t + 3 + math.random() * 4
+	end
+
+	-- อยากได้อาวุธ
+	if not F.weapon and not B.wantWeapon and math.random() < 0.03 then
+		local w = Weapons.findNear(pos, 26)
+		if w then
+			B.wantWeapon = w
+		end
+	end
+	if B.wantWeapon then
+		local w = B.wantWeapon
+		if F.weapon or not w.Parent or w:GetAttribute("Held") or not w.PrimaryPart then
+			B.wantWeapon = nil
+		else
+			local wp = w.PrimaryPart.Position
+			if (Vector3.new(wp.X, pos.Y, wp.Z) - pos).Magnitude < 4.5 then
+				Combat.request(F, "grab", { dir = flat(wp - pos) })
+				B.wantWeapon = nil
+			else
+				B.face = nil
+				hum.AutoRotate = true
+				hum:MoveTo(wp)
+				return
+			end
+		end
+	end
+
+	local T = B.target
+	if not T then
+		-- เดินเล่น
+		B.face = nil
+		hum.AutoRotate = true
+		if t > B.wanderT then
+			B.wanderT = t + 3
+			hum:MoveTo(pos + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20)))
+		end
+		return
+	end
+
+	local tp = T.root.Position
+	local to = tp - pos
+	local dist = Vector3.new(to.X, 0, to.Z).Magnitude
+	local dir = flat(to) or F.root.CFrame.LookVector
+	local tDown = Ragdoll.isRagdolled(T.model)
+	local ideal = F.weapon and 4.3 or 3.3
+	if tDown then
+		ideal = 2.6
+	end
+
+	-- การ์ดเมื่อเห็นอีกฝ่ายง้างหมัด
+	local tAct = T.model:GetAttribute("Act")
+	if t > B.blockUntil and dist < 7.5 and t < T.busyUntil and STRIKES[tAct] and math.random() < (0.12 + 0.45 * skill) then
+		B.blockUntil = t + 0.45 + math.random() * 0.4
+		Combat.request(F, "block", { on = true })
+	end
+	if F.blocking and t > B.blockUntil then
+		Combat.request(F, "block", { on = false })
+	end
+
+	if dist > ideal + 0.8 then
+		B.face = nil
+		hum.AutoRotate = true
+		hum:MoveTo(tp - dir * ideal)
+		return
+	end
+
+	-- อยู่ในระยะ: หันหน้าเข้าหา + เดินวนนิดๆ
+	hum.AutoRotate = false
+	B.face = dir
+	if t > B.strafeT then
+		B.strafeT = t + 0.8 + math.random() * 1.5
+		if math.random() < 0.4 then
+			B.strafe = -B.strafe
+		end
+	end
+	local side = Vector3.new(-dir.Z, 0, dir.X) * B.strafe
+	hum:MoveTo(pos + side * 2.2 - dir * (ideal - dist))
+
+	if t < B.nextThink or t < F.busyUntil or F.blocking then
+		return
+	end
+	local react = 0.85 - 0.6 * skill
+	B.nextThink = t + react * (0.6 + math.random() * 0.8) / B.aggression
+
+	local action = nil
+	local r = math.random()
+	if F.super >= Config.SuperMax and r < 0.6 then
+		action = "super"
+	elseif tDown then
+		if r < 0.55 then
+			action = "kick" -- กระทืบ
+		elseif r < 0.7 then
+			action = "taunt"
+		end
+	elseif T.blocking then
+		action = (r < 0.5) and "grab" or "kick"
+	elseif r < 0.56 then
+		action = "punch"
+	elseif r < 0.76 then
+		action = "kick"
+	elseif r < 0.88 then
+		action = "grab"
+	elseif r < 0.92 then
+		action = "taunt"
+	end
+	if action then
+		Combat.request(F, action, { dir = dir })
+	end
+end
+
+local acc = 0
+function Bots.step(dt)
+	acc = acc + dt
+	local doThink = acc >= 0.1
+	if doThink then
+		acc = 0
+	end
+	for F, B in pairs(brains) do
+		if F.alive and F.model.Parent and not Ragdoll.isRagdolled(F.model) then
+			if doThink then
+				think(F, B)
+			end
+			-- หมุนตัวเข้าหาเป้าแบบนุ่มๆ
+			if B.face and not F.hum.AutoRotate then
+				local cur = F.root.CFrame
+				local look = flat(cur.LookVector) or B.face
+				local a = math.min(1, dt * 10)
+				local nd = look:Lerp(B.face, a)
+				if nd.Magnitude > 0.01 then
+					F.root.CFrame = CFrame.lookAt(cur.Position, cur.Position + nd.Unit)
+				end
+			end
+		end
+	end
+end
+
+return Bots
+]]></ProtectedString>
+				</Properties>
+			</Item>
+		</Item>
+	</Item>
+	<Item class="StarterPlayer" referent="RBX0000000B">
+		<Properties>
+			<string name="Name">StarterPlayer</string>
+		</Properties>
+		<Item class="StarterPlayerScripts" referent="RBX0000000C">
+			<Properties>
+				<string name="Name">StarterPlayerScripts</string>
+			</Properties>
+			<Item class="LocalScript" referent="RBX0000000D">
+				<Properties>
+					<string name="Name">BrawlClient</string>
+					<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : SOI BRAWL  -  สคริปต์หลักฝั่ง Client
+--  (StarterPlayer > StarterPlayerScripts > BrawlClient + ModuleScript ลูก 4 ตัว)
+-- ============================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+
+local player = Players.LocalPlayer
+local Config = require(ReplicatedStorage:WaitForChild("BrawlConfig"))
+local Anim = require(ReplicatedStorage:WaitForChild("BrawlAnim"))
+local remotes = {}
+local rf = ReplicatedStorage:WaitForChild("BrawlRemotes")
+for _, n in ipairs({ "Action", "Fx", "Knock", "Ragdoll", "Notify" }) do
+	remotes[n] = rf:WaitForChild(n)
+end
+
+local Animator = require(script:WaitForChild("Animator"))
+local Effects = require(script:WaitForChild("Effects"))
+local Hud = require(script:WaitForChild("Hud"))
+local Controls = require(script:WaitForChild("Controls"))
+
+Animator.init(Anim)
+Effects.init(Config, remotes, Animator)
+Hud.init(Config, remotes, Effects)
+Effects.setHud(Hud)
+Controls.init(Config, remotes, Animator)
+
+-- โดนผลัก (ตัวเราเป็นเจ้าของฟิสิกส์ของตัวเอง เลยต้องผลักฝั่งนี้)
+remotes.Knock.OnClientEvent:Connect(function(vel, dur)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not root or typeof(vel) ~= "Vector3" then
+		return
+	end
+	local att = root:FindFirstChild("PushAtt")
+	if not att then
+		return
+	end
+	local lv = Instance.new("LinearVelocity")
+	lv.Attachment0 = att
+	lv.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
+	lv.PrimaryTangentAxis = Vector3.xAxis
+	lv.SecondaryTangentAxis = Vector3.zAxis
+	lv.PlaneVelocity = Vector2.new(vel.X, vel.Z)
+	lv.MaxForce = 9e4
+	lv.RelativeTo = Enum.ActuatorRelativeTo.World
+	lv.Parent = root
+	Debris:AddItem(lv, math.clamp(tonumber(dur) or 0.15, 0.05, 0.5))
+end)
+
+-- ล้ม/ลุก (ให้ Humanoid ฝั่งเราเปลี่ยนสถานะตาม)
+remotes.Ragdoll.OnClientEvent:Connect(function(on)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		return
+	end
+	if on then
+		hum:ChangeState(Enum.HumanoidStateType.Physics)
+	else
+		hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		local root = char:FindFirstChild("HumanoidRootPart")
+		if root then
+			Effects.sound("getup", root.Position, 1)
+		end
+	end
+end)
+
+print("[ซอยเดือด] client พร้อม 👊")
+]]></ProtectedString>
+					<bool name="Disabled">false</bool>
+				</Properties>
+				<Item class="ModuleScript" referent="RBX0000000E">
+					<Properties>
+						<string name="Name">Animator</string>
+						<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : แอนิเมชันแบบ procedural + สปริง (มีน้ำหนัก ไม่แข็งทื่อ)
+--  ทุก client ขยับ Motor6D.Transform ของทุกตัวละครเอง จาก Attribute ที่ server ส่งมา
+-- ============================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+
+local Animator = {}
+local Anim
+local chars = {} -- [model] = state
+local localPlayer = Players.LocalPlayer
+
+local MOTORS = {
+	Root = { "HumanoidRootPart", "RootJoint" },
+	N = { "Torso", "Neck" },
+	RS = { "Torso", "Right Shoulder" },
+	LS = { "Torso", "Left Shoulder" },
+	RH = { "Torso", "Right Hip" },
+	LH = { "Torso", "Left Hip" },
+}
+local JOINTS = { "Root", "N", "RS", "LS", "RH", "LH" }
+local rad = math.rad
+local sin, cos, abs = math.sin, math.cos, math.abs
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
+
+local function refreshRayFilter()
+	local list = {}
+	for _, n in ipairs({ "Fighters", "BrawlFX", "BrawlWeapons" }) do
+		local f = workspace:FindFirstChild(n)
+		if f then
+			table.insert(list, f)
+		end
+	end
+	rayParams.FilterDescendantsInstances = list
+end
+
+local function newSpring()
+	return { x = { 0, 0, 0 }, v = { 0, 0, 0 } }
+end
+
+local function setup(model)
+	if chars[model] then
+		return
+	end
+	local st = {
+		model = model,
+		motors = {},
+		springs = {},
+		off = newSpring(),
+		clip = nil,
+		clipT = 0,
+		freeze = 0,
+		walkPhase = math.random() * 6,
+		t = math.random() * 10,
+		ready = false,
+	}
+	chars[model] = st
+	task.spawn(function()
+		for key, path in pairs(MOTORS) do
+			local holder = model:WaitForChild(path[1], 10)
+			local m = holder and holder:WaitForChild(path[2], 10)
+			if not m then
+				return
+			end
+			st.motors[key] = m
+			st.springs[key] = newSpring()
+		end
+		st.hum = model:WaitForChild("Humanoid", 10)
+		st.root = model:WaitForChild("HumanoidRootPart", 10)
+		st.ready = st.hum ~= nil and st.root ~= nil
+	end)
+	st.conn = model:GetAttributeChangedSignal("ActN"):Connect(function()
+		local name = model:GetAttribute("Act")
+		-- ตัวเราเล่นท่าไปก่อนแล้ว (ไม่ต้องรอ server) -> ไม่เริ่มซ้ำ
+		if st.localClip == name and os.clock() - st.localT < 0.35 then
+			st.localClip = nil
+			return
+		end
+		Animator.play(model, name)
+	end)
+end
+
+local function cleanup(model)
+	local st = chars[model]
+	if st then
+		if st.conn then
+			st.conn:Disconnect()
+		end
+		chars[model] = nil
+	end
+end
+
+function Animator.init(animModule)
+	Anim = animModule
+	for _, m in ipairs(CollectionService:GetTagged("BrawlChar")) do
+		setup(m)
+	end
+	CollectionService:GetInstanceAddedSignal("BrawlChar"):Connect(setup)
+	CollectionService:GetInstanceRemovedSignal("BrawlChar"):Connect(cleanup)
+	refreshRayFilter()
+	workspace.ChildAdded:Connect(refreshRayFilter)
+	RunService.Stepped:Connect(function(_, dt)
+		Animator.step(dt)
+	end)
+end
+
+function Animator.play(model, name)
+	local st = chars[model]
+	local clip = Anim.Clips[name]
+	if not st or not clip then
+		return
+	end
+	st.clip = clip
+	st.clipName = name
+	st.clipT = 0
+	if Animator.onPlay then
+		Animator.onPlay(model, name)
+	end
+end
+
+-- ตัวเรากดปุ่มแล้วเล่นท่าทันที (ไม่หน่วงตามปิง)
+function Animator.playLocal(model, name)
+	local st = chars[model]
+	if not st then
+		return
+	end
+	st.localClip = name
+	st.localT = os.clock()
+	Animator.play(model, name)
+end
+
+-- หยุดภาพแป๊บนึงตอนโดน (hit-stop ให้รู้สึกหนัก)
+function Animator.hitstop(model, dur)
+	local st = chars[model]
+	if st then
+		st.freeze = math.max(st.freeze, dur)
+	end
+end
+
+Animator.localBlock = false
+
+local function copy3(v)
+	return { v[1], v[2], v[3] }
+end
+
+-- ท่าพื้นฐาน (ยืน/เดิน/กระโดด/มึน/การ์ด)
+local function basePose(st, dt, out)
+	local model = st.model
+	local vel = st.root.AssemblyLinearVelocity
+	local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+	local t = st.t
+	local G = Anim.Guard
+	for _, j in ipairs(JOINTS) do
+		out[j] = copy3(G[j])
+	end
+	out.off = { 0, sin(t * 2.2) * 0.04, 0 }
+	-- หายใจ/โยกตัว
+	out.RS[1] = out.RS[1] + sin(t * 2.2) * rad(3)
+	out.LS[1] = out.LS[1] + sin(t * 2.2 + 1) * rad(3)
+
+	local weapon = model:GetAttribute("Weapon")
+	if weapon then
+		out.RS = copy3(Anim.WeaponArm)
+	end
+
+	-- ลอยอยู่ไหม (raycast ลงพื้น ใช้ได้กับทุกตัวละคร ไม่ต้องพึ่ง property ที่อาจไม่ replicate)
+	st.airT = (st.airT or 0) - dt
+	if st.airT <= 0 then
+		st.airT = 0.08
+		local res = workspace:Raycast(st.root.Position, Vector3.new(0, -3.8, 0), rayParams)
+		st.air = res == nil and abs(vel.Y) > 2
+	end
+	local air = st.air
+	if air then
+		-- ลอยกลางอากาศ: แขนกวัดแกว่งฮาๆ
+		local fl = sin(t * 16)
+		local falling = vel.Y < -20
+		local amp = falling and 40 or 18
+		out.RS = { rad(150 + fl * amp), 0, rad(30) }
+		out.LS = { rad(150 - fl * amp), 0, rad(-30) }
+		out.RH = { rad(35 + (falling and fl * 25 or 0)), 0, rad(6) }
+		out.LH = { rad(-15 - (falling and fl * 25 or 0)), 0, rad(-6) }
+		out.Root = { rad(falling and 10 or -6), 0, 0 }
+		out.N = { rad(falling and 20 or 0), 0, 0 }
+		return
+	end
+
+	if speed > 1 then
+		local k = math.clamp(speed / 18, 0, 1.3)
+		st.walkPhase = st.walkPhase + dt * speed * 0.62
+		local p = st.walkPhase
+		local s = sin(p)
+		out.RH = { s * rad(46) * k, 0, rad(3) }
+		out.LH = { -s * rad(46) * k, 0, rad(-3) }
+		out.off = { 0, abs(cos(p)) * 0.16 * k - 0.04, 0 }
+		out.Root = { rad(-7) * k, rad(-15) * (1 - k) + s * rad(6) * k, s * rad(2.5) * k }
+		if not weapon then
+			-- วิ่ง: แขนแกว่งสลับขา (ยังยกหมัดอยู่ครึ่งๆ)
+			out.RS = { rad(55) - s * rad(40) * k, rad(20), rad(6) }
+			out.LS = { rad(55) + s * rad(40) * k, rad(-20), rad(-6) }
+		else
+			out.LS = { rad(30) + s * rad(40) * k, 0, rad(-6) }
+		end
+	end
+
+	-- มึนหัว: โยกเยก
+	if model:GetAttribute("Dizzy") then
+		out.Root = { sin(t * 2.1) * rad(8), sin(t * 1.3) * rad(15), sin(t * 3.2) * rad(12) }
+		out.N = { sin(t * 4) * rad(18), 0, cos(t * 4) * rad(18) }
+		out.RS = { rad(18) + sin(t * 3) * rad(12), 0, rad(22) }
+		out.LS = { rad(18) - sin(t * 3) * rad(12), 0, rad(-22) }
+		out.RH = { sin(t * 3.2) * rad(10), 0, rad(8) }
+		out.LH = { -sin(t * 3.2) * rad(10), 0, rad(-8) }
+		return
+	end
+
+	local blocking = model:GetAttribute("Block")
+	if model == (localPlayer and localPlayer.Character) then
+		blocking = blocking or Animator.localBlock
+	end
+	if blocking then
+		for j, v in pairs(Anim.Block) do
+			if j ~= "off" then
+				out[j] = copy3(v)
+			end
+		end
+	end
+end
+
+local pose = {}
+local OMEGA_BASE, ZETA_BASE = 15, 0.62
+local OMEGA_ACT, ZETA_ACT = 38, 0.7
+
+local function springStep(s, target, w, z, h)
+	for i = 1, 3 do
+		local a = w * w * (target[i] - s.x[i]) - 2 * z * w * s.v[i]
+		s.v[i] = s.v[i] + a * h
+		s.x[i] = s.x[i] + s.v[i] * h
+	end
+end
+
+local function jointCF(v, offv)
+	local cf = CFrame.Angles(0, v[2], 0) * CFrame.Angles(v[1], 0, 0) * CFrame.Angles(0, 0, v[3])
+	if offv then
+		return CFrame.new(offv[1], offv[2], offv[3]) * cf
+	end
+	return cf
+end
+
+function Animator.step(dt)
+	dt = math.min(dt, 1 / 15)
+	for model, st in pairs(chars) do
+		if st.ready and model.Parent and st.hum and st.root then
+			if model:GetAttribute("Ragdoll") then
+				st.clip = nil
+				-- ตอนลุก ให้เริ่มจากท่าปกติ
+				for _, s in pairs(st.springs) do
+					s.v = { 0, 0, 0 }
+				end
+			else
+				local adt = dt
+				if st.freeze > 0 then
+					st.freeze = st.freeze - dt
+					adt = dt * 0.08
+				end
+				st.t = st.t + adt
+				basePose(st, adt, pose)
+				local acting = false
+				if st.clip then
+					st.clipT = st.clipT + adt
+					local clip = st.clip
+					if clip.procedural == "dance" then
+						if st.clipT < clip.len then
+							Anim.dance(st.clipT, pose)
+							acting = true
+						else
+							st.clip = nil
+						end
+					else
+						local base = {}
+						for _, j in ipairs(JOINTS) do
+							base[j] = pose[j]
+						end
+						local w = Anim.sampleClip(clip, st.clipT, base, pose)
+						acting = w > 0.5
+						if st.clipT > clip.len + 0.2 then
+							st.clip = nil
+						end
+					end
+				end
+				-- ชดเชย: ขา/หัวไม่บิดตามลำตัวมากเกินไป
+				local root = pose.Root
+				pose.RH = { pose.RH[1] - root[1], pose.RH[2] - root[2], pose.RH[3] - root[3] }
+				pose.LH = { pose.LH[1] - root[1], pose.LH[2] - root[2], pose.LH[3] - root[3] }
+				pose.N = { pose.N[1] - root[1] * 0.5, pose.N[2] - root[2] * 0.8, pose.N[3] }
+
+				local w, z = OMEGA_BASE, ZETA_BASE
+				if acting then
+					w, z = OMEGA_ACT, ZETA_ACT
+				end
+				local steps = math.max(1, math.ceil(adt / (1 / 120)))
+				local h = adt / steps
+				for _ = 1, steps do
+					for _, j in ipairs(JOINTS) do
+						local s = st.springs[j]
+						if s then
+							local jw = w
+							if j == "RH" or j == "LH" then
+								jw = w * 1.15
+							end
+							springStep(s, pose[j], jw, z, h)
+						end
+					end
+					springStep(st.off, pose.off or { 0, 0, 0 }, w, 0.8, h)
+				end
+				for _, j in ipairs(JOINTS) do
+					local m = st.motors[j]
+					local s = st.springs[j]
+					if m and s then
+						if j == "Root" then
+							m.Transform = jointCF(s.x, st.off.x)
+						else
+							m.Transform = jointCF(s.x)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+return Animator
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX0000000F">
+					<Properties>
+						<string name="Name">Effects</string>
+						<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : เอฟเฟกต์ฝั่ง client
+--  เลือดเป็นหยดจริง (ตก กระเซ็น ติดพื้น/กำแพง), ฟันกระเด็น, คำการ์ตูน, กล้องสั่น, เสียง
+-- ============================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local CollectionService = game:GetService("CollectionService")
+
+local Effects = {}
+local Config, Animator, Hud
+local localPlayer = Players.LocalPlayer
+local fxFolder
+local rng = Random.new()
+
+local drops = {}
+local dropPool = {}
+local stains = {}
+local shake = 0
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
+
+local function refreshFilter()
+	local list = { fxFolder }
+	for _, n in ipairs({ "Fighters", "BrawlWeapons" }) do
+		local f = workspace:FindFirstChild(n)
+		if f then
+			table.insert(list, f)
+		end
+	end
+	rayParams.FilterDescendantsInstances = list
+end
+
+local function myChar()
+	return localPlayer.Character
+end
+
+-- ===== เสียง =====
+function Effects.sound(name, pos, volMul)
+	local def = Config.Sounds[name]
+	if not def or not pos then
+		return
+	end
+	local att = Instance.new("Attachment")
+	att.WorldPosition = pos
+	att.Parent = workspace.Terrain
+	local s = Instance.new("Sound")
+	s.SoundId = def.id
+	s.Volume = (def.vol or 0.5) * (volMul or 1)
+	s.PlaybackSpeed = (def.pitch or 1) * rng:NextNumber(0.9, 1.1)
+	s.RollOffMaxDistance = 140
+	s.RollOffMinDistance = 8
+	s.Parent = att
+	s:Play()
+	Debris:AddItem(att, 4)
+end
+
+-- ===== กล้องสั่น =====
+function Effects.shake(amount)
+	shake = math.min(2.5, shake + amount * Config.CameraShake)
+end
+
+-- ===== คำการ์ตูนเด้ง =====
+local WORD_COLORS = {
+	Color3.fromRGB(255, 230, 40), Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 120, 40), Color3.fromRGB(120, 230, 255),
+}
+function Effects.word(pos, text, opts)
+	opts = opts or {}
+	local cam = workspace.CurrentCamera
+	if cam and (cam.CFrame.Position - pos).Magnitude > 150 then
+		return
+	end
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.new(0.1, 0.1, 0.1)
+	anchor.CFrame = CFrame.new(pos)
+	anchor.Parent = fxFolder
+	local big = opts.big
+	local small = opts.small
+	local bb = Instance.new("BillboardGui")
+	local w = big and 9 or (small and 5 or 6.5)
+	bb.Size = UDim2.new(w, 0, w * 0.42, 0)
+	bb.AlwaysOnTop = true
+	bb.LightInfluence = 0
+	bb.StudsOffset = Vector3.new(rng:NextNumber(-0.8, 0.8), 1.2, 0)
+	bb.Adornee = anchor
+	bb.Parent = anchor
+	local t = Instance.new("TextLabel")
+	t.AnchorPoint = Vector2.new(0.5, 0.5)
+	t.Position = UDim2.fromScale(0.5, 0.5)
+	t.Size = UDim2.fromScale(0.2, 0.2)
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.TextScaled = true
+	t.Font = Enum.Font.FredokaOne
+	t.TextColor3 = opts.color or WORD_COLORS[rng:NextInteger(1, #WORD_COLORS)]
+	t.Rotation = rng:NextNumber(-14, 14)
+	t.Parent = bb
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = big and 4 or 3
+	stroke.Color = Color3.fromRGB(20, 10, 10)
+	stroke.Parent = t
+	TweenService:Create(t, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(1, 1) }):Play()
+	task.delay(0.5, function()
+		if bb.Parent then
+			TweenService:Create(bb, TweenInfo.new(0.5), { StudsOffset = bb.StudsOffset + Vector3.new(0, 2, 0) }):Play()
+			TweenService:Create(t, TweenInfo.new(0.5), { TextTransparency = 1 }):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+		end
+	end)
+	Debris:AddItem(anchor, 1.1)
+end
+
+-- ===== รอยเลือดบนพื้น/กำแพง =====
+local function bloodColor()
+	return Config.BloodColor:Lerp(Color3.fromRGB(60, 0, 4), rng:NextNumber(0, 0.45))
+end
+
+function Effects.stain(pos, normal, size, inst, color)
+	if Config.Blood <= 0 then
+		return
+	end
+	local up = math.abs(normal.Y) < 0.95 and Vector3.yAxis or Vector3.xAxis
+	local right = normal:Cross(up).Unit
+	local d = size * rng:NextNumber(2.5, 6)
+	local p = Instance.new("Part")
+	p.Shape = Enum.PartType.Cylinder
+	p.Size = Vector3.new(0.05, d, d * rng:NextNumber(1, 1.7))
+	p.CFrame = CFrame.fromMatrix(pos + normal * (0.03 + rng:NextNumber(0, 0.01)), normal, right) * CFrame.Angles(rng:NextNumber(0, 6.28), 0, 0)
+	p.Color = color or bloodColor()
+	p.Material = Enum.Material.SmoothPlastic
+	p.Reflectance = 0.08
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	if inst and not inst.Anchored then
+		p.Anchored = false
+		p.Massless = true
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = inst
+		w.Part1 = p
+		w.Parent = p
+	else
+		p.Anchored = true
+	end
+	p.Parent = fxFolder
+	table.insert(stains, { part = p, t = os.clock() })
+	-- เลือดแห้งเข้มขึ้น
+	TweenService:Create(p, TweenInfo.new(25), { Color = p.Color:Lerp(Color3.fromRGB(45, 4, 6), 0.6) }):Play()
+	while #stains > Config.MaxStains do
+		local old = table.remove(stains, 1)
+		if old.part then
+			old.part:Destroy()
+		end
+	end
+	return p
+end
+
+-- ===== หยดเลือดลอยในอากาศ =====
+local function getDrop()
+	local p = table.remove(dropPool)
+	if not p then
+		p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.SmoothPlastic
+		p.Reflectance = 0.1
+	end
+	p.Parent = fxFolder
+	return p
+end
+
+local function releaseDrop(p)
+	p.Parent = nil
+	table.insert(dropPool, p)
+end
+
+function Effects.spray(pos, dir, n, speed, color, sizeMul)
+	if Config.Blood <= 0 and not color then
+		return
+	end
+	n = math.min(n, 60)
+	for _ = 1, n do
+		if #drops > 350 then
+			break
+		end
+		local spread = Vector3.new(rng:NextNumber(-1, 1), rng:NextNumber(-0.3, 1), rng:NextNumber(-1, 1))
+		local v = (dir * rng:NextNumber(0.4, 1.2) + spread * 0.7) * speed * rng:NextNumber(0.5, 1.2) + Vector3.new(0, rng:NextNumber(2, 9), 0)
+		local s = rng:NextNumber(0.1, 0.28) * (sizeMul or 1)
+		local p = getDrop()
+		p.Size = Vector3.new(s, s, s * 2.2)
+		p.Color = color or bloodColor()
+		p.CFrame = CFrame.new(pos)
+		table.insert(drops, { part = p, pos = pos + spread * 0.2, vel = v, size = s, life = 3, color = color })
+	end
+end
+
+local function stepDrops(dt)
+	local g = workspace.Gravity * 0.85
+	for i = #drops, 1, -1 do
+		local d = drops[i]
+		d.vel = d.vel - Vector3.new(0, g * dt, 0)
+		local np = d.pos + d.vel * dt
+		local res = workspace:Raycast(d.pos, np - d.pos, rayParams)
+		d.life = d.life - dt
+		if res then
+			if rng:NextNumber() < 0.75 then
+				Effects.stain(res.Position, res.Normal, d.size, res.Instance, d.color)
+			end
+			releaseDrop(d.part)
+			table.remove(drops, i)
+		elseif d.life <= 0 then
+			releaseDrop(d.part)
+			table.remove(drops, i)
+		else
+			d.pos = np
+			if d.vel.Magnitude > 0.1 then
+				d.part.CFrame = CFrame.lookAt(np, np + d.vel)
+			end
+		end
+	end
+	-- ลบรอยเลือดเก่า
+	local t = os.clock()
+	while #stains > 0 and t - stains[1].t > Config.StainLife do
+		local old = table.remove(stains, 1)
+		if old.part then
+			old.part:Destroy()
+		end
+	end
+end
+
+-- ===== ฟันกระเด็น =====
+function Effects.teeth(pos, dir, n)
+	for _ = 1, n do
+		local p = Instance.new("Part")
+		p.Size = Vector3.new(0.16, 0.22, 0.14)
+		p.Color = Color3.fromRGB(250, 248, 235)
+		p.Material = Enum.Material.SmoothPlastic
+		p.CFrame = CFrame.new(pos) * CFrame.Angles(rng:NextNumber(0, 6), rng:NextNumber(0, 6), 0)
+		p.CanQuery = false
+		p.Parent = fxFolder
+		p.AssemblyLinearVelocity = dir * rng:NextNumber(10, 22) + Vector3.new(rng:NextNumber(-6, 6), rng:NextNumber(10, 20), rng:NextNumber(-6, 6))
+		p.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-30, 30), rng:NextNumber(-30, 30), rng:NextNumber(-30, 30))
+		Debris:AddItem(p, 10)
+	end
+end
+
+-- ===== แฟลชตัวที่โดนตี =====
+local function flash(model, color)
+	if not model or not model.Parent then
+		return
+	end
+	local h = Instance.new("Highlight")
+	h.FillColor = color or Color3.new(1, 1, 1)
+	h.FillTransparency = 0.25
+	h.OutlineTransparency = 1
+	h.DepthMode = Enum.HighlightDepthMode.Occluded
+	h.Parent = model
+	Debris:AddItem(h, 0.09)
+end
+
+-- ===== ดาวหมุนเหนือหัวตอนมึน =====
+local stars = {}
+local function updateStars(model)
+	local head = model:FindFirstChild("Head")
+	local dizzy = model:GetAttribute("Dizzy") == true
+	if dizzy and head and not stars[model] then
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.new(4, 0, 1.4, 0)
+		bb.StudsOffset = Vector3.new(0, 1.6, 0)
+		bb.LightInfluence = 0
+		bb.Adornee = head
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.TextScaled = true
+		t.Text = "💫⭐💫"
+		t.Parent = bb
+		bb.Parent = fxFolder
+		stars[model] = { gui = bb, label = t }
+	elseif (not dizzy or not head) and stars[model] then
+		stars[model].gui:Destroy()
+		stars[model] = nil
+	end
+end
+
+local function watchChar(model)
+	model:GetAttributeChangedSignal("Dizzy"):Connect(function()
+		updateStars(model)
+	end)
+	model.AncestryChanged:Connect(function()
+		if not model.Parent and stars[model] then
+			stars[model].gui:Destroy()
+			stars[model] = nil
+		end
+	end)
+end
+
+-- ===== ตัวจัดการเหตุการณ์จาก server =====
+local handlers = {}
+
+handlers.hit = function(d)
+	local pos, dir = d.pos, d.dir or Vector3.new(0, 0, -1)
+	local mine = myChar()
+	local power = d.power or 5
+	Effects.word(pos, d.word or "ปั้ก!", { big = d.big })
+	Effects.sound(d.sound or "hit", pos, math.clamp(power / 10, 0.5, 1.5))
+	if d.blood and d.blood > 0 then
+		Effects.spray(pos, dir, d.blood, 12 + power, nil, 1)
+		if power >= 12 then
+			Effects.spray(pos, -dir * 0.3 + Vector3.new(0, 0.6, 0), math.floor(d.blood / 3), 8, nil, 1.6)
+		end
+	elseif Config.Blood <= 0 then
+		Effects.word(pos + Vector3.new(0, 1, 0), "⭐", { small = true })
+	end
+	if d.teeth and d.teeth > 0 then
+		Effects.teeth(pos, dir, d.teeth)
+		Effects.word(pos + Vector3.new(0, 1.2, 0), "🦷 ฟันหลุด!", { small = true, color = Color3.fromRGB(255, 255, 255) })
+	end
+	if d.victim and not d.impact then
+		flash(d.victim, d.crit and Color3.fromRGB(255, 80, 60) or nil)
+	end
+	-- hit-stop + กล้องสั่น
+	local stop = math.clamp(power / 120, 0.03, 0.12)
+	if d.attacker then
+		Animator.hitstop(d.attacker, stop)
+	end
+	if d.victim and not d.impact then
+		Animator.hitstop(d.victim, stop)
+	end
+	if mine and (d.victim == mine) then
+		Effects.shake(power / 14)
+		if Hud then
+			Hud.hurtFlash(power)
+		end
+	elseif mine and d.attacker == mine then
+		Effects.shake(power / 30)
+		if Hud then
+			Hud.comboHit()
+		end
+	else
+		local cam = workspace.CurrentCamera
+		if cam and (cam.CFrame.Position - pos).Magnitude < 30 and power > 10 then
+			Effects.shake(power / 60)
+		end
+	end
+end
+
+handlers.block = function(d)
+	Effects.word(d.pos, d.word or "กัน!", { big = d.big, color = Color3.fromRGB(120, 230, 255) })
+	Effects.sound("clang", d.pos, d.big and 1.2 or 0.7)
+	if d.victim then
+		flash(d.victim, Color3.fromRGB(120, 200, 255))
+	end
+	local mine = myChar()
+	if mine and (d.victim == mine or d.attacker == mine) then
+		Effects.shake(d.big and 0.6 or 0.2)
+	end
+end
+
+handlers.word = function(d)
+	Effects.word(d.pos, d.word, { big = d.big, small = d.small })
+end
+
+handlers.dizzy = function(d)
+	if d.victim then
+		local head = d.victim:FindFirstChild("Head")
+		if head then
+			Effects.word(head.Position + Vector3.new(0, 1.5, 0), "มึนตึ้บ! 😵", { big = true, color = Color3.fromRGB(200, 160, 255) })
+		end
+	end
+end
+
+handlers.super = function(d)
+	local char = d.char
+	local head = char and char:FindFirstChild("Head")
+	if head then
+		Effects.word(head.Position + Vector3.new(0, 2, 0), "หมัดจรวด!!! 🚀", { big = true, color = Color3.fromRGB(255, 80, 40) })
+		Effects.sound("super", head.Position, 1.4)
+		local cam = workspace.CurrentCamera
+		if cam and (cam.CFrame.Position - head.Position).Magnitude < 60 then
+			Effects.shake(0.5)
+		end
+	end
+	if char and char == myChar() and Hud then
+		Hud.superFlash()
+	end
+end
+
+handlers.taunt = function(d)
+	local head = d.char and d.char:FindFirstChild("Head")
+	if head then
+		Effects.word(head.Position + Vector3.new(0, 2, 0), "🎵 ยั่วๆ 🎶", { small = true, color = Color3.fromRGB(255, 150, 220) })
+		task.delay(0.7, function()
+			if head.Parent then
+				Effects.word(head.Position + Vector3.new(0, 2.4, 0), "💃🕺", { small = true })
+			end
+		end)
+	end
+end
+
+handlers["break"] = function(d)
+	Effects.word(d.pos, d.glass and "เพล้ง!!" or "พัง!!", { big = true, color = Color3.fromRGB(200, 240, 255) })
+	Effects.sound(d.glass and "glass" or "wood", d.pos, 1.2)
+	if d.glass then
+		for _ = 1, 10 do
+			local p = Instance.new("Part")
+			p.Size = Vector3.new(0.06, rng:NextNumber(0.15, 0.5), rng:NextNumber(0.15, 0.5))
+			p.Color = Color3.fromRGB(200, 230, 245)
+			p.Material = Enum.Material.Glass
+			p.Transparency = 0.3
+			p.CFrame = CFrame.new(d.pos) * CFrame.Angles(rng:NextNumber(0, 6), rng:NextNumber(0, 6), 0)
+			p.CanQuery = false
+			p.Parent = fxFolder
+			p.AssemblyLinearVelocity = Vector3.new(rng:NextNumber(-14, 14), rng:NextNumber(4, 16), rng:NextNumber(-14, 14))
+			Debris:AddItem(p, 5)
+		end
+	end
+end
+
+handlers.melon = function(d)
+	Effects.word(d.pos, (Config.Words.melon or { "แตงโมแตก!" })[1], { big = true, color = Color3.fromRGB(120, 255, 120) })
+	Effects.sound("thud", d.pos, 1)
+	Effects.spray(d.pos, Vector3.new(0, 1, 0), 30, 14, Color3.fromRGB(235, 60, 85), 1.2)
+end
+
+handlers.pool = function(d)
+	if Config.Blood <= 0 then
+		return
+	end
+	local res = workspace:Raycast(d.pos + Vector3.new(0, 1, 0), Vector3.new(0, -8, 0), rayParams)
+	if not res then
+		return
+	end
+	local p = Effects.stain(res.Position, res.Normal, 0.3, res.Instance, Config.BloodColor:Lerp(Color3.fromRGB(70, 0, 5), 0.3))
+	if p then
+		local target = math.clamp(4 * Config.Blood, 2, 7)
+		TweenService:Create(p, TweenInfo.new(5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.05, target, target * 1.3) }):Play()
+	end
+end
+
+function Effects.init(config, remotes, animator)
+	Config = config
+	Animator = animator
+	fxFolder = Instance.new("Folder")
+	fxFolder.Name = "BrawlFX"
+	fxFolder.Parent = workspace
+	refreshFilter()
+	workspace.ChildAdded:Connect(refreshFilter)
+
+	remotes.Fx.OnClientEvent:Connect(function(kind, data)
+		local h = handlers[kind]
+		if h and type(data) == "table" then
+			local ok, err = pcall(h, data)
+			if not ok then
+				warn("[ซอยเดือด] fx error", kind, err)
+			end
+		end
+	end)
+
+	-- เสียงวืดตอนออกท่า
+	local STRIKE = { jab = 0.7, cross = 0.8, upper = 1, kick = 1, swing = 1.1, super = 1.4, dive = 1, throw = 1, stomp = 0.8 }
+	Animator.onPlay = function(model, name)
+		local v = STRIKE[name]
+		local root = model:FindFirstChild("HumanoidRootPart")
+		if v and root then
+			Effects.sound("swing", root.Position, v)
+		end
+	end
+
+	for _, m in ipairs(CollectionService:GetTagged("BrawlChar")) do
+		watchChar(m)
+	end
+	CollectionService:GetInstanceAddedSignal("BrawlChar"):Connect(watchChar)
+
+	RunService.Heartbeat:Connect(function(dt)
+		stepDrops(dt)
+		-- ดาวหมุน
+		for _, s in pairs(stars) do
+			s.label.Rotation = (s.label.Rotation + dt * 160) % 360
+		end
+		-- อาวุธบนแท่นหมุนช้าๆ (หมุนเฉพาะในเครื่องเรา)
+		local wf = workspace:FindFirstChild("BrawlWeapons")
+		if wf then
+			for _, m in ipairs(wf:GetChildren()) do
+				if m:GetAttribute("OnPad") and m.PrimaryPart and m.PrimaryPart.Anchored then
+					local c = m:GetBoundingBox().Position
+					local rot = CFrame.new(c) * CFrame.Angles(0, dt * 1.6, 0) * CFrame.new(-c)
+					m:PivotTo(rot * m:GetPivot())
+				end
+			end
+		end
+	end)
+
+	-- กล้องสั่น (ผ่าน CameraOffset ปลอดภัยกับสคริปต์กล้องปกติ)
+	RunService.RenderStepped:Connect(function(dt)
+		local char = myChar()
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hum then
+			return
+		end
+		if shake > 0.01 then
+			hum.CameraOffset = Vector3.new(rng:NextNumber(-1, 1), rng:NextNumber(-1, 1), rng:NextNumber(-0.5, 0.5)) * shake * 0.6
+			shake = shake * math.exp(-dt * 10)
+		elseif hum.CameraOffset.Magnitude > 0 then
+			hum.CameraOffset = Vector3.zero
+			shake = 0
+		end
+	end)
+end
+
+function Effects.setHud(h)
+	Hud = h
+end
+
+return Effects
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000010">
+					<Properties>
+						<string name="Name">Hud</string>
+						<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : หน้าจอ HUD (ใช้รูป/อีโมจิแทนข้อความยาวๆ)
+-- ============================================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Hud = {}
+local Config, Effects
+local player = Players.LocalPlayer
+local gui
+local ui = {}
+local combo = { n = 0, t = 0 }
+
+local function make(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do
+		o[k] = v
+	end
+	o.Parent = parent
+	return o
+end
+
+local function corner(o, r)
+	make("UICorner", { CornerRadius = UDim.new(0, r or 8) }, o)
+end
+
+local function stroke(o, th, col)
+	return make("UIStroke", { Thickness = th or 2, Color = col or Color3.fromRGB(0, 0, 0) }, o)
+end
+
+local function label(parent, props)
+	local t = make("TextLabel", {
+		BackgroundTransparency = 1,
+		Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		TextScaled = true,
+	}, parent)
+	for k, v in pairs(props) do
+		t[k] = v
+	end
+	return t
+end
+
+local function bar(parent, pos, size, color, icon)
+	local back = make("Frame", { Position = pos, Size = size, BackgroundColor3 = Color3.fromRGB(25, 20, 22), BorderSizePixel = 0 }, parent)
+	corner(back, 8)
+	stroke(back, 2, Color3.fromRGB(10, 8, 8))
+	local fill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = color, BorderSizePixel = 0 }, back)
+	corner(fill, 8)
+	local txt = label(back, { Size = UDim2.new(1, -10, 1, -4), Position = UDim2.fromOffset(6, 2), TextXAlignment = Enum.TextXAlignment.Left, Text = icon, ZIndex = 3 })
+	stroke(txt, 1.5)
+	return back, fill, txt
+end
+
+-- ===== ป้ายใหญ่กลางจอ =====
+function Hud.banner(text, color, dur, sub)
+	local b = ui.banner
+	b.Text = text
+	b.TextColor3 = color or Color3.fromRGB(255, 220, 60)
+	b.Visible = true
+	b.Size = UDim2.fromScale(0.2, 0.05)
+	TweenService:Create(b, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromScale(0.8, 0.14) }):Play()
+	ui.bannerSub.Text = sub or ""
+	ui.bannerSub.Visible = sub ~= nil
+	local token = {}
+	ui.bannerToken = token
+	task.delay(dur or 2.2, function()
+		if ui.bannerToken == token then
+			b.Visible = false
+			ui.bannerSub.Visible = false
+		end
+	end)
+end
+
+-- ===== ขอบจอแดงตอนโดนตี =====
+function Hud.hurtFlash(power)
+	local a = math.clamp(power / 25, 0.25, 0.85)
+	for _, e in ipairs(ui.edges) do
+		e.BackgroundTransparency = 1 - a
+		TweenService:Create(e, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+	end
+end
+
+function Hud.superFlash()
+	ui.white.BackgroundTransparency = 0.2
+	TweenService:Create(ui.white, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+end
+
+-- ===== คอมโบ =====
+function Hud.comboHit()
+	local t = os.clock()
+	if t - combo.t > 1.6 then
+		combo.n = 0
+	end
+	combo.n = combo.n + 1
+	combo.t = t
+	if combo.n >= 2 then
+		local c = ui.combo
+		c.Text = combo.n .. " คอมโบ!"
+		c.Visible = true
+		c.Rotation = math.random(-8, 8)
+		c.Size = UDim2.fromOffset(150, 50)
+		TweenService:Create(c, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(230, 70) }):Play()
+	end
+end
+
+-- ===== killfeed =====
+local function feed(text)
+	local list = ui.feed
+	local row = label(list, {
+		Size = UDim2.new(1, 0, 0, 26),
+		Text = text,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		LayoutOrder = -math.floor(os.clock() * 100),
+	})
+	stroke(row, 1.5)
+	local rows = {}
+	for _, c in ipairs(list:GetChildren()) do
+		if c:IsA("TextLabel") then
+			table.insert(rows, c)
+		end
+	end
+	if #rows > 5 then
+		table.sort(rows, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
+		end)
+		rows[#rows]:Destroy()
+	end
+	task.delay(7, function()
+		if row.Parent then
+			TweenService:Create(row, TweenInfo.new(0.6), { TextTransparency = 1 }):Play()
+			task.delay(0.6, function()
+				row:Destroy()
+			end)
+		end
+	end)
+end
+
+-- ===== หน้าช่วยเหลือ (รูปปุ่ม) =====
+local HELP = {
+	{ "👊", "ต่อย", "คลิก / J", "กด 3 ทีติด = อัปเปอร์คัตลอยฟ้า" },
+	{ "🦶", "เตะ", "E / K", "ถีบกระเด็น  ใกล้คนล้ม = กระทืบ" },
+	{ "✊", "จับ / เก็บของ", "R / L", "จับทุ่มซูเพล็กซ์  ถือของอยู่ = ขว้าง" },
+	{ "🛡️", "การ์ด", "Q (กดค้าง)", "กันหมัด แต่โดนเตะ/จับทะลุ" },
+	{ "⭐", "หมัดจรวด", "F", "ใช้ได้เมื่อเกจเต็ม" },
+	{ "💃", "เต้นยั่ว", "T", "เติมเกจท่าไม้ตาย" },
+	{ "⬆️", "กระโดด", "Space", "กระโดด+ต่อย = ทุบลงพื้น" },
+}
+
+local function buildHelp(parent)
+	local panel = make("Frame", {
+		Name = "Help",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(0, 520, 0, 420),
+		BackgroundColor3 = Color3.fromRGB(28, 22, 26),
+		BackgroundTransparency = 0.08,
+		Visible = false,
+		ZIndex = 20,
+	}, parent)
+	corner(panel, 16)
+	stroke(panel, 3, Color3.fromRGB(255, 200, 40))
+	make("UISizeConstraint", { MaxSize = Vector2.new(560, 440) }, panel)
+	make("UIScale", { Name = "Scale" }, panel)
+	label(panel, { Size = UDim2.new(1, -20, 0, 44), Position = UDim2.fromOffset(10, 8), Text = "🔥 ซอยเดือด : วิธีเล่น", TextColor3 = Color3.fromRGB(255, 210, 60), ZIndex = 21 })
+	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	for i, h in ipairs(HELP) do
+		local y = 56 + (i - 1) * 48
+		local icon = label(panel, { Size = UDim2.fromOffset(44, 44), Position = UDim2.fromOffset(16, y), Text = h[1], ZIndex = 21 })
+		icon.Font = Enum.Font.GothamBlack
+		label(panel, { Size = UDim2.fromOffset(150, 24), Position = UDim2.fromOffset(68, y), Text = h[2], TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 21 })
+		if not touch then
+			local key = label(panel, { Size = UDim2.fromOffset(110, 24), Position = UDim2.fromOffset(68, y + 22), Text = h[3], TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 210, 60), ZIndex = 21 })
+			key.Font = Enum.Font.GothamBold
+		end
+		local tip = label(panel, { Size = UDim2.new(1, -240, 0, 40), Position = UDim2.fromOffset(225, y + 2), Text = h[4], TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(210, 210, 210), ZIndex = 21 })
+		tip.Font = Enum.Font.Gotham
+	end
+	local close = make("TextButton", {
+		Size = UDim2.fromOffset(160, 40),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		Text = "👍 ลุยเลย!",
+		Font = Enum.Font.FredokaOne,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(30, 20, 10),
+		BackgroundColor3 = Color3.fromRGB(255, 200, 40),
+		ZIndex = 22,
+	}, panel)
+	corner(close, 10)
+	close.Activated:Connect(function()
+		panel.Visible = false
+	end)
+	return panel
+end
+
+local function fitHelp()
+	local cam = workspace.CurrentCamera
+	if not cam or not ui.help then
+		return
+	end
+	local vs = cam.ViewportSize
+	local s = math.min(1, (vs.X - 20) / 540, (vs.Y - 20) / 440)
+	ui.help.Scale.Scale = math.max(0.45, s)
+end
+
+function Hud.init(config, remotes, effects)
+	Config = config
+	Effects = effects
+	gui = make("ScreenGui", { Name = "BrawlHUD", ResetOnSpawn = false, IgnoreGuiInset = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 5 }, player:WaitForChild("PlayerGui"))
+
+	-- ขอบจอแดง + แฟลชขาว
+	ui.edges = {}
+	local edgeDefs = {
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.18), 90 },
+		{ UDim2.fromScale(0, 0.82), UDim2.fromScale(1, 0.18), -90 },
+		{ UDim2.fromScale(0, 0), UDim2.fromScale(0.14, 1), 0 },
+		{ UDim2.fromScale(0.86, 0), UDim2.fromScale(0.14, 1), 180 },
+	}
+	for _, e in ipairs(edgeDefs) do
+		local f = make("Frame", { Position = e[1], Size = e[2], BackgroundColor3 = Color3.fromRGB(200, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1 }, gui)
+		make("UIGradient", { Rotation = e[3], Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }) }, f)
+		table.insert(ui.edges, f)
+	end
+	ui.white = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 30 }, gui)
+
+	-- แผงสถานะซ้ายบน
+	local panel = make("Frame", { Position = UDim2.fromOffset(12, 8), Size = UDim2.fromOffset(250, 74), BackgroundTransparency = 1 }, gui)
+	local _, hpFill, hpText = bar(panel, UDim2.fromOffset(0, 0), UDim2.fromOffset(250, 32), Color3.fromRGB(90, 220, 90), "❤️ 100")
+	local _, spFill, spText = bar(panel, UDim2.fromOffset(0, 38), UDim2.fromOffset(200, 24), Color3.fromRGB(255, 200, 40), "⭐ 0%")
+	ui.hpFill, ui.hpText, ui.spFill, ui.spText = hpFill, hpText, spFill, spText
+	ui.weapon = label(panel, { Size = UDim2.fromOffset(250, 26), Position = UDim2.fromOffset(0, 66), Text = "", TextXAlignment = Enum.TextXAlignment.Left, Visible = false })
+	stroke(ui.weapon, 1.5)
+	local helpBtn = make("TextButton", { Size = UDim2.fromOffset(40, 24), Position = UDim2.fromOffset(208, 38), Text = "❓", TextScaled = true, Font = Enum.Font.GothamBlack, BackgroundColor3 = Color3.fromRGB(40, 34, 38), TextColor3 = Color3.new(1, 1, 1) }, panel)
+	corner(helpBtn, 8)
+
+	-- เวลา + อันดับ (กลางบน)
+	ui.timer = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.fromOffset(200, 34), Text = "⏱ 3:00" })
+	stroke(ui.timer, 2)
+	ui.top = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 38), Size = UDim2.fromOffset(420, 22), Text = "", TextColor3 = Color3.fromRGB(255, 225, 120) })
+	stroke(ui.top, 1.5)
+
+	-- killfeed ขวาบน
+	ui.feed = make("Frame", { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 8), Size = UDim2.fromOffset(340, 160), BackgroundTransparency = 1 }, gui)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2), HorizontalAlignment = Enum.HorizontalAlignment.Right }, ui.feed)
+
+	-- ป้ายใหญ่
+	ui.banner = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.3), Size = UDim2.fromScale(0.8, 0.14), Visible = false, ZIndex = 10 })
+	stroke(ui.banner, 4)
+	ui.bannerSub = label(gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromScale(0.7, 0.06), Visible = false, ZIndex = 10 })
+	stroke(ui.bannerSub, 2.5)
+	ui.combo = label(gui, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -20, 0.42, 0), Size = UDim2.fromOffset(230, 70), Visible = false, TextColor3 = Color3.fromRGB(255, 120, 40), ZIndex = 8 })
+	stroke(ui.combo, 3)
+	ui.dead = label(gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.55), Size = UDim2.fromScale(0.6, 0.07), Visible = false, Text = "", ZIndex = 9 })
+	stroke(ui.dead, 3)
+
+	-- คีย์ลัดแบบรูป (คอมพิวเตอร์)
+	if UserInputService.KeyboardEnabled then
+		ui.keys = label(gui, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(620, 26), Text = "🖱️👊ต่อย   E 🦶เตะ   R ✊จับ/เก็บ   Q 🛡️การ์ด   F ⭐ไม้ตาย   T 💃ยั่ว", TextColor3 = Color3.fromRGB(240, 240, 240) })
+		stroke(ui.keys, 1.5)
+	end
+
+	ui.help = buildHelp(gui)
+	fitHelp()
+	helpBtn.Activated:Connect(function()
+		fitHelp()
+		ui.help.Visible = not ui.help.Visible
+	end)
+	ui.help.Visible = true
+	task.delay(10, function()
+		ui.help.Visible = false
+	end)
+
+	-- ข่าวจาก server
+	remotes.Notify.OnClientEvent:Connect(function(kind, d)
+		if type(d) ~= "table" then
+			return
+		end
+		local mine = player.Character
+		if kind == "ko" then
+			if d.killer then
+				feed("👊 " .. d.killer .. "  ➜  😵 " .. d.victim)
+			else
+				feed("😵 " .. d.victim)
+			end
+			if d.victimModel and d.victimModel == mine then
+				Hud.banner("K.O.!! 😵", Color3.fromRGB(255, 70, 50), 3, d.msg)
+				ui.deadUntil = os.clock() + Config.RespawnTime
+				ui.dead.Visible = true
+			elseif d.killerModel and d.killerModel == mine then
+				Hud.banner("K.O.!! 💥", Color3.fromRGB(255, 220, 60), 2.4, d.msg)
+				if Effects then
+					Effects.sound("ko", workspace.CurrentCamera.CFrame.Position, 1)
+				end
+			end
+			if d.streak and d.killer then
+				task.delay(1.2, function()
+					Hud.banner(d.streak, Color3.fromRGB(255, 120, 40), 2.2, d.killer)
+				end)
+			end
+		elseif kind == "round" then
+			local lines = {}
+			if d.king then
+				table.insert(lines, "👑 ราชาซอย: " .. d.king .. " (" .. d.kos .. " KO)")
+			end
+			if d.brute then
+				table.insert(lines, "💪 หมัดหนักสุด: " .. d.brute .. " (" .. d.dmg .. ")")
+			end
+			if d.potato then
+				table.insert(lines, "🥔 กระสอบทรายแห่งปี: " .. d.potato .. " (ล้ม " .. d.deaths .. ")")
+			end
+			if d.dancer then
+				table.insert(lines, "💃 นักเต้นแห่งซอย: " .. d.dancer .. " (" .. d.taunts .. ")")
+			end
+			Hud.banner("🔔 จบรอบ!", Color3.fromRGB(255, 220, 60), Config.ResultTime, table.concat(lines, "   "))
+		elseif kind == "newround" then
+			Hud.banner("🔔 รอบใหม่! ลุย!", Color3.fromRGB(120, 255, 140), 2)
+		end
+	end)
+
+	-- อัปเดตทุกเฟรม
+	local stateF = ReplicatedStorage:WaitForChild("BrawlState")
+	local endV = stateF:WaitForChild("RoundEnd")
+	local scoresF = stateF:WaitForChild("Scores")
+	local acc = 0
+	RunService.RenderStepped:Connect(function(dt)
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			local frac = math.clamp(hum.Health / math.max(1, hum.MaxHealth), 0, 1)
+			ui.hpFill.Size = UDim2.fromScale(frac, 1)
+			ui.hpFill.BackgroundColor3 = Color3.fromRGB(230, 50, 40):Lerp(Color3.fromRGB(90, 220, 90), frac)
+			ui.hpText.Text = "❤️ " .. math.ceil(hum.Health)
+			local sp = char:GetAttribute("Super") or 0
+			local sf = math.clamp(sp / Config.SuperMax, 0, 1)
+			ui.spFill.Size = UDim2.fromScale(sf, 1)
+			if sf >= 1 then
+				local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+				ui.spText.Text = touch and "⭐ พร้อม! กด ⭐" or "⭐ พร้อม! กด F"
+				ui.spFill.BackgroundColor3 = Color3.fromRGB(255, 200, 40):Lerp(Color3.fromRGB(255, 90, 40), (math.sin(os.clock() * 8) + 1) / 2)
+			else
+				ui.spText.Text = "⭐ " .. math.floor(sf * 100) .. "%"
+				ui.spFill.BackgroundColor3 = Color3.fromRGB(255, 200, 40)
+			end
+			local w = char:GetAttribute("Weapon")
+			if w and Config.Weapons[w] then
+				local def = Config.Weapons[w]
+				local uses = char:GetAttribute("WeaponUses") or 0
+				ui.weapon.Text = def.icon .. " " .. def.name .. (uses < 100 and ("  x" .. uses) or "") .. "   (R = ขว้าง)"
+				ui.weapon.Visible = true
+			else
+				ui.weapon.Visible = false
+			end
+		end
+		-- นับถอยหลังเกิดใหม่
+		if ui.deadUntil then
+			local left = ui.deadUntil - os.clock()
+			if left > 0 then
+				ui.dead.Text = "😵 เกิดใหม่ใน " .. math.ceil(left) .. "..."
+			else
+				ui.dead.Visible = false
+				ui.deadUntil = nil
+			end
+		end
+		if ui.combo.Visible and os.clock() - combo.t > 1.6 then
+			ui.combo.Visible = false
+		end
+		acc = acc + dt
+		if acc > 0.25 then
+			acc = 0
+			local left = math.max(0, endV.Value - workspace:GetServerTimeNow())
+			ui.timer.Text = string.format("⏱ %d:%02d", math.floor(left / 60), math.floor(left % 60))
+			local list = {}
+			for _, v in ipairs(scoresF:GetChildren()) do
+				if v:IsA("IntValue") then
+					table.insert(list, { name = v:GetAttribute("DisplayName") or "?", ko = v.Value })
+				end
+			end
+			table.sort(list, function(a, b)
+				return a.ko > b.ko
+			end)
+			local medals = { "🥇", "🥈", "🥉" }
+			local parts = {}
+			for i = 1, math.min(3, #list) do
+				if list[i].ko > 0 then
+					table.insert(parts, medals[i] .. " " .. list[i].name .. " " .. list[i].ko)
+				end
+			end
+			ui.top.Text = table.concat(parts, "   ")
+		end
+	end)
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(fitHelp)
+end
+
+function Hud.gui()
+	return gui
+end
+
+return Hud
+]]></ProtectedString>
+					</Properties>
+				</Item>
+				<Item class="ModuleScript" referent="RBX00000011">
+					<Properties>
+						<string name="Name">Controls</string>
+						<ProtectedString name="Source"><![CDATA[-- ============================================================
+--  ซอยเดือด : ปุ่มควบคุม (คีย์บอร์ด/เมาส์, จอย, มือถือปุ่มรูป)
+--  มี aim assist หันหาศัตรูใกล้สุดให้อัตโนมัติ + บัฟเฟอร์ปุ่ม
+-- ============================================================
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+
+local Controls = {}
+local Config, remotes, Animator
+local player = Players.LocalPlayer
+
+local busyUntil = 0
+local queued = nil
+local combo = 0
+local lastPunchEnd = -10
+local blocking = false
+local touchGui
+
+local function char()
+	return player.Character
+end
+
+local function alive(c)
+	if not c or not c.Parent then
+		return false
+	end
+	local hum = c:FindFirstChildOfClass("Humanoid")
+	return hum and hum.Health > 0 and not c:GetAttribute("Ragdoll") and not c:GetAttribute("Dead")
+end
+
+local function flat(v)
+	local f = Vector3.new(v.X, 0, v.Z)
+	if f.Magnitude < 1e-3 then
+		return nil
+	end
+	return f.Unit
+end
+
+-- หาศัตรูข้างหน้า (aim assist)
+local function findEnemy(c, range, cone, wantDown)
+	local root = c:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return nil
+	end
+	local look = flat(root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+	local cam = workspace.CurrentCamera
+	local camLook = cam and flat(cam.CFrame.LookVector) or look
+	local best, bestScore = nil, math.huge
+	for _, m in ipairs(CollectionService:GetTagged("BrawlChar")) do
+		if m ~= c and m.Parent and not m:GetAttribute("Dead") then
+			local down = m:GetAttribute("Ragdoll") == true
+			if (wantDown and down) or (not wantDown and not down) then
+				local part = down and m:FindFirstChild("Torso") or m:FindFirstChild("HumanoidRootPart")
+				if part then
+					local d = part.Position - root.Position
+					local fd = Vector3.new(d.X, 0, d.Z)
+					local dist = fd.Magnitude
+					if dist < range and math.abs(d.Y) < 5 then
+						local dirTo = dist > 0.01 and fd.Unit or look
+						local a1 = math.deg(math.acos(math.clamp(dirTo:Dot(look), -1, 1)))
+						local a2 = math.deg(math.acos(math.clamp(dirTo:Dot(camLook), -1, 1)))
+						local ang = math.min(a1, a2)
+						if ang < cone then
+							local score = dist + ang * 0.05
+							if score < bestScore then
+								best, bestScore = m, score
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+local function aim(c)
+	local root = c:FindFirstChild("HumanoidRootPart")
+	local enemy = findEnemy(c, 11, 75, false)
+	local dir = flat(root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+	if enemy then
+		local ep = enemy:FindFirstChild("HumanoidRootPart").Position
+		local d = flat(ep - root.Position)
+		if d then
+			dir = d
+			root.CFrame = CFrame.lookAt(root.Position, root.Position + d)
+		end
+	end
+	return dir
+end
+
+local function nearWeapon(c)
+	local root = c:FindFirstChild("HumanoidRootPart")
+	local wf = workspace:FindFirstChild("BrawlWeapons")
+	if not root or not wf then
+		return nil, math.huge
+	end
+	local best, bd = nil, 6
+	for _, m in ipairs(wf:GetChildren()) do
+		if m.PrimaryPart and not m:GetAttribute("Held") and not m:GetAttribute("Broken") and not m:GetAttribute("Thrown") then
+			local d = (m.PrimaryPart.Position - root.Position).Magnitude
+			if d < bd then
+				best, bd = m, d
+			end
+		end
+	end
+	return best, bd
+end
+
+-- ===== ส่งคำสั่ง =====
+local function doAction(action)
+	local c = char()
+	if not alive(c) then
+		return
+	end
+	local t = os.clock()
+	if t < busyUntil then
+		queued = { action = action, t = t }
+		return
+	end
+	local hum = c:FindFirstChildOfClass("Humanoid")
+	local moves = Config.Moves
+	local dir = aim(c)
+	local air = hum.FloorMaterial == Enum.Material.Air
+	local clip, dur = nil, 0.3
+	if action == "punch" then
+		if c:GetAttribute("Weapon") then
+			clip, dur = "swing", moves.swing.dur
+		elseif air then
+			clip, dur = "dive", moves.dive.dur
+		else
+			if t - lastPunchEnd < Config.ComboWindow then
+				combo = (combo % #Config.PunchCombo) + 1
+			else
+				combo = 1
+			end
+			local name = Config.PunchCombo[combo]
+			clip, dur = moves[name].anim, moves[name].dur
+			lastPunchEnd = t + dur
+		end
+	elseif action == "kick" then
+		if findEnemy(c, moves.stomp.range + 0.8, 50, true) then
+			clip, dur = "stomp", moves.stomp.dur
+		else
+			clip, dur = "kick", moves.kick.dur
+		end
+	elseif action == "grab" then
+		if c:GetAttribute("Weapon") then
+			clip, dur = "throw", moves.throw.dur
+		else
+			local w, wd = nearWeapon(c)
+			local e = findEnemy(c, moves.grab.range + 0.8, 40, false)
+			local ed = math.huge
+			if e then
+				ed = (e.HumanoidRootPart.Position - c.HumanoidRootPart.Position).Magnitude
+			end
+			if w and wd < ed then
+				clip, dur = "pickup", moves.pickup.dur
+			else
+				clip, dur = "grab", moves.grab.dur
+			end
+		end
+	elseif action == "super" then
+		if (c:GetAttribute("Super") or 0) < Config.SuperMax then
+			return
+		end
+		clip, dur = "super", moves.super.dur
+	elseif action == "taunt" then
+		clip, dur = "taunt", moves.taunt.dur
+	end
+	if blocking then
+		Controls.setBlock(false)
+	end
+	busyUntil = t + dur
+	if clip then
+		Animator.playLocal(c, clip)
+	end
+	remotes.Action:FireServer(action, { dir = dir, air = air })
+end
+Controls.doAction = doAction
+
+function Controls.setBlock(on)
+	if blocking == on then
+		return
+	end
+	blocking = on
+	Animator.localBlock = on
+	remotes.Action:FireServer("block", { on = on })
+end
+
+function Controls.jump()
+	local c = char()
+	local hum = c and c:FindFirstChildOfClass("Humanoid")
+	if hum and alive(c) then
+		hum.Jump = true
+	end
+end
+
+-- ===== คีย์บอร์ด / เมาส์ / จอย =====
+local KEYS = {
+	[Enum.KeyCode.J] = "punch",
+	[Enum.KeyCode.E] = "kick",
+	[Enum.KeyCode.K] = "kick",
+	[Enum.KeyCode.R] = "grab",
+	[Enum.KeyCode.L] = "grab",
+	[Enum.KeyCode.F] = "super",
+	[Enum.KeyCode.T] = "taunt",
+	[Enum.KeyCode.ButtonX] = "punch",
+	[Enum.KeyCode.ButtonY] = "kick",
+	[Enum.KeyCode.ButtonB] = "grab",
+	[Enum.KeyCode.ButtonR2] = "super",
+	[Enum.KeyCode.DPadUp] = "taunt",
+}
+local BLOCK_KEYS = {
+	[Enum.KeyCode.Q] = true,
+	[Enum.KeyCode.ButtonL2] = true,
+	[Enum.KeyCode.ButtonL1] = true,
+}
+
+local function bindInput()
+	UserInputService.InputBegan:Connect(function(input, gp)
+		if gp then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			doAction("punch")
+			return
+		end
+		local a = KEYS[input.KeyCode]
+		if a then
+			doAction(a)
+		elseif BLOCK_KEYS[input.KeyCode] then
+			Controls.setBlock(true)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if BLOCK_KEYS[input.KeyCode] then
+			Controls.setBlock(false)
+		end
+	end)
+end
+
+-- ===== ปุ่มมือถือ (รูปล้วน) =====
+local function makeTouch()
+	touchGui = Instance.new("ScreenGui")
+	touchGui.Name = "BrawlTouch"
+	touchGui.ResetOnSpawn = false
+	touchGui.IgnoreGuiInset = true
+	touchGui.DisplayOrder = 6
+	touchGui.Parent = player:WaitForChild("PlayerGui")
+	local holder = Instance.new("Frame")
+	holder.BackgroundTransparency = 1
+	holder.Size = UDim2.fromScale(1, 1)
+	holder.Parent = touchGui
+
+	-- ตำแหน่งเทียบมุมขวาล่าง (หน่วย u = ขนาดตามความสูงจอ)
+	local DEFS = {
+		{ id = "punch", icon = "👊", x = -1.6, y = -1.2, s = 1.4, color = Color3.fromRGB(230, 70, 50) },
+		{ id = "jump", icon = "⬆️", x = -0.55, y = -0.6, s = 0.95, color = Color3.fromRGB(70, 160, 230) },
+		{ id = "kick", icon = "🦶", x = -0.6, y = -2.0, s = 1.0, color = Color3.fromRGB(240, 150, 40) },
+		{ id = "grab", icon = "✊", x = -1.5, y = -2.55, s = 0.95, color = Color3.fromRGB(150, 90, 200) },
+		{ id = "block", icon = "🛡️", x = -2.75, y = -0.75, s = 1.0, color = Color3.fromRGB(60, 140, 220) },
+		{ id = "super", icon = "⭐", x = -2.65, y = -2.15, s = 0.95, color = Color3.fromRGB(255, 200, 40) },
+		{ id = "taunt", icon = "💃", x = -0.55, y = -3.1, s = 0.75, color = Color3.fromRGB(230, 100, 180) },
+	}
+	local buttons = {}
+	local function layout()
+		local vs = workspace.CurrentCamera.ViewportSize
+		local u = math.clamp(math.min(vs.X, vs.Y) * 0.15, 52, 100)
+		for _, d in ipairs(DEFS) do
+			local b = buttons[d.id]
+			local size = u * d.s
+			b.Size = UDim2.fromOffset(size, size)
+			b.Position = UDim2.new(1, d.x * u - 12, 1, d.y * u - 12)
+		end
+	end
+	for _, d in ipairs(DEFS) do
+		local b = Instance.new("TextButton")
+		b.Name = d.id
+		b.AnchorPoint = Vector2.new(0.5, 0.5)
+		b.Text = d.icon
+		b.TextScaled = true
+		b.Font = Enum.Font.GothamBlack
+		b.BackgroundColor3 = d.color
+		b.BackgroundTransparency = 0.25
+		b.AutoButtonColor = false
+		b.Parent = holder
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(1, 0)
+		c.Parent = b
+		local st = Instance.new("UIStroke")
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Thickness = 3
+		st.Color = Color3.fromRGB(255, 255, 255)
+		st.Transparency = 0.3
+		st.Parent = b
+		local pad = Instance.new("UIPadding")
+		pad.PaddingTop = UDim.new(0.18, 0)
+		pad.PaddingBottom = UDim.new(0.18, 0)
+		pad.PaddingLeft = UDim.new(0.18, 0)
+		pad.PaddingRight = UDim.new(0.18, 0)
+		pad.Parent = b
+		buttons[d.id] = b
+		b.InputBegan:Connect(function(input)
+			if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+				return
+			end
+			b.BackgroundTransparency = 0.05
+			if d.id == "block" then
+				Controls.setBlock(true)
+			elseif d.id == "jump" then
+				Controls.jump()
+			else
+				doAction(d.id)
+			end
+		end)
+		b.InputEnded:Connect(function(input)
+			if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+				return
+			end
+			b.BackgroundTransparency = 0.25
+			if d.id == "block" then
+				Controls.setBlock(false)
+			end
+		end)
+	end
+	layout()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(layout)
+	-- ปุ่มท่าไม้ตายกะพริบเมื่อพร้อม
+	RunService.RenderStepped:Connect(function()
+		local c = char()
+		local ready = c and (c:GetAttribute("Super") or 0) >= Config.SuperMax
+		local b = buttons.super
+		if ready then
+			b.Rotation = math.sin(os.clock() * 10) * 8
+			b.BackgroundTransparency = 0.05
+		else
+			b.Rotation = 0
+		end
+		buttons.grab.Text = (c and c:GetAttribute("Weapon")) and "🎯" or "✊"
+	end)
+	-- ซ่อนปุ่มกระโดดเดิมของ Roblox (เรามีปุ่ม ⬆️ เอง) แต่เก็บจอยซ้ายไว้
+	task.spawn(function()
+		while touchGui.Parent do
+			local tg = player.PlayerGui:FindFirstChild("TouchGui")
+			local frame = tg and tg:FindFirstChild("TouchControlFrame")
+			local jb = frame and frame:FindFirstChild("JumpButton")
+			if jb and jb.Visible then
+				jb.Visible = false
+			end
+			task.wait(1)
+		end
+	end)
+end
+
+function Controls.init(config, r, animator)
+	Config = config
+	remotes = r
+	Animator = animator
+	bindInput()
+	if UserInputService.TouchEnabled then
+		makeTouch()
+	end
+	-- ปล่อยปุ่มที่บัฟเฟอร์ไว้เมื่อท่าเดิมจบ
+	RunService.Heartbeat:Connect(function()
+		if queued then
+			local t = os.clock()
+			if t - queued.t > 0.35 then
+				queued = nil
+			elseif t >= busyUntil then
+				local a = queued.action
+				queued = nil
+				doAction(a)
+			end
+		end
+		local c = char()
+		if blocking and not alive(c) then
+			blocking = false
+			Animator.localBlock = false
+		end
+	end)
+	player.CharacterAdded:Connect(function()
+		busyUntil = 0
+		queued = nil
+		combo = 0
+		blocking = false
+		Animator.localBlock = false
+	end)
+end
+
+return Controls
+]]></ProtectedString>
+					</Properties>
+				</Item>
+			</Item>
+		</Item>
+	</Item>
+</roblox>
