@@ -4,7 +4,9 @@ import { resolveStrike } from './moves.js';
 export class Keys {
   constructor() {
     this.down = new Set();
+    this.vdown = new Set();
     this.pressed = new Set();
+    this.analog = { x: 0, y: 0, on: false, dir: '' };
     this.enabled = true;
     window.addEventListener('keydown', (e) => {
       if (!this.enabled) return;
@@ -17,7 +19,11 @@ export class Keys {
     window.addEventListener('keyup', (e) => { this.down.delete(e.code); });
     window.addEventListener('blur', () => { this.down.clear(); });
   }
-  is(k) { return this.down.has(k); }
+  // virtual keys (touch controls)
+  vDown(k) { if (!this.vdown.has(k)) this.pressed.add(k); this.vdown.add(k); }
+  vUp(k) { this.vdown.delete(k); }
+  vTap(k) { this.pressed.add(k); }
+  is(k) { return this.down.has(k) || this.vdown.has(k); }
   hit(k) { return this.pressed.has(k); }
   endFrame() { this.pressed.clear(); }
 }
@@ -35,6 +41,7 @@ export function applyPlayerInput(keys, f, game) {
   if (keys.is('KeyS') || keys.is('ArrowDown')) mz -= 1;
   if (keys.is('KeyA') || keys.is('ArrowLeft')) mx += 1;
   if (keys.is('KeyD') || keys.is('ArrowRight')) mx -= 1;
+  if (keys.analog && keys.analog.on && Math.hypot(keys.analog.x, keys.analog.y) > 0.18) { mx = -keys.analog.x; mz = keys.analog.y; }
   inp.mx = mx; inp.mz = mz;
   const body = keys.is('ShiftLeft') || keys.is('ShiftRight');
   const high = keys.is('KeyQ');

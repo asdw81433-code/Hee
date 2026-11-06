@@ -11,7 +11,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 page.on('dialog', (d) => d.accept());
 await page.goto('file://' + path.resolve('index.html') + '?warp=3');
 await page.waitForTimeout(1500);
-await page.locator('button', { hasText: 'ไฟต์ด่วน' }).first().click(); await page.waitForTimeout(400);
+await page.locator('.tile', { hasText: 'ไฟต์ด่วน' }).first().click(); await page.waitForTimeout(400);
 await page.locator('button', { hasText: 'เริ่มไฟต์' }).click(); await page.waitForTimeout(3500);
 const st = () => page.evaluate(() => { const s = window.__game.scene; const p = s.player; return { phase: s.phase, t: s.time.toFixed(1), thrown: p.stats.thrown, landed: p.stats.landed, state: p.state, opp: p.opp.stats.landed, stam: Math.round(p.health.stamina), dist: p.rig.root.distanceTo(p.opp.rig.root).toFixed(2) }; });
 console.log('start', JSON.stringify(await st()));
@@ -30,7 +30,7 @@ console.log('after shoot', JSON.stringify(await st()));
 await page.keyboard.press('Tab'); await page.waitForTimeout(300); await page.screenshot({ path: 'test/out/play_2_dmg.png' }); await page.keyboard.press('Tab');
 // pause
 await page.keyboard.press('Escape'); await page.waitForTimeout(300); await page.screenshot({ path: 'test/out/play_3_pause.png' });
-await page.locator('button', { hasText: 'เล่นต่อ' }).click(); await page.waitForTimeout(300);
+await page.locator('.tile', { hasText: 'เล่นต่อ' }).click(); await page.waitForTimeout(300);
 // force end of round -> corner
 await page.evaluate(() => { window.__game.scene.clock = 0.01; });
 await page.waitForTimeout(2000); await page.screenshot({ path: 'test/out/play_4_corner.png' });
@@ -44,14 +44,14 @@ await page.screenshot({ path: 'test/out/play_5_result.png' });
 console.log('result', await page.locator('.result-big').count());
 // sandbox
 await page.locator('button', { hasText: 'เมนูหลัก' }).click(); await page.waitForTimeout(1000);
-await page.locator('button', { hasText: 'แซนด์บ็อกซ์' }).first().click(); await page.waitForTimeout(400);
+await page.locator('.tile', { hasText: 'แซนด์บ็อกซ์' }).first().click(); await page.waitForTimeout(400);
 await page.locator('button', { hasText: 'เข้าสู่แซนด์บ็อกซ์' }).click(); await page.waitForTimeout(2500);
-for (const t of ['คิ้วซ้ายแตก', 'จมูกหัก', 'ตาบวมปิด']) { await page.locator('.sandbox-panel button', { hasText: t }).click(); await page.waitForTimeout(200); }
-await page.locator('.sandbox-panel select').first().selectOption('aiai'); await page.waitForTimeout(4000);
+for (const t of ['คิ้วซ้าย', 'จมูกหัก', 'ตาบวม']) { await page.locator('.sandbox-panel button', { hasText: t }).click(); await page.waitForTimeout(200); }
+await page.locator('.sandbox-panel button', { hasText: 'AI vs AI' }).click(); await page.waitForTimeout(4000);
 await page.screenshot({ path: 'test/out/play_6_sandbox.png' });
-await page.locator('.sandbox-panel button', { hasText: 'น็อกเลย' }).click(); await page.waitForTimeout(2500);
+await page.locator('.sandbox-panel button', { hasText: 'น็อก' }).last().click(); await page.waitForTimeout(2500);
 await page.screenshot({ path: 'test/out/play_7_sandbox_ko.png' });
-await page.locator('.sandbox-panel button', { hasText: 'รีเซ็ตตำแหน่ง' }).click(); await page.waitForTimeout(1500);
+await page.locator('.sandbox-panel button', { hasText: 'รีเซ็ต' }).click(); await page.waitForTimeout(1500);
 console.log('sandbox', JSON.stringify(await page.evaluate(() => { const s = window.__game.scene; return { ph: s.phase, red: s.red.state, blue: s.blue.state, mode: s.blue.rig.mode }; })));
 console.log(errors.join('\n') || 'no errors');
 await browser.close();

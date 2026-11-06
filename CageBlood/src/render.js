@@ -30,18 +30,18 @@ export function cageDist(pos) {
 export class World {
   constructor(container) {
     this.container = container;
-    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.BasicShadowMap; // jaggy potato shadows
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.4;
     this.potato = 0.75;
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.className = 'game-canvas';
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#07070a');
-    this.scene.fog = new THREE.Fog('#07070a', 14, 38);
+    this.scene.background = new THREE.Color('#1b1d26');
+    this.scene.fog = new THREE.Fog('#1b1d26', 16, 44);
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.05, 120);
     this.camera.position.set(0, 2.2, 6);
     this.buildLights();
@@ -54,6 +54,10 @@ export class World {
   }
 
   setPotato(v) { this.potato = v; this.resize(); }
+  setBrightness(v) {
+    this.renderer.toneMappingExposure = v;
+    if (this.hemi) this.hemi.intensity = 1.0 + (v - 1) * 0.9;
+  }
   resize() {
     const w = this.container.clientWidth || window.innerWidth, h = this.container.clientHeight || window.innerHeight;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * this.potato);
@@ -64,11 +68,14 @@ export class World {
 
   buildLights() {
     const s = this.scene;
-    s.add(new THREE.HemisphereLight('#a0a6bc', '#3a3028', 0.9));
+    this.hemi = new THREE.HemisphereLight('#c4c9dc', '#5a4c40', 1.45);
+    s.add(this.hemi);
+    // arena house lights so the crowd and stands are readable
+    const house = new THREE.PointLight('#ffe2c0', 60, 40, 1.4); house.position.set(0, 14, 0); s.add(house);
     // fill light that follows the camera (broadcast lighting on the cage)
-    this.fill = new THREE.DirectionalLight('#fff0e0', 0.9);
+    this.fill = new THREE.DirectionalLight('#fff0e0', 1.25);
     s.add(this.fill); s.add(this.fill.target);
-    const key = new THREE.DirectionalLight('#fff4e0', 2.2);
+    const key = new THREE.DirectionalLight('#fff4e0', 2.6);
     key.position.set(1.5, 12, 2.5);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
@@ -104,10 +111,10 @@ export class World {
     s.add(stain);
     this.stainDirty = false; this.stainAge = 0;
     // apron / platform outside cage
-    const plat = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 6.6, 1.0, 8, 1), new THREE.MeshLambertMaterial({ color: '#141418', flatShading: true }));
+    const plat = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 6.6, 1.0, 8, 1), new THREE.MeshLambertMaterial({ color: '#2b2d38', flatShading: true }));
     plat.position.y = -0.52; plat.rotation.y = Math.PI / 8; plat.receiveShadow = true;
     s.add(plat);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: '#0c0c0f' }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: '#23252e' }));
     ground.rotation.x = -Math.PI / 2; ground.position.y = -1.0; s.add(ground);
     // --- cage fence
     const fence = mkCanvas(128, 128), fc = fence.getContext('2d');
@@ -274,7 +281,7 @@ export class World {
     this.crowdBody = new THREE.InstancedMesh(bodyG, mat, seats.length);
     this.crowdHead = new THREE.InstancedMesh(headG, new THREE.MeshLambertMaterial({ flatShading: true }), seats.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
-    const shirt = ['#222', '#333', '#552222', '#223355', '#ddd', '#444422', '#663311', '#111', '#2a2a2a', '#5a5a5a'];
+    const shirt = ['#3a3a44', '#55555f', '#7a3030', '#30487a', '#e0e0e0', '#6a6a3a', '#8a5030', '#222228', '#4a4a52', '#8a8a8a', '#b02828', '#2a6a4a'];
     const skins = ['#f3d2b5', '#d8a47f', '#a8704b', '#6e432a', '#e8bd98'];
     seats.forEach(([x, y, z, a], i) => {
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a - Math.PI / 2);
@@ -287,7 +294,7 @@ export class World {
     this.scene.add(this.crowdBody, this.crowdHead);
     // tiers
     for (let ring = 0; ring < 14; ring++) {
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(7.2 + ring * 0.85 + 0.45, 7.2 + ring * 0.85 + 0.45, 0.45, 24, 1, true), new THREE.MeshLambertMaterial({ color: '#16161b', side: THREE.DoubleSide }));
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(7.2 + ring * 0.85 + 0.45, 7.2 + ring * 0.85 + 0.45, 0.45, 24, 1, true), new THREE.MeshLambertMaterial({ color: ring % 2 ? '#2a2c38' : '#323544', side: THREE.DoubleSide }));
       t.position.y = ring * 0.45 - 0.82; this.scene.add(t);
     }
     this.crowdHype = 0.2; this.crowdT = 0;

@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { S, SEGS } from './rig.js';
 import { shade } from './face.js';
 import { lerp, clamp } from './util.js';
+import { buildHair } from './hair.js';
 
 const ONE = new THREE.Vector3(1, 1, 1);
+const _acc = new THREE.Vector3(), _gv = new THREE.Vector3(), _iq = new THREE.Quaternion();
 
 function box(w, h, d, y0 = 0, z0 = 0, x0 = 0) {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -93,39 +95,27 @@ export class FighterModel {
     this.headDims = { hw, hh, hd };
     const headG = taper(box(hw, hh, hd), 1.0, 0.86, 1.0, 0.95);
     const hs = look.hairStyle || 'short';
-    const headMats = [skinM, skinM, hs === 'bald' ? skinM : hairM, skinDark, faceM, hs === 'bald' || hs === 'buzz' ? skinM : hairM];
+    const headMats = [skinM, skinM, hs === 'bald' || hs === 'fade' || hs === 'mohawk' ? skinM : hairM, skinDark, faceM, hs === 'bald' || hs === 'buzz' || hs === 'mohawk' ? skinM : hairM];
     const headParts = [[headG, headMats]];
     // ears (cauliflower for grapplers)
     const caul = look.cauliflower ? 1.5 : 1;
     headParts.push([box(0.022 * sc * caul, 0.065 * sc * caul, 0.045 * sc * caul, hh * 0.42, -0.01, hw * 0.5 + 0.008), skinDark]);
     headParts.push([box(0.022 * sc * caul, 0.065 * sc * caul, 0.045 * sc * caul, hh * 0.42, -0.01, -hw * 0.5 - 0.008), skinDark]);
-    // nose bump (3D)
-    this.noseMesh = new THREE.Mesh(box(0.034 * sc, 0.055 * sc, 0.03 * sc, -0.0275 * sc), skinM);
-    this.noseMesh.position.set(0, hh * (1 - 0.6), hd / 2 + 0.01);
-    this.noseMesh.castShadow = true;
-    // hair styles
-    const hairBox = (w, h, dd, y, z = 0, x = 0) => headParts.push([box(w, h, dd, y, z, x), hairM]);
-    if (hs === 'short') { hairBox(hw * 1.06, 0.045 * sc, hd * 1.06, hh - 0.01); hairBox(hw * 1.04, hh * 0.55, 0.03 * sc, hh * 0.42, -hd / 2 - 0.01); }
-    if (hs === 'buzz') { hairBox(hw * 1.02, 0.015 * sc, hd * 1.02, hh - 0.005); }
-    if (hs === 'mohawk') { hairBox(0.045 * sc, 0.08 * sc, hd * 1.05, hh - 0.01); hairBox(0.045 * sc, hh * 0.6, 0.05 * sc, hh * 0.35, -hd / 2 - 0.02); }
-    if (hs === 'bun') { hairBox(hw * 1.05, 0.035 * sc, hd * 1.05, hh - 0.01); hairBox(0.07 * sc, 0.07 * sc, 0.07 * sc, hh * 0.85, -hd / 2 - 0.04); }
-    if (hs === 'cornrows') { for (let i = -2; i <= 2; i++) hairBox(0.022 * sc, 0.025 * sc, hd * 1.04, hh - 0.012, 0, i * 0.035 * sc); }
-    if (hs === 'long') { hairBox(hw * 1.07, 0.05 * sc, hd * 1.07, hh - 0.01); hairBox(hw * 0.5, hh * 0.9 + 0.12 * sc, 0.045 * sc, -0.12 * sc + hh * 0.1, -hd / 2 - 0.02); }
+    // hair (3D low-poly). Nothing sits in front of the face: nose, beard and swelling are painted on the face texture
+    const hairData = buildHair(hs, hw, hh, hd, sc);
+    for (const g of hairData.fixed) headParts.push([g, hairM]);
+    // a full beard also darkens the underside of the jaw (bottom face of the head box), never the face itself
+    if (look.beard === 'full' || look.beard === 'long') { const bm = lam(look.beardColor || look.hairColor || '#1a1410'); this.mats.push(bm); headMats[3] = bm; }
     const headGrp = mk(S.head, headParts);
-    headGrp.add(this.noseMesh);
-    // swelling lumps
-    const lumpM = lam('#7a3048');
-    this.lumpMat = lumpM;
-    this.lumps = {};
-    const lumpPos = { eyeR: [-0.31, 0.43, 1], eyeL: [0.31, 0.43, 1], cheekR: [-0.26, 0.6, 1], cheekL: [0.26, 0.6, 1], forehead: [0, 0.2, 1.4], lip: [0, 0.78, 1] };
-    for (const k in lumpPos) {
-      const [u, v, s] = lumpPos[k];
-      const m = new THREE.Mesh(box(0.06 * sc * s, 0.04 * sc, 0.03 * sc, -0.02 * sc), new THREE.MeshLambertMaterial({ color: look.skin, flatShading: true }));
-      m.position.set(u * hw, hh * (1 - v), hd / 2 - 0.004);
-      m.scale.set(0.001, 0.001, 0.001);
-      m.visible = false;
-      headGrp.add(m);
-      this.lumps[k] = m;
+    // hanging hair swings on a spring (secondary motion)
+    this.hairPivot = null;
+    if (hairData.hang.length) {
+      const pv = new THREE.Group();
+      pv.position.copy(hairData.pivot);
+      for (const g of hairData.hang) { const m = new THREE.Mesh(g, hairM); m.castShadow = true; pv.add(m); }
+      headGrp.add(pv);
+      this.hairPivot = pv;
+      this.hairSwing = { x: 0, z: 0, vx: 0, vz: 0 };
     }
     // --- arms
     const ua = 0.095 * sc * (1 + bulk * 0.4), fa = 0.082 * sc * (1 + bulk * 0.3);
@@ -151,28 +141,32 @@ export class FighterModel {
     }
   }
 
-  update() {
+  update(dt = 1 / 60) {
     const rig = this.rig;
     for (let i = 0; i < SEGS.length; i++) {
       const g = this.segs[i], s = rig.seg[i];
       g.matrix.compose(s.pos, s.quat, ONE);
       g.matrixWorldNeedsUpdate = true;
     }
+    if (this.hairPivot) {
+      // head acceleration (in head space) pushes the hair the other way; gravity pulls it down
+      const hv = rig.ptVel[3];
+      const prev = this._hv || (this._hv = new THREE.Vector3());
+      const acc = _acc.subVectors(hv, prev).divideScalar(Math.max(dt, 1e-3)); prev.copy(hv);
+      _iq.copy(rig.seg[4].quat).invert();
+      acc.applyQuaternion(_iq);
+      const g = _gv.set(0, -1, 0).applyQuaternion(_iq); // gravity in head space
+      const sw = this.hairSwing, k = 70, d = 9;
+      const tx = clamp(Math.atan2(-g.z, -g.y) * 0.9 + acc.z * 0.02, -1.4, 1.4), tz = clamp(Math.atan2(g.x, -g.y) * 0.9 - acc.x * 0.02, -1.2, 1.2);
+      sw.vx += (k * (tx - sw.x) - d * sw.vx) * dt; sw.x += sw.vx * dt;
+      sw.vz += (k * (tz - sw.z) - d * sw.vz) * dt; sw.z += sw.vz * dt;
+      this.hairPivot.rotation.set(clamp(sw.x, -1.5, 1.5), 0, clamp(sw.z, -1.3, 1.3));
+    }
   }
 
   // Visual swelling & nose deformation from the injury model
   setInjuryVisuals(h) {
-    for (const k in this.lumps) {
-      const v = clamp(h.swell[k] || 0, 0, 1.2);
-      const m = this.lumps[k];
-      m.visible = v > 0.12;
-      const s = 0.2 + v * 1.1;
-      m.scale.set(s, s * (k.startsWith('eye') ? 1.1 : 1), s * 0.8 + v);
-      m.material.color.set(this.look.skin).lerp(new THREE.Color('#6a2a4a'), clamp(v * 0.8, 0, 0.7));
-    }
-    // broken nose: deviated
-    this.noseMesh.rotation.z = h.noseBroken ? h.noseDeviation : 0;
-    this.noseMesh.material = this.mats[0];
+    // swelling / broken nose are drawn on the face texture (SkinFX); only the gloves change here
     const gb = clamp(this.gloveBlood, 0, 1);
     this.gloveM.color.copy(this.gloveBase).lerp(new THREE.Color('#4a0606'), gb * 0.75);
   }
@@ -180,6 +174,5 @@ export class FighterModel {
   dispose() {
     this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     for (const m of this.mats) m.dispose();
-    this.lumpMat.dispose();
   }
 }

@@ -104,10 +104,7 @@ export const NICKNAMES = ['The Hammer', 'Cobra', 'Iron', 'The Reaper', 'Blade', 
 
 export const SKIN_TONES = ['#f3d2b5', '#e8bd98', '#d8a47f', '#c68b62', '#a8704b', '#8d5a3b', '#6e432a', '#4f2f1e'];
 export const HAIR_COLORS = ['#141010', '#2b1d14', '#4a3020', '#6b4528', '#a0703a', '#c9a165', '#e3d3b0', '#8c8c8c', '#7a1f12'];
-export const HAIR_STYLES = [
-  ['bald', 'หัวโล้น'], ['buzz', 'เกรียน'], ['short', 'สั้น'], ['mohawk', 'โมฮอว์ก'], ['bun', 'มัดจุก'], ['cornrows', 'เปียข้าวโพด'], ['long', 'ยาวมัดหลัง'],
-];
-export const BEARDS = [['none', 'ไม่มี'], ['stubble', 'หนวดเครา 3 วัน'], ['goatee', 'แพะ'], ['full', 'เต็มหน้า']];
+export { HAIR_DEFS as HAIR_STYLES, BEARD_DEFS as BEARDS } from './hair.js';
 export const SHORTS_COLORS = ['#111111', '#b71c1c', '#0d47a1', '#1b5e20', '#f9a825', '#ffffff', '#4a148c', '#e65100', '#00838f', '#c2185b'];
 
 // Fictional promotions (career ladder)

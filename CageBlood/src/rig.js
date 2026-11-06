@@ -243,6 +243,7 @@ export class Rig {
 
   // track joint velocities (for ragdoll handoff & hit physics)
   trackVel(dt) {
+    this.lastDt = dt;
     for (let i = 0; i < NP; i++) {
       this.ptVel[i].subVectors(this.pts[i], this.prevPts[i]).divideScalar(Math.max(dt, 1e-4));
       this.prevPts[i].copy(this.pts[i]);
@@ -253,7 +254,8 @@ export class Rig {
   startRagdoll(opts = {}) {
     const n = NP;
     const p = this.pts.map((v) => v.clone());
-    const prev = p.map((v, i) => v.clone().addScaledVector(this.ptVel[i], -1 / 240));
+    const sdt = this.lastDt || 1 / 240;
+    const prev = p.map((v, i) => v.clone().addScaledVector(this.ptVel[i], -sdt));
     const cons = [];
     const add = (a, b, minF = 1, maxF = 1, stiff = 1) => {
       const L = p[a].distanceTo(p[b]);
@@ -280,7 +282,7 @@ export class Rig {
     cons.push([P.knL, P.knR, 0.08, 1.2, 0.5], [P.anL, P.anR, 0.08, 2, 0.5]);
     // apply impulse
     if (opts.impulse) {
-      for (const [idx, vec] of opts.impulse) prev[idx].addScaledVector(vec, -1 / 240);
+      for (const [idx, vec] of opts.impulse) prev[idx].addScaledVector(vec, -sdt);
     }
     this.rag = { p, prev, cons, t: 0, limp: opts.limp ?? 1, fencing: opts.fencing ? 2.4 : 0, fenceSide: Math.random() < 0.5 ? 0 : 1, tone: opts.tone ?? 0 };
     this.mode = 'ragdoll';
@@ -315,6 +317,11 @@ export class Rig {
       // keep chin tucked & hands toward head (instinctive cover)
       const h = p[P.head];
       for (const hi of [P.haL, P.haR]) p[hi].lerp(h, 0.015 * r.tone);
+    }
+    // grabbed particle (sandbox drag): pull toward the cursor
+    if (this.grab && this.grab.target) {
+      const gp = p[this.grab.idx];
+      gp.lerp(this.grab.target, 0.3);
     }
     // constraints
     const cons = r.cons;
@@ -354,6 +361,16 @@ export class Rig {
         }
       }
     }
+    // knees only bend one way: keep each knee in front of the hip-ankle line
+    _v.subVectors(p[P.abd], p[P.pelvis]).normalize();
+    _v2.subVectors(p[P.hipL], p[P.hipR]);
+    _v3.crossVectors(_v2, _v).normalize(); // pelvis forward
+    for (const [hi, ki, ai] of [[P.hipL, P.knL, P.anL], [P.hipR, P.knR, P.anR]]) {
+      const mid = _v2.lerpVectors(p[hi], p[ai], 0.5);
+      const off = p[ki].clone().sub(mid);
+      const f = off.dot(_v3);
+      if (f < -0.01) p[ki].addScaledVector(_v3, -f * 0.8);
+    }
     for (let i = 0; i < NP; i++) this.pts[i].copy(p[i]);
     this.computeSegmentsRag();
   }
@@ -362,7 +379,7 @@ export class Rig {
     if (!this.rag) return 0;
     let s = 0;
     for (let i = 0; i < NP; i++) s += this.rag.p[i].distanceTo(this.rag.prev[i]);
-    return (s / NP) * 240;
+    return (s / NP) / (this.lastDt || 1 / 240);
   }
 
   computeSegmentsRag() {

@@ -31,7 +31,8 @@ export class Preview {
     const f = this.f; if (!f) return;
     this.t += dt;
     this.acc += Math.min(dt, 0.05);
-    if (this.shadowbox && this.t > this.nextT && !f.action) {
+    f.relaxed = this.zoom < 0.6;
+    if (this.shadowbox && !f.relaxed && this.t > this.nextT && !f.action) {
       f.input.strike = SHADOW[Math.floor(rng() * SHADOW.length)];
       this.nextT = this.t + 0.6 + rng() * 1.2;
     }

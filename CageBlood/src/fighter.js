@@ -128,7 +128,8 @@ export class Fighter {
     const h = this.health;
     // stiffness: fatigue & brain state make the body heavier and sloppier
     const out = h.output;
-    rig.stiff = clamp(0.55 + 0.45 * out, 0.45, 1) * (h.rocked > 0 ? 0.65 : 1);
+    rig.stiff = clamp(0.55 + 0.45 * out, 0.45, 1) * (h.rocked > 0 ? 0.65 : 1) * (this.looseT > 0 ? 0.4 : 1);
+    if (this.looseT > 0) this.looseT -= dt;
     rig.legStiff = h.rocked > 0 ? 0.45 : 1;
     if (this.hitStun > 0) this.hitStun -= dt;
     if (this.slip) { this.slip.t += dt; if (this.slip.t > this.slip.dur) this.slip = null; }
@@ -327,6 +328,11 @@ export class Fighter {
     F.dir(_a.set(-mir * 0.1 * u, -0.08 * u - drop, 0.13 * u), _b); p.hand[R].copy(hc).add(_b);
     p.pole[L].set(mir * 0.4, -1, -0.15); p.pole[R].set(-mir * 0.4, -1, -0.2);
     p.roll[L] = 0.3; p.roll[R] = 0.3;
+    // relaxed (creator close-up): hands down so the face, hair and beard are visible
+    if (this.relaxed) {
+      F.dir(_a.set(mir * 0.22 * u, -0.5 * u, 0.12 * u), _b); p.hand[L].copy(hc).add(_b);
+      F.dir(_a.set(-mir * 0.22 * u, -0.5 * u, 0.08 * u), _b); p.hand[R].copy(hc).add(_b);
+    }
     // breathing hand bob
     p.hand[L].y += Math.sin(this.t * 3.1) * 0.012; p.hand[R].y += Math.sin(this.t * 3.1 + 1) * 0.01;
     // block
@@ -385,9 +391,11 @@ export class Fighter {
       } else if (a.type === 'scripted' && a.pose) a.pose(this, p, dt);
     }
     // head looks at opponent: compensate accumulated torso yaw
-    if (p.lookAt && this.opp) {
+    if (p.lookAt) {
       const torsoYaw = p.pRot.y + p.abd.y + p.chest.y;
       p.neck.y = -torsoYaw * 0.45; p.head.y = -torsoYaw * 0.45;
+    }
+    if (p.lookAt && this.opp) {
       const dy = this.opp.rig.headCenter.y - rig.headCenter.y;
       const dist = Math.max(0.3, Math.hypot(this.opp.rig.root.x - rig.root.x, this.opp.rig.root.z - rig.root.z));
       p.head.x += clamp(-Math.atan2(dy, dist) * 0.5, -0.4, 0.5);
@@ -844,6 +852,8 @@ export class Fighter {
       }
     }
     this.hitStun = Math.max(this.hitStun, blocked ? 0.06 + power * 0.06 : 0.08 + power * 0.18);
+    // big shots make the body go briefly loose (partial ragdoll feel): springs weaken, momentum carries the body
+    if (!blocked && power > 0.55) this.looseT = Math.max(this.looseT || 0, 0.18 + power * 0.22);
     // interrupt own strike if hit hard
     if (!blocked && power > 0.35 && this.action && this.action.type === 'strike' && this.action.phase !== 'ret') {
       if (this.action.def.limb === 'foot' || this.action.def.limb === 'knee') {
@@ -890,7 +900,7 @@ export class Fighter {
 
   damageView() {
     const h = this.health;
-    return { swell: h.swell, cuts: h.cuts, nose: clamp(h.nose, 0, 1), redness: h.redness, liver: h.liver / 100, ribsL: h.ribsL / 100, chest: h.chestDmg / 100 };
+    return { swell: h.swell, cuts: h.cuts, nose: clamp(h.nose, 0, 1), noseBroken: h.noseBroken, noseDeviation: h.noseDeviation, redness: h.redness, liver: h.liver / 100, ribsL: h.ribsL / 100, chest: h.chestDmg / 100 };
   }
 
   // ================= FALLING / RAGDOLL =================
@@ -908,7 +918,7 @@ export class Fighter {
     if (opts.kind === 'ko' || opts.kind === 'kd') imp.push([P.head, dir.clone().multiplyScalar(2.5 + pw * 2.5)]);
     if (opts.kind === 'liver') imp.push([P.abd, new THREE.Vector3(0, -1, 0)]);
     const limp = opts.kind === 'ko' ? 1 : 0.6;
-    rig.startRagdoll({ impulse: imp, fencing: opts.fencing, limp, tone: opts.kind === 'ko' ? 0 : 1 });
+    rig.startRagdoll({ impulse: imp, fencing: opts.fencing, limp, tone: ['ko', 'limp', 'grab'].includes(opts.kind) ? 0 : 1 });
     this.state = 'ragdoll';
     this.fallKind = opts.kind;
     this.stateT = 0;
@@ -935,6 +945,7 @@ export class Fighter {
     }
     rig.root.copy(rig.pts[P.pelvis]);
     // recovery (not for KO)
+    if (rig.grab || this.holdRag) this.stateT = Math.min(this.stateT, 0.5);
     if (!this.ko && this.stateT > (this.fallKind === 'liver' ? 3.2 : this.fallKind === 'trip' ? 0.9 : 1.6) && rig.ragdollSpeed() < 0.5) {
       this.toDowned();
     }
@@ -1051,7 +1062,7 @@ export class Fighter {
   // ================= PER-FRAME (render rate): blood flow, sweat, visuals =================
   frame(dt) {
     const rig = this.rig, h = this.health, fx = this.fx;
-    this.model.update();
+    this.model.update(dt);
     const hs = rig.seg[S.head];
     _q.copy(hs.quat).invert();
     const gHead = _a.copy(DOWN).applyQuaternion(_q);

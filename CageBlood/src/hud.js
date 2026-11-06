@@ -38,7 +38,12 @@ export class HUD {
     this.redBox.innerHTML = ''; this.blueBox.innerHTML = '';
     this.redBox.append(...mk(sc.red)); this.blueBox.append(...mk(sc.blue));
     clearTimeout(this._kh);
-    if (sc.player && !sc.opts.playerAI && !sc.background) {
+    const touch = document.getElementById('ui') && document.getElementById('ui').classList.contains('touchmode');
+    if (touch && sc.player && !sc.opts.playerAI && !sc.background) {
+      this.keysHint.innerHTML = 'จอยซ้าย = เดิน/วน · ปุ่มขวา = หมัด เตะ การ์ด · <b>ลำตัว/ขา</b> และ <b>เตะหัว</b> คือปุ่มเปิด-ปิด · บนพื้น: ดันจอยขึ้น = ไล่ตำแหน่ง, ลง = ลุก, ซ้าย/ขวา = หนี';
+      this.keysHint.classList.remove('hidden');
+      this._kh = setTimeout(() => this.keysHint.classList.add('hidden'), 9000);
+    } else if (sc.player && !sc.opts.playerAI && !sc.background) {
       this.keysHint.innerHTML = '<b>W/S</b> เข้า-ออก · <b>A/D</b> วน · <b>J K U I N M</b> หมัด · <b>Shift</b>+หมัด = ลำตัว · <b>O/L</b> เตะ (<b>Shift</b> ขา · <b>Q</b> หัว) · <b>P</b> ถีบ · <b>H</b> เข่า · <b>Y</b> ศอก<br><b>Space</b> การ์ด · <b>Z/X</b> หลบ · <b>C</b> ก้ม/สปรอล · <b>E</b> บล็อกเตะ · <b>F</b> คลินช์ · <b>G</b> เทคดาวน์/ล็อก · <b>V</b>+หมัด หลอก · <b>Esc</b> คู่มือเต็ม';
       this.keysHint.classList.remove('hidden');
       this._kh = setTimeout(() => this.keysHint.classList.add('hidden'), 16000);

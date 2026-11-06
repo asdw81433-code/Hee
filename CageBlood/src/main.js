@@ -9,6 +9,7 @@ import { makeNPC } from './npc.js';
 import { UI } from './ui.js';
 import { loadSave } from './save.js';
 import { Preview } from './preview.js';
+import { TouchControls } from './touch.js';
 
 class App {
   constructor() {
@@ -25,6 +26,7 @@ class App {
     this.warp = Number(new URLSearchParams(location.search).get('warp') || 0);
     this.last = performance.now();
     this.preview = new Preview(this);
+    this.touch = new TouchControls(this);
     this.ui = new UI(this);
     const kick = () => { this.audio.init(); this.audio.resume(); };
     window.addEventListener('pointerdown', kick); window.addEventListener('keydown', kick);
@@ -34,19 +36,25 @@ class App {
   applySettings() {
     const s = this.save.settings;
     this.world.setPotato(s.potato);
+    this.world.setBrightness(s.brightness ?? 1.4);
     this.blood.gore = s.gore;
     this.audio.setVolume(s.volume);
   }
   startFight(opts) {
     if (this.scene) this.scene.dispose();
     this.preview.clear();
+    const useTouch = TouchControls.wanted(this.save.settings.touch) && !opts.background && !!opts.playerSide && !opts.playerAI;
+    this.uiRoot.classList.toggle('touchmode', useTouch);
     this.scene = new FightScene(this, { settings: this.save.settings, clockScale: this.save.settings.clockScale, ...opts });
     this.hud.show(!opts.background);
+    this.touch.show(useTouch);
     return this.scene;
   }
   endScene() {
     if (this.scene) { this.scene.dispose(); this.scene = null; }
     this.hud.show(false);
+    this.touch.show(false);
+    this.uiRoot.classList.remove('touchmode');
   }
   onFightEnd(scene) { this.ui.onFightEnd(scene); }
   showCorner(scene, card) { this.ui.showCorner(scene, card); }

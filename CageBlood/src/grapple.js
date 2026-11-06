@@ -194,7 +194,13 @@ export class Grapple {
       other.state = 'stand';
       this.replantBoth(other);
     }
-    if (f.state === 'grapple') f.state = 'stand';
+    // the released fighter is still on the mat: lie there (down) instead of snapping to a standing pose
+    if (f.state === 'grapple' && f.rig.mode === 'anim') {
+      f.gpose = null; f.grapple = null; f.action = null;
+      f.downFaceUp = L.pos !== 'back' || f === L.top;
+      f.state = 'down'; f.downT = 0; f.stateT = 0; f.rig.root.y = 0;
+      f.vel.set(0, 0, 0);
+    }
   }
 
   replantBoth(f) {

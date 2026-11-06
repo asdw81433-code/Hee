@@ -8,7 +8,8 @@ import { P, S, SEGS } from './rig.js';
 import { clamp, lerp, rng, fmtTime, makeRng } from './util.js';
 import { cageDist } from './render.js';
 
-const STEP = 1 / 240;
+// physics step: 240 Hz on desktop, 180 Hz on phones/tablets (lighter, still fine for hit detection)
+const STEP = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 1 / 180 : 1 / 240;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 
 const REF_PROFILE = {
@@ -26,6 +27,7 @@ export class FightScene {
     this.audio = app.audio;
     this.hud = app.hud;
     this.keys = app.keys;
+    this.keys.pressed.clear(); // keys pressed in menus must not fire strikes at the bell
     this.time = 0;
     this.grapple = new Grapple(this);
     this.blood.clear();
@@ -196,6 +198,8 @@ export class FightScene {
   }
 
   onSubmission(att, def, name, refused) {
+    // choked out cold: the body goes limp
+    if (refused && name.includes('Choke')) { def.ko = true; def.fall({ kind: 'ko', power: 0.2 }); }
     this.endFight(att, refused && name.includes('Choke') ? 'SUB (หลับ)' : 'SUB', name);
   }
 
@@ -238,7 +242,7 @@ export class FightScene {
     this.audio.crowd(this.hype);
     if (render) this.world.render(realDt);
     this.replay.record();
-    if (render) this.hud.tick(this, realDt);
+    if (render) { this.hud.tick(this, realDt); this.app.touch && this.app.touch.update(this); }
     keys.endFrame();
   }
 

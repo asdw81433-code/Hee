@@ -3,6 +3,7 @@ import { el, clamp, makeRng, hashStr } from './util.js';
 import { WEIGHT_CLASSES, wcById, STYLES, ATTRS, ATTR_LABEL, COUNTRIES, SKIN_TONES, HAIR_COLORS, HAIR_STYLES, BEARDS, SHORTS_COLORS, NICKNAMES } from './data.js';
 import { FACE_W, FACE_H, mkCanvas, paintFace, drawFaceGuides } from './face.js';
 import { baseAttrs } from './npc.js';
+import { drawHeadThumb } from './hair.js';
 
 const START_POINTS = 25;
 const START_MAX = 72;
@@ -112,11 +113,11 @@ export class Creator {
   render() {
     const root = el('div', { class: 'screen' });
     const wrap = el('div', { class: 'creator' });
-    const left = el('div', { class: 'left panel' });
+    const left = el('div', { class: 'left panel' + (this.peek ? ' peek' : '') });
     const right = el('div', { class: 'right' });
     left.append(el('h2', {}, this.title));
     const tabs = el('div', { class: 'tabs' });
-    for (const [k, t] of [['id', '1. ตัวตน'], ['body', '2. ร่างกาย'], ['face', '3. วาดใบหน้า'], ['style', '4. สไตล์ & ค่าพลัง']]) {
+    for (const [k, t] of [['id', '🪪 ตัวตน'], ['body', '💪 ร่างกาย'], ['face', '🎨 วาดหน้า'], ['style', '🥋 สไตล์']]) {
       tabs.append(el('div', { class: 'tab' + (this.tab === k ? ' sel' : ''), onclick: () => { this.tab = k; this.ui.refresh(); } }, t));
     }
     left.append(tabs);
@@ -129,6 +130,7 @@ export class Creator {
     const nav = el('div', { class: 'row', style: { marginTop: '14px' } },
       el('button', { class: 'btn ghost', onclick: () => this.onCancel() }, '← ยกเลิก'),
       el('div', { class: 'grow' }),
+      el('button', { class: 'btn small', title: 'ซ่อนแผงเพื่อดูตัวละคร 3D', onclick: () => { this.peek = !this.peek; this.ui.refresh(); } }, this.peek ? '📋 แสดงแผง' : '👁 ดูตัว'),
       this.tab !== 'style' ? el('button', { class: 'btn', onclick: () => { this.tab = { id: 'body', body: 'face', face: 'style' }[this.tab]; this.ui.refresh(); } }, 'ถัดไป →')
         : el('button', { class: 'btn primary', onclick: () => this.finish() }, '✔ ยืนยันนักสู้'));
     left.append(nav);
@@ -141,7 +143,7 @@ export class Creator {
       el('div', { class: 'muted' }, `${wc.name} · ${(this.p.height * 100).toFixed(0)} ซม. · ${STYLES[this.p.style].name}`),
       el('div', {}, `ค่าพลังรวม (OVR): `, el('b', {}, String(ovr)), el('span', { class: 'muted' }, ' — ระดับสมัครเล่น')),
       el('div', { class: 'row', style: { marginTop: '6px' } },
-        el('button', { class: 'btn small', onclick: () => { this.app.preview.zoom = this.app.preview.zoom < 0.6 ? 1 : 0.35; } }, '🔍 ซูมหน้า/ตัว'),
+        el('button', { class: 'btn small', onclick: () => { this.app.preview.zoom = this.app.preview.zoom < 0.6 ? 1 : 0.45; } }, '🔍 ซูมหน้า/ตัว'),
         el('button', { class: 'btn small', onclick: () => { this.app.preview.shadowbox = !this.app.preview.shadowbox; } }, '🥊 ชกลม เปิด/ปิด')));
     wrap.append(left, right);
     root.append(wrap, info);
@@ -163,7 +165,7 @@ export class Creator {
         el('button', { class: 'btn small', onclick: () => { this.p.nick = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)]; this.ui.refresh(); } }, '🎲 สุ่ม'))),
       this.field('สัญชาติ', el('select', { onchange: (e) => { this.p.country = e.target.value; } }, ...COUNTRIES.map(([c, n]) => el('option', { value: c, selected: c === this.p.country ? 'selected' : null }, n)))),
       this.field('อายุเริ่มต้น', el('select', { onchange: (e) => { this.p.age = Number(e.target.value); } }, ...[18, 19, 20, 21, 22, 23, 24, 25, 26, 28, 30].map((n) => el('option', { value: n, selected: n === this.p.age ? 'selected' : null }, `${n} ปี${n <= 21 ? ' (พัฒนาเร็ว)' : n >= 28 ? ' (ประสบการณ์ แต่พัฒนาช้า)' : ''}`)))),
-      this.field('การยืน (Stance)', this.chips([['orthodox', 'ออร์โธด็อกซ์ (ซ้ายนำ)'], ['southpaw', 'เซาท์พอว์ (ขวานำ)']], this.p.stance, (v) => this.set('stance', v))),
+      this.field('การยืน (Stance)', this.pics([['orthodox', '🦶⬅️', 'ซ้ายนำ (Orthodox)'], ['southpaw', '➡️🦶', 'ขวานำ (Southpaw)']], this.p.stance, (v) => this.set('stance', v))),
       el('p', { class: 'muted small' }, 'อายุมีผลต่อการพัฒนา: นักสู้มีช่วงพีคราว 27-32 ปี หลังจากนั้นความเร็ว คาร์ดิโอ และความทนจะค่อยๆ ลดลง'),
     );
   }
@@ -172,6 +174,24 @@ export class Creator {
     const c = el('div', { class: 'chips' });
     for (const [v, t] of opts) c.append(el('div', { class: 'chip' + (v === cur ? ' sel' : ''), onclick: () => { cb(v); this.ui.refresh(); } }, t));
     return c;
+  }
+  pics(opts, cur, cb) {
+    return el('div', { class: 'iconbar' }, ...opts.map(([v, pic, t]) => el('button', { class: 'iconbtn' + (v === cur ? ' sel' : ''), onclick: () => { cb(v); this.ui.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
+  }
+  headThumbs(list, kind) {
+    const wrap = el('div', { class: 'thumbs' });
+    const look = this.p.look;
+    for (const [id, name] of list) {
+      const c = mkCanvas(64, 64);
+      drawHeadThumb(c.getContext('2d'), 64, look, kind === 'hair' ? id : look.hairStyle, kind === 'beard' ? id : look.beard);
+      const cur = kind === 'hair' ? look.hairStyle : look.beard;
+      wrap.append(el('div', { class: 'thumb' + (cur === id ? ' sel' : ''), title: name, onclick: () => {
+        if (kind === 'hair') look.hairStyle = id; else look.beard = id;
+        if (!this.faceEdited) this.autoFace();
+        this.refreshPreview(); this.ui.refresh();
+      } }, c, name));
+    }
+    return wrap;
   }
   swatches(list, cur, cb) {
     const c = el('div', { class: 'swatches' });
@@ -194,13 +214,13 @@ export class Creator {
       this.slider('กล้ามเนื้อ', 0, 100, 1, Math.round(this.p.look.muscle * 100), (v) => { this.p.look.muscle = v / 100; }, (v) => `${v}%`),
       this.slider('ไขมัน', 0, 70, 1, Math.round(this.p.look.fat * 100), (v) => { this.p.look.fat = v / 100; }, (v) => `${v}%`),
       el('h3', {}, 'สีผิว'), this.swatches(SKIN_TONES, this.p.look.skin, (c) => { this.p.look.skin = c; if (!this.faceEdited) this.autoFace(); this.refreshPreview(); }),
-      el('h3', {}, 'ทรงผม'), this.chips(HAIR_STYLES, this.p.look.hairStyle, (v) => { this.p.look.hairStyle = v; if (!this.faceEdited) this.autoFace(); this.refreshPreview(); }),
+      el('h3', {}, '💇 ทรงผม'), this.headThumbs(HAIR_STYLES, 'hair'),
       el('h3', {}, 'สีผม'), this.swatches(HAIR_COLORS, this.p.look.hairColor, (c) => { this.p.look.hairColor = c; if (!this.faceEdited) this.autoFace(); this.refreshPreview(); }),
-      el('h3', {}, 'หนวดเครา'), this.chips(BEARDS, this.p.look.beard, (v) => { this.p.look.beard = v; if (!this.faceEdited) this.autoFace(); this.refreshPreview(); }),
+      el('h3', {}, '🧔 หนวดเครา'), this.headThumbs(BEARDS, 'beard'),
       el('h3', {}, 'กางเกง'), this.swatches(SHORTS_COLORS, this.p.look.shorts, (c) => this.set('look.shorts', c)),
       el('h3', {}, 'ขอบกางเกง'), this.swatches(SHORTS_COLORS, this.p.look.shortsTrim, (c) => this.set('look.shortsTrim', c)),
-      el('h3', {}, 'รอยสัก'), this.chips([['none', 'ไม่มี'], ['sakyant', 'สักยันต์ (หลัง)'], ['tribal', 'ลายชนเผ่า'], ['script', 'ตัวอักษร']], this.p.look.tattoo, (v) => this.set('look.tattoo', v)),
-      el('h3', {}, 'รายละเอียด'), this.chips([['cauliflower', (this.p.look.cauliflower ? '✔ ' : '') + 'หูกะหล่ำ (นักปล้ำ)'], ['chestHair', (this.p.look.chestHair ? '✔ ' : '') + 'ขนหน้าอก'], ['scar', (this.p.look.scar ? '✔ ' : '') + 'แผลเป็นที่คิ้ว']], '', (v) => { this.p.look[v] = !this.p.look[v]; if (v === 'scar' && !this.faceEdited) this.autoFace(); this.refreshPreview(); }),
+      el('h3', {}, '🖋️ รอยสัก'), this.pics([['none', '🚫', 'ไม่มี'], ['sakyant', '🕉️', 'สักยันต์'], ['tribal', '〰️', 'ลายชนเผ่า'], ['script', '✍️', 'ตัวอักษร']], this.p.look.tattoo, (v) => this.set('look.tattoo', v)),
+      el('h3', {}, '✨ รายละเอียด'), el('div', { class: 'iconbar' }, ...[['cauliflower', '👂', 'หูกะหล่ำ'], ['chestHair', '🐻', 'ขนหน้าอก'], ['scar', '🩹', 'แผลเป็น']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (this.p.look[v] ? ' sel' : ''), onclick: () => { this.p.look[v] = !this.p.look[v]; if (v === 'scar' && !this.faceEdited) this.autoFace(); this.refreshPreview(); this.ui.refresh(); } }, el('span', { class: 'pic' }, pic), t))),
     );
   }
 
@@ -250,11 +270,13 @@ export class Creator {
     const used = Object.values(this.p.alloc).reduce((s, v) => s + v, 0);
     const left = START_POINTS - used;
     b.append(el('h3', {}, 'พื้นฐานการต่อสู้'));
-    const sc = el('div', { class: 'col' });
+    const sc = el('div', { class: 'tiles', style: { gridTemplateColumns: 'repeat(auto-fill, minmax(118px, 1fr))' } });
+    const pic = { boxing: '🥊', muaythai: '🐘', wrestling: '🤼', bjj: '🐍', kickboxing: '🦵', judo: '🥋', sambo: '🐻', brawler: '👊' };
     for (const k in STYLES) {
-      sc.append(el('button', { class: 'btn small' + (this.p.style === k ? ' primary' : ''), onclick: () => { this.p.style = k; this.p.alloc = {}; if (k === 'wrestling' || k === 'bjj' || k === 'judo') this.p.look.cauliflower = true; this.refreshPreview(); this.ui.refresh(); } },
-        STYLES[k].name, el('span', { class: 'desc' }, STYLES[k].desc)));
+      sc.append(el('button', { class: 'tile small' + (this.p.style === k ? ' sel' : ''), title: STYLES[k].desc, onclick: () => { this.p.style = k; this.p.alloc = {}; if (k === 'wrestling' || k === 'bjj' || k === 'judo') this.p.look.cauliflower = true; this.refreshPreview(); this.ui.refresh(); } },
+        el('span', { class: 'pic' }, pic[k]), el('span', {}, STYLES[k].name.split(' (')[0])));
     }
+    b.append(el('p', { class: 'muted small' }, STYLES[this.p.style].desc));
     b.append(sc);
     b.append(el('h3', {}, `แต้มพัฒนาเริ่มต้น: เหลือ ${left} แต้ม`), el('p', { class: 'muted small' }, 'นักสู้เริ่มที่ระดับสมัครเล่น พัฒนาต่อได้ด้วยการซ้อมในโหมดอาชีพ'));
     const a = computeAttrs(this.p);

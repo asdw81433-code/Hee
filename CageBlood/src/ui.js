@@ -1,4 +1,5 @@
 // ===== Menus, career hub, story, corner, results, sandbox =====
+import * as THREE from 'three';
 import { el, money, clamp, rng, fmtTime } from './util.js';
 import { makeNPC } from './npc.js';
 import { Creator, computeAttrs, loadFaceCanvas, profileForFight, defaultProfile } from './creator.js';
@@ -8,6 +9,9 @@ import { writeSave, DEFAULT_SETTINGS, exportSave, importSave } from './save.js';
 import { STYLES, PROMOTIONS, ATTRS, ATTR_LABEL, wcById, WEIGHT_CLASSES } from './data.js';
 import { Fighter } from './fighter.js';
 import { P } from './rig.js';
+import { icon } from './icons.js';
+import { drawHeadThumb } from './hair.js';
+import { TouchControls } from './touch.js';
 
 const STYLE_KEYS = Object.keys(STYLES);
 
@@ -29,12 +33,15 @@ export class UI {
   }
   go(name, data = {}) { this.screen = { name, data }; this.refresh(); }
   refresh() {
-    const s = this.screen; if (!s) { this.layer.innerHTML = ''; return; }
+    const s = this.screen;
+    this.app.uiRoot.classList.toggle('menu-open', !!s);
+    if (s && this.app.touch) { this.app.keys.vdown.clear(); this.app.touch.resetStick(); }
+    if (!s) { this.layer.innerHTML = ''; return; }
     const fn = this['scr_' + s.name];
     this.layer.innerHTML = '';
     if (fn) { const node = fn.call(this, s.data); if (node) this.layer.appendChild(node); }
   }
-  close() { this.screen = null; this.layer.innerHTML = ''; }
+  close() { this.screen = null; this.layer.innerHTML = ''; this.app.uiRoot.classList.remove('menu-open'); }
   // in-page dialogs (browser alert/confirm/prompt are blocked in some embeds)
   ask(text, onYes, yesLabel = 'ยืนยัน') {
     const ov = el('div', { class: 'screen dim modal' }, el('div', { class: 'panel', style: { width: 'min(440px, 100%)' } },
@@ -64,15 +71,25 @@ export class UI {
       const sc = this.app.scene;
       if (!sc || sc.background) return;
       if (sc.replay.playing && ['Space', 'Enter', 'Escape'].includes(e.code)) { sc.replay.stop(); return; }
-      if (e.code === 'Escape') { if (this.screen && this.screen.name === 'pause') { this.close(); sc.paused = false; } else if (!this.screen && sc.phase !== 'ended') { sc.paused = true; this.go('pause'); } }
+      if (e.code === 'Escape') this.togglePause();
       if (e.code === 'Tab') this.app.hud.toggleDamage();
     });
+    // tap to skip the replay on touch screens
+    this.app.view.addEventListener('pointerdown', () => { const sc = this.app.scene; if (sc && !sc.background && sc.replay.playing) sc.replay.stop(); });
+  }
+  togglePause() {
+    const sc = this.app.scene;
+    if (!sc || sc.background) return;
+    if (this.screen && this.screen.name === 'pause') { this.close(); sc.paused = false; }
+    else if (!this.screen && sc.phase !== 'ended') { sc.paused = true; this.go('pause'); }
   }
   bindOrbit() {
     const v = this.app.view; let drag = null;
-    v.addEventListener('pointerdown', (e) => { if (this.app.world.cam.mode === 'orbit') drag = [e.clientX, e.clientY]; });
-    window.addEventListener('pointerup', () => { drag = null; });
+    v.addEventListener('pointerdown', (e) => { if (this.pickBody(e)) return; if (this.app.world.cam.mode === 'orbit') drag = [e.clientX, e.clientY]; });
+    window.addEventListener('pointerup', () => { drag = null; this.endDrag(); });
+    window.addEventListener('pointercancel', () => { drag = null; this.endDrag(); });
     window.addEventListener('pointermove', (e) => {
+      if (this.drag) { this.moveDrag(e); return; }
       if (!drag) return;
       const c = this.app.world.cam;
       c.orbitYaw -= (e.clientX - drag[0]) * 0.006; c.orbitPitch = clamp(c.orbitPitch + (e.clientY - drag[1]) * 0.004, 0.05, 1.3);
@@ -110,44 +127,46 @@ export class UI {
   // ================= SCREENS =================
   scr_title() {
     const has = !!this.career && !this.career.d.ended;
-    return el('div', { class: 'screen dim' }, el('div', { style: { width: 'min(560px, 100%)' } },
+    const tile = (pic, label, sub, fn, cls = '') => el('button', { class: 'tile ' + cls, onclick: fn }, el('span', { class: 'pic' }, pic), el('span', {}, label), sub ? el('span', { class: 'sub' }, sub) : null);
+    const fs = el('button', { class: 'iconbtn fs-btn', title: 'เต็มจอ', onclick: () => { try { const d = document.documentElement; (d.requestFullscreen ? d.requestFullscreen() : Promise.reject()).then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} }).catch(() => this.toast('อุปกรณ์นี้ไม่รองรับโหมดเต็มจอ')); } catch (e) { this.toast('อุปกรณ์นี้ไม่รองรับโหมดเต็มจอ'); } } }, icon('expand', 22), 'เต็มจอ');
+    return el('div', { class: 'screen dim' }, fs, el('div', { style: { width: 'min(760px, 100%)' } },
       el('div', { class: 'title-logo' }, 'สังเวียนเลือด', el('span', { class: 'en' }, 'CAGE BLOOD')),
-      el('div', { class: 'title-sub' }, 'MMA แซนด์บ็อกซ์ · ฟิสิกส์ร่างกายจริง · เลือดและอาการบาดเจ็บสมจริง · โหมดอาชีพพร้อมเนื้อเรื่อง'),
-      el('div', { class: 'menu' },
-        has ? el('button', { class: 'btn primary', onclick: () => this.openCareer() }, '▶ เล่นโหมดอาชีพต่อ', el('span', { class: 'desc' }, `${this.career.f.name} · ${this.career.dateStr}`)) : null,
-        el('button', { class: 'btn' + (has ? '' : ' primary'), onclick: () => this.newCareer() }, '★ เริ่มอาชีพใหม่ (เนื้อเรื่อง)', el('span', { class: 'desc' }, 'สร้างนักสู้ของคุณ วาดหน้าเอง แล้วไต่จากสมัครเล่นสู่แชมป์โลก')),
-        el('button', { class: 'btn', onclick: () => this.go('quick') }, '⚡ ไฟต์ด่วน', el('span', { class: 'desc' }, 'ชกทันที เลือกคู่ชกและสไตล์เอง')),
-        el('button', { class: 'btn', onclick: () => this.go('sandboxSetup') }, '🧪 แซนด์บ็อกซ์', el('span', { class: 'desc' }, 'ทดลองทุกอย่าง: สโลว์โมชัน ทำให้บาดเจ็บ สลับฝั่ง กล้องอิสระ')),
-        el('button', { class: 'btn', onclick: () => this.go('fighters') }, '👤 นักสู้ของฉัน / สร้างนักสู้'),
-        el('button', { class: 'btn', onclick: () => this.go('help') }, '🎮 วิธีเล่น & ปุ่มควบคุม'),
-        el('button', { class: 'btn', onclick: () => this.go('settings') }, '⚙️ ตั้งค่า'),
-        el('button', { class: 'btn', onclick: () => this.go('research') }, '📚 ข้อมูลอ้างอิงที่ใช้สร้างเกม'),
+      el('div', { class: 'title-sub' }, 'MMA แซนด์บ็อกซ์ · ฟิสิกส์ร่างกาย · เลือดสมจริง'),
+      el('div', { class: 'tiles' },
+        has ? tile('▶️', 'เล่นต่อ', `${this.career.f.name} · ${this.career.dateStr}`, () => this.openCareer(), 'primary') : null,
+        tile('🏆', 'อาชีพใหม่', 'สร้างนักสู้ วาดหน้า ไต่สู่แชมป์โลก', () => this.newCareer(), has ? '' : 'primary'),
+        tile('⚡', 'ไฟต์ด่วน', 'ชกทันที', () => this.go('quick')),
+        tile('🧪', 'แซนด์บ็อกซ์', 'ragdoll สโลว์โม ทำแผล', () => this.go('sandboxSetup')),
+        tile('🧑‍🎨', 'นักสู้ของฉัน', 'สร้าง / แก้ไขนักสู้', () => this.go('fighters')),
+        tile('🎮', 'วิธีเล่น', 'ปุ่มคีย์บอร์ดและจอสัมผัส', () => this.go('help')),
+        tile('⚙️', 'ตั้งค่า', 'ความสว่าง กราฟิก เลือด', () => this.go('settings')),
+        tile('📚', 'ข้อมูลอ้างอิง', 'งานวิจัยที่ใช้', () => this.go('research')),
       )));
   }
 
   scr_help() {
     const k = (x) => el('kbd', {}, x);
-    const sec = (t, rows) => el('div', { class: 'card' }, el('h3', {}, t), ...rows.map(([a, b]) => el('div', {}, ...[].concat(a).map((x) => [k(x), ' ']), ' ', b)));
+    const row = (keys, ic, text) => el('div', { class: 'help-row' }, icon(ic, 22), el('span', { class: 'keys' }, ...[].concat(keys).map((x) => [k(x), ' '])), el('span', {}, text));
+    const sec = (pic, t, rows) => el('div', { class: 'card' }, el('h3', {}, pic + ' ' + t), ...rows.map((r) => row(...r)));
     return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(1000px, 100%)', maxHeight: '92vh', overflow: 'auto' } },
-      el('h2', {}, 'วิธีเล่น'),
+      el('h2', {}, '🎮 วิธีเล่น'),
       el('div', { class: 'help-grid' },
-        sec('เคลื่อนที่', [[['W', 'S'], 'เดินหน้า/ถอยหลัง (เข้า-ออกจากคู่ชก)'], [['A', 'D'], 'วนซ้าย/ขวารอบคู่ชก'], [['Z', 'X'], 'หลบหัวซ้าย/ขวา (Slip)'], ['C', 'ก้มหลบ (Duck) / สปรอลกันเทคดาวน์']]),
-        sec('หมัด (ใส่หัว · กด Shift ค้าง = เข้าลำตัว)', [['J', 'แย็บ (Jab)'], ['K', 'หมัดตรงหลัง (Cross)'], ['U', 'ฮุคหน้า'], ['I', 'ฮุคหลัง'], ['N', 'อัปเปอร์คัตหน้า'], ['M', 'อัปเปอร์คัตหลัง'], ['Y', 'ศอก (แผลแตกง่ายมาก)']]),
-        sec('เตะ (ปกติ = ลำตัว · Shift = เตะขา · Q ค้าง = เตะหัว)', [['O', 'เตะเท้าหน้า (คาล์ฟคิก/สวิตช์คิก)'], ['L', 'เตะเท้าหลัง (เตะหนัก)'], ['P', 'ถีบ (Teep)'], ['H', 'เข่า'], ['E', 'ยกแข้งบล็อกเตะ (Check)']]),
-        sec('ป้องกัน', [['Space', 'ยกการ์ดสูง (ค้าง)'], [['Space', 'Shift'], 'การ์ดต่ำป้องกันลำตัว'], ['V', 'ค้าง + กดหมัด = หลอก (Feint)']]),
-        sec('ปล้ำ', [['F', 'เข้าคลินช์ (ในคลินช์ F/S = ถอยออก)'], ['G', 'ยิงเทคดาวน์ / ในคลินช์ = ทุ่ม / หลังสปรอลได้ = กิโยตีน'], ['W', 'ในคลินช์: ดันติดกรง']]),
-        sec('บนพื้น', [['W', 'ด้านบน: ไล่ตำแหน่ง · ด้านล่าง: สวีป'], [['A', 'D'], 'ด้านล่าง: หนีตำแหน่ง'], ['S', 'ลุกขึ้นยืน'], ['G', 'จับล็อก (ซับมิชชัน)'], ['J/K/U/I/Y', 'ทุบ / ศอก จากด้านบน'], ['Space', 'ด้านล่าง: ปิดหน้า · ระหว่างโดนล็อก: รัวเพื่อแก้']]),
-        sec('อื่นๆ', [['Esc', 'หยุดเกม'], ['Tab', 'แผนผังร่างกายและอาการบาดเจ็บ'], [['Space', 'Enter'], 'ข้ามรีเพลย์']]),
+        sec('🦶', 'เคลื่อนที่', [[['W', 'S'], 'up', 'เข้า / ถอย'], [['A', 'D'], 'dodge', 'วนซ้าย / ขวา'], [['Z', 'X'], 'dodge', 'หลบหัว'], ['C', 'duck', 'ก้ม / สปรอล']]),
+        sec('👊', 'หมัด (Shift = ลำตัว)', [['J', 'jab', 'แย็บ'], ['K', 'fist', 'หมัดหลัง'], ['U', 'hookL', 'ฮุคหน้า'], ['I', 'hookR', 'ฮุคหลัง'], [['N', 'M'], 'upper', 'อัปเปอร์คัต'], ['Y', 'elbow', 'ศอก']]),
+        sec('🦵', 'เตะ (Shift = ขา · Q = หัว)', [['O', 'kick', 'เตะเท้าหน้า'], ['L', 'kick', 'เตะเท้าหลัง'], ['P', 'teep', 'ถีบ'], ['H', 'knee', 'เข่า'], ['E', 'check', 'ยกแข้งกันเตะ']]),
+        sec('🛡️', 'ป้องกัน', [['Space', 'shield', 'การ์ดสูง (ค้าง)'], [['Space', 'Shift'], 'shieldLow', 'การ์ดลำตัว'], ['V', 'eye', 'ค้าง + หมัด = หลอก']]),
+        sec('🤼', 'ปล้ำ', [['F', 'clinch', 'คลินช์'], ['G', 'takedown', 'เทคดาวน์ / ทุ่ม / ล็อก']]),
+        sec('⬇️', 'บนพื้น', [['W', 'up', 'ไล่ตำแหน่ง / สวีป'], [['A', 'D'], 'dodge', 'หนีตำแหน่ง'], ['S', 'duck', 'ลุกขึ้น'], ['G', 'lock', 'จับล็อก'], ['Space', 'hand', 'ปิดหน้า / รัวแก้ล็อก']]),
+        sec('📱', 'จอสัมผัส', [[[], 'target', 'จอยซ้าย = เดิน · ปุ่มขวา = หมัด เตะ การ์ด'], [[], 'body', 'ปุ่ม ลำตัว/ขา และ เตะหัว เป็นสวิตช์เปิด-ปิด'], [[], 'up', 'บนพื้น: ดันจอย ขึ้น/ลง/ซ้าย/ขวา'], [[], 'hand', 'ตอนโดนล็อก: รัวปุ่มมือตรงกลาง']]),
+        sec('⏸️', 'อื่นๆ', [['Esc', 'pause', 'หยุดเกม'], ['Tab', 'body', 'ดูอาการบาดเจ็บ'], [['Space'], 'play', 'ข้ามรีเพลย์ (มือถือ: แตะจอ)']]),
       ),
-      el('div', { class: 'card', style: { marginTop: '12px' } }, el('h3', {}, 'เคล็ดลับความสมจริง'),
+      el('div', { class: 'card', style: { marginTop: '12px' } }, el('h3', {}, '💡 เคล็ดลับ'),
         el('ul', {},
-          el('li', {}, 'หมัดที่ "หมุนหัว" (ฮุค อัปเปอร์คัต เข้าคาง/กราม) น็อกง่ายกว่าหมัดตรงเข้าหน้าผาก — หมัดหน้าผากทำให้คิ้วแตกแทน'),
-          el('li', {}, 'หมัดสวน (โดนตอนคู่ชกกำลังพุ่งเข้ามา) แรงกว่าเพราะความเร็วสัมพัทธ์รวมกัน'),
-          el('li', {}, 'หมัดเข้าตับ (ฮุคซ้ายเข้าลำตัวฝั่งขวาของคู่ชก) ทำให้ทรุดแบบหน่วงเวลา'),
-          el('li', {}, 'เตะน่องสะสม → เส้นประสาทขาชา ขาทรุดเองเมื่อลงน้ำหนัก'),
-          el('li', {}, 'เลือดไหลเข้าตาและตาบวมจะบังการมองเห็นจริงๆ — แพทย์อาจสั่งยุติการชก'),
-          el('li', {}, 'ทุกการโดนชกสะสมเป็นความเสียหายของสมองในโหมดอาชีพ (คางจะอ่อนลงถาวร)'))),
-      el('button', { class: 'btn', style: { marginTop: '12px' }, onclick: () => this.back() }, '← กลับ')));
+          el('li', {}, 'ฮุค/อัปเปอร์คัตเข้าคาง = น็อกง่าย · หมัดเข้าหน้าผาก = คิ้วแตก'),
+          el('li', {}, 'หมัดสวนตอนคู่ชกพุ่งเข้ามาแรงกว่า'),
+          el('li', {}, 'ฮุคซ้ายเข้าลำตัวฝั่งขวาคู่ชก = หมัดตับ ทรุดตามหลัง'),
+          el('li', {}, 'เตะน่องสะสม = ขาตาย · เลือดเข้าตา/ตาบวม = มองไม่เห็น'))),
+      el('button', { class: 'btn', style: { marginTop: '12px' }, onclick: () => this.back() }, icon('back', 18), ' กลับ')));
   }
   back() {
     const sc = this.app.scene;
@@ -165,10 +184,13 @@ export class UI {
     const [o4, i4] = rng_('clockScale', 1, 4, 0.5, (v) => v === 1 ? 'เวลาจริง (ยกละ 5 นาที)' : `เร็วขึ้น ${v}x (ยกละ ~${(5 / v).toFixed(1)} นาที)`);
     const [o5, i5] = rng_('difficulty', 0.2, 1, 0.05, (v) => v < 0.4 ? 'ง่าย' : v < 0.65 ? 'ปกติ' : v < 0.85 ? 'ยาก' : 'โปร');
     const [o6, i6] = rng_('refPatience', 0, 1, 0.1, (v) => v < 0.3 ? 'หยุดเร็ว' : v < 0.7 ? 'ปกติ' : 'ปล่อยนาน');
+    const [o7, i7] = rng_('brightness', 0.8, 2.2, 0.05, (v) => v < 1.1 ? 'มืด' : v < 1.6 ? 'ปกติ' : v < 1.9 ? 'สว่าง' : 'สว่างมาก');
+    const touchSel = el('div', { class: 'iconbar' }, ...[['auto', '🤖', 'อัตโนมัติ'], ['on', '📱', 'เปิด'], ['off', '⌨️', 'ปิด']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (s.touch === v ? ' sel' : ''), onclick: () => { s.touch = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(560px, 100%)' } },
-      el('h2', {}, 'ตั้งค่า'),
-      row(el('span', {}, 'ความละเอียดกราฟิก', o1), i1), row(el('span', {}, 'ระดับเลือด', o2), i2), row(el('span', {}, 'เสียง', o3), i3),
-      row(el('span', {}, 'นาฬิกาในไฟต์', o4), i4), row(el('span', {}, 'ความยาก AI', o5), i5), row(el('span', {}, 'กรรมการหยุดไฟต์', o6), i6),
+      el('h2', {}, '⚙️ ตั้งค่า'),
+      row(el('span', {}, '☀️ ความสว่าง', o7), i7), row(el('span', {}, '🥔 ความละเอียดกราฟิก', o1), i1), row(el('span', {}, '🩸 ระดับเลือด', o2), i2), row(el('span', {}, '🔊 เสียง', o3), i3),
+      row(el('span', {}, '⏱️ นาฬิกาในไฟต์', o4), i4), row(el('span', {}, '🧠 ความยาก AI', o5), i5), row(el('span', {}, '🧑‍⚖️ กรรมการหยุดไฟต์', o6), i6),
+      row(el('span', {}, '📱 ปุ่มบนจอสัมผัส'), touchSel),
       el('label', {}, el('input', { type: 'checkbox', checked: s.replay ? 'checked' : null, onchange: (e) => { s.replay = e.target.checked; writeSave(this.app.save); } }), ' แสดงรีเพลย์ตอนน็อก'),
       el('h3', {}, 'สำรองเซฟ'),
       el('div', { class: 'row' },
@@ -221,6 +243,7 @@ export class UI {
 
   openCreator(done, cancel, opts) {
     this.stopBackground();
+    this.app.preview.zoom = 1; this.app.preview.offset = 0.55;
     const cr = new Creator(this, (p) => { this.app.preview.clear(); this.creator = null; this.backgroundFight(); done(p); }, () => { this.app.preview.clear(); this.creator = null; this.backgroundFight(); cancel(); }, opts);
     this.creator = cr;
     cr.refreshPreview();
@@ -245,9 +268,9 @@ export class UI {
     this.go('career');
     this.checkStory();
     // ambient: show my fighter in the empty octagon
-    loadFaceCanvas(this.career.f.faceData).then((c) => { if (this.screen && this.screen.name === 'career') { this.app.preview.offset = -0.9; this.app.preview.show(this.career.myFightProfile(null), c); } });
+    loadFaceCanvas(this.career.f.faceData).then((c) => { if (this.screen && this.screen.name === 'career') { this.app.preview.offset = 0; this.app.preview.zoom = 1.7; this.app.preview.show(this.career.myFightProfile(null), c); } });
   }
-  leaveCareer() { this.app.preview.clear(); this.app.preview.offset = 0.55; this.save(); this.go('title'); this.backgroundFight(); }
+  leaveCareer() { this.app.preview.clear(); this.app.preview.offset = 0.55; this.app.preview.zoom = 1; this.save(); this.go('title'); this.backgroundFight(); }
 
   checkStory() {
     const c = this.career;
@@ -304,22 +327,22 @@ export class UI {
         el('div', { style: { fontSize: '20px', fontWeight: 800 } }, f.name), f.nick ? el('div', { class: 'muted' }, `"${f.nick}"`) : null,
         el('div', { class: 'muted small' }, c.dateStr),
         el('div', { class: 'stat-grid', style: { marginTop: '8px' } },
-          el('span', { class: 'k' }, 'สถิติโปร'), el('b', {}, `${f.record.w}-${f.record.l}-${f.record.d}`),
-          el('span', { class: 'k' }, 'สมัครเล่น'), el('span', {}, `${f.am.w}-${f.am.l}`),
-          el('span', { class: 'k' }, 'สังกัด'), el('span', {}, PROMOTIONS[d.promo].short),
-          el('span', { class: 'k' }, 'อันดับ'), el('span', {}, d.champ ? '🏆 แชมป์' : rank ? `#${rank}` : d.regionalChamp ? 'แชมป์ภูมิภาค' : '-'),
-          el('span', { class: 'k' }, 'อายุ'), el('span', {}, `${f.age} ปี`),
-          el('span', { class: 'k' }, 'ค่าพลังรวม'), el('b', {}, String(c.ovr())),
-          el('span', { class: 'k' }, 'เงิน'), el('b', { style: { color: d.money < 0 ? '#ff6b6b' : '#9fe39f' } }, money(d.money)),
-          el('span', { class: 'k' }, 'หนี้วิกเตอร์'), el('span', { style: { color: '#ff9b9b' } }, money(d.debt)),
-          el('span', { class: 'k' }, 'กระแส (Hype)'), el('span', {}, `${Math.round(d.hype)}`),
-          el('span', { class: 'k' }, 'ชื่อเสียง'), el('span', {}, `${Math.round(d.fame)}`),
-          el('span', { class: 'k' }, 'ขวัญกำลังใจ'), el('span', {}, `${Math.round(d.morale)}`),
-          el('span', { class: 'k' }, 'ความล้า'), el('span', { style: { color: d.fatigue > 70 ? '#ff6b6b' : '' } }, `${Math.round(d.fatigue)}`),
-          el('span', { class: 'k' }, 'น้ำหนักตัว'), el('span', {}, `${f.walkKg.toFixed(1)} / ลิมิต ${c.wc.kg.toFixed(1)} กก.`),
-          el('span', { class: 'k' }, 'สมองเสียหายสะสม'), el('span', { style: { color: d.health.brainDamage > 40 ? '#ff6b6b' : '' } }, `${Math.round(d.health.brainDamage)}/100`),
+          el('span', { class: 'k' }, '🥊 สถิติโปร'), el('b', {}, `${f.record.w}-${f.record.l}-${f.record.d}`),
+          el('span', { class: 'k' }, '🥉 สมัครเล่น'), el('span', {}, `${f.am.w}-${f.am.l}`),
+          el('span', { class: 'k' }, '🏟️ สังกัด'), el('span', {}, PROMOTIONS[d.promo].short),
+          el('span', { class: 'k' }, '🏅 อันดับ'), el('span', {}, d.champ ? '🏆 แชมป์' : rank ? `#${rank}` : d.regionalChamp ? 'แชมป์ภูมิภาค' : '-'),
+          el('span', { class: 'k' }, '🎂 อายุ'), el('span', {}, `${f.age} ปี`),
+          el('span', { class: 'k' }, '📈 ค่าพลังรวม'), el('b', {}, String(c.ovr())),
+          el('span', { class: 'k' }, '💰 เงิน'), el('b', { style: { color: d.money < 0 ? '#ff6b6b' : '#9fe39f' } }, money(d.money)),
+          el('span', { class: 'k' }, '💸 หนี้'), el('span', { style: { color: '#ff9b9b' } }, money(d.debt)),
+          el('span', { class: 'k' }, '🔥 กระแส'), el('span', {}, `${Math.round(d.hype)}`),
+          el('span', { class: 'k' }, '⭐ ชื่อเสียง'), el('span', {}, `${Math.round(d.fame)}`),
+          el('span', { class: 'k' }, '🙂 ขวัญกำลังใจ'), el('span', {}, `${Math.round(d.morale)}`),
+          el('span', { class: 'k' }, '😓 ความล้า'), el('span', { style: { color: d.fatigue > 70 ? '#ff6b6b' : '' } }, `${Math.round(d.fatigue)}`),
+          el('span', { class: 'k' }, '⚖️ น้ำหนัก'), el('span', {}, `${f.walkKg.toFixed(1)} / ลิมิต ${c.wc.kg.toFixed(1)} กก.`),
+          el('span', { class: 'k' }, '🧠 สมองเสียหาย'), el('span', { style: { color: d.health.brainDamage > 40 ? '#ff6b6b' : '' } }, `${Math.round(d.health.brainDamage)}/100`),
         )),
-      el('div', { class: 'card' }, el('h3', {}, 'สุขภาพ'),
+      el('div', { class: 'card' }, el('h3', {}, '🩺 สุขภาพ'),
         d.health.suspension > 0 ? el('div', { style: { color: '#ffb020' } }, `⛔ พักการชกทางการแพทย์อีก ${d.health.suspension} สัปดาห์`) : null,
         ...(d.health.injuries.length ? d.health.injuries.map((x) => el('div', { class: 'small', style: { color: '#ffb3b3' } }, `• ${x.name} (${x.weeks} สัปดาห์)`)) : [el('div', { class: 'muted small' }, 'ไม่มีอาการบาดเจ็บ')])),
       d.debt > 0 && d.money > 1000 ? el('button', { class: 'btn small', onclick: () => { const pay = Math.min(d.debt, Math.floor(d.money / 1000) * 1000); d.money -= pay; d.debt -= pay; this.toast(`จ่ายหนี้ ${money(pay)}`); this.save(); this.refresh(); } }, '💸 จ่ายหนี้วิกเตอร์') : null,
@@ -328,7 +351,7 @@ export class UI {
     );
     const tabs = el('div', { class: 'tabs' });
     const unread = d.inbox.filter((m) => !m.read).length;
-    for (const [k, t] of [['week', '📅 สัปดาห์นี้'], ['offers', `📩 ข้อเสนอไฟต์${d.offers.length ? ` (${d.offers.length})` : ''}`], ['attrs', '📈 ค่าพลัง'], ['rank', '🏅 อันดับ'], ['inbox', `✉️ ข้อความ${unread ? ` (${unread})` : ''}`], ['history', '📜 ประวัติ'], ['gym', '🏠 ยิม']]) {
+    for (const [k, t] of [['week', '📅 ซ้อม'], ['offers', `📩 ไฟต์${d.offers.length ? ` (${d.offers.length})` : ''}`], ['attrs', '📈 ค่าพลัง'], ['rank', '🏅 อันดับ'], ['inbox', `✉️${unread ? ` (${unread})` : ''}`], ['history', '📜 ประวัติ'], ['gym', '🏠 ยิม']]) {
       tabs.append(el('div', { class: 'tab' + (this.careerTab === k ? ' sel' : ''), onclick: () => { this.careerTab = k; if (k === 'inbox') d.inbox.forEach((m) => (m.read = true)); this.refresh(); } }, t));
     }
     const main = el('div', { class: 'main' }, el('div', { class: 'panel' }, tabs, this['ctab_' + this.careerTab](c)));
@@ -349,10 +372,12 @@ export class UI {
         el('div', { class: 'small', style: { marginTop: '4px', color: (c.f.walkKg - c.wc.kg) / c.f.walkKg > 0.07 ? '#ff9b6b' : '#9fe39f' } }, `ต้องตัดน้ำหนัก ${(Math.max(0, (c.f.walkKg - c.wc.kg) / c.f.walkKg) * 100).toFixed(1)}% ${(c.f.walkKg - c.wc.kg) / c.f.walkKg > 0.07 ? '— หนักเกินไป! เสี่ยงชั่งไม่ผ่านและหมดแรงกลางไฟต์ (คุมอาหาร/คาร์ดิโอ)' : ''}`)));
     } else if (d.health.suspension > 0) box.append(el('p', { class: 'muted' }, 'อยู่ระหว่างพักการชก — ใช้เวลานี้พักฟื้นและพัฒนาฝีมือ'));
     else box.append(el('p', { class: 'muted' }, 'ยังไม่มีไฟต์ — ดูแท็บข้อเสนอไฟต์ หรือรอให้โปรโมเตอร์ติดต่อมา (สร้างกระแสด้วยงานสื่อช่วยได้)'));
-    box.append(el('h3', {}, `แผนซ้อมสัปดาห์นี้ (เลือก 3 อย่าง) — ${d.plan.length}/3`));
-    const grid = el('div', { class: 'activity' });
+    box.append(el('h3', {}, `🗓️ แผนซ้อม ${d.plan.length}/3`), el('div', { class: 'muted small' }, '😓 = เหนื่อย · 💚 = พักฟื้น · แตะค้างดูคำอธิบาย'));
+    const grid = el('div', { class: 'tiles', style: { gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', width: '100%' } });
     for (const [k, a] of Object.entries(ACTIVITIES)) {
-      grid.append(el('button', { class: 'btn small' + (d.plan.includes(k) ? ' sel' : ''), onclick: () => { c.togglePlan(k); this.refresh(); } }, `${a.icon} ${a.name}`, el('span', { class: 'desc' }, a.desc)));
+      const n = d.plan.indexOf(k);
+      grid.append(el('button', { class: 'tile small' + (n >= 0 ? ' sel' : ''), title: a.desc, onclick: () => { c.togglePlan(k); this.refresh(); } },
+        el('span', { class: 'pic' }, a.icon), el('span', {}, a.name), el('span', { class: 'sub' }, n >= 0 ? `✔ ช่อง ${n + 1}` : (a.fat > 0 ? '😓'.repeat(Math.min(3, Math.ceil(a.fat / 10))) : '💚'))));
     }
     box.append(grid);
     if (c.lastReport) {
@@ -360,7 +385,7 @@ export class UI {
       box.append(el('div', { class: 'card', style: { marginTop: '10px' } }, el('b', {}, 'สัปดาห์ที่แล้ว: '), g.join(', ') || 'ไม่มีการพัฒนาค่าพลัง', ...c.lastReport.notes.map((n) => el('div', { class: 'small', style: { color: '#ffcf6a' } }, n))));
     }
     box.append(el('div', { class: 'row', style: { marginTop: '12px' } }, el('div', { class: 'grow' }),
-      el('button', { class: 'btn primary', onclick: () => this.nextWeek() }, d.booked && d.booked.weeksOut <= 1 ? '🥊 สัปดาห์ไฟต์! ▶' : 'สัปดาห์ถัดไป ▶')));
+      el('button', { class: 'btn primary', onclick: () => this.nextWeek() }, d.booked && d.booked.weeksOut <= 1 ? '🥊 สัปดาห์ไฟต์! ▶' : '⏭️ สัปดาห์ถัดไป')));
     return box;
   }
 
@@ -453,7 +478,7 @@ export class UI {
 
   async startCareerFight(mode) {
     const c = this.career, b = c.d.booked;
-    this.app.preview.clear(); this.app.preview.offset = 0.55;
+    this.app.preview.clear(); this.app.preview.offset = 0.55; this.app.preview.zoom = 1;
     const face = await loadFaceCanvas(c.f.faceData);
     const me = c.myFightProfile(this._wi, face);
     const opp = c.oppFightProfile();
@@ -490,16 +515,20 @@ export class UI {
     const q = this.qf = this.qf || { me: 'random', meStyle: 'boxing', opStyle: 'muaythai', opLevel: 2, rounds: 3, mode: 'play', wc: 'light' };
     const mine = this.app.save.fighters;
     const sel = (opts, cur, cb) => el('select', { onchange: (e) => { cb(e.target.value); this.refresh(); } }, ...opts.map(([v, t]) => el('option', { value: v, selected: String(v) === String(cur) ? 'selected' : null }, t)));
-    return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(560px, 100%)' } },
+    const pics = (opts, cur, cb) => el('div', { class: 'iconbar' }, ...opts.map(([v, pic, t]) => el('button', { class: 'iconbtn' + (String(v) === String(cur) ? ' sel' : ''), onclick: () => { cb(v); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
+    const SP = { boxing: '🥊', muaythai: '🐘', wrestling: '🤼', bjj: '🐍', kickboxing: '🦵', judo: '🥋', sambo: '🐻', brawler: '👊' };
+    const styles = STYLE_KEYS.map((k) => [k, SP[k], STYLES[k].name.split(' (')[0]]);
+    return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(640px, 100%)' } },
       el('h2', {}, '⚡ ไฟต์ด่วน'),
-      el('div', { class: 'field' }, el('label', {}, 'นักสู้ของคุณ'), sel([['random', '🎲 สุ่มนักสู้ (เลือกสไตล์)'], ...mine.map((p, i) => [String(i), `${p.name} (${STYLES[p.style].name})`])], q.me, (v) => (q.me = v))),
-      q.me === 'random' ? el('div', { class: 'field' }, el('label', {}, 'สไตล์ของคุณ'), sel(STYLE_KEYS.map((k) => [k, STYLES[k].name]), q.meStyle, (v) => (q.meStyle = v))) : null,
-      el('div', { class: 'field' }, el('label', {}, 'รุ่นน้ำหนัก'), sel(WEIGHT_CLASSES.map((w) => [w.id, w.name]), q.wc, (v) => (q.wc = v))),
-      el('div', { class: 'field' }, el('label', {}, 'สไตล์คู่ชก'), sel(STYLE_KEYS.map((k) => [k, STYLES[k].name]), q.opStyle, (v) => (q.opStyle = v))),
-      el('div', { class: 'field' }, el('label', {}, 'ระดับคู่ชก'), sel([[0, 'สมัครเล่น'], [1, 'โปรภูมิภาค'], [2, 'ระดับท็อป'], [3, 'ระดับแชมป์โลก']], q.opLevel, (v) => (q.opLevel = Number(v)))),
-      el('div', { class: 'field' }, el('label', {}, 'จำนวนยก'), sel([[1, '1 ยก'], [3, '3 ยก'], [5, '5 ยก (ชิงแชมป์)']], q.rounds, (v) => (q.rounds = Number(v)))),
-      el('div', { class: 'field' }, el('label', {}, 'โหมด'), sel([['play', 'คุณ vs AI'], ['watch', 'AI vs AI (ดูอย่างเดียว)']], q.mode, (v) => (q.mode = v))),
-      el('div', { class: 'row' }, el('button', { class: 'btn primary', onclick: () => this.startQuick() }, '🥊 เริ่มไฟต์'), el('button', { class: 'btn', onclick: () => this.go('title') }, '← กลับ'))));
+      el('h3', {}, '🧑 คุณ'),
+      mine.length ? sel([['random', '🎲 สุ่มนักสู้ตามสไตล์'], ...mine.map((p, i) => [String(i), `👤 ${p.name}`])], q.me, (v) => (q.me = v)) : null,
+      q.me === 'random' ? pics(styles, q.meStyle, (v) => (q.meStyle = v)) : null,
+      el('h3', {}, '🆚 คู่ชก'), pics(styles, q.opStyle, (v) => (q.opStyle = v)),
+      el('h3', {}, '📶 ระดับ'), pics([[0, '🥉', 'สมัครเล่น'], [1, '🥈', 'ภูมิภาค'], [2, '🥇', 'ท็อป'], [3, '🏆', 'แชมป์โลก']], q.opLevel, (v) => (q.opLevel = Number(v))),
+      el('h3', {}, '🔔 จำนวนยก'), pics([[1, '1️⃣', '1 ยก'], [3, '3️⃣', '3 ยก'], [5, '5️⃣', '5 ยก']], q.rounds, (v) => (q.rounds = Number(v))),
+      el('h3', {}, '🎮 โหมด'), pics([['play', '🎮', 'เล่นเอง'], ['watch', '🍿', 'ดู AI ชกกัน']], q.mode, (v) => (q.mode = v)),
+      el('h3', {}, '⚖️ รุ่น'), sel(WEIGHT_CLASSES.map((w) => [w.id, w.name]), q.wc, (v) => (q.wc = v)),
+      el('div', { class: 'row', style: { marginTop: '12px' } }, el('button', { class: 'btn primary', onclick: () => this.startQuick() }, '🥊 เริ่มไฟต์'), el('button', { class: 'btn', onclick: () => this.go('title') }, icon('back', 18), ' กลับ'))));
   }
 
   async startQuick(sandbox = false) {
@@ -514,6 +543,8 @@ export class UI {
     const opp = makeNPC(Math.floor(rng() * 1e9), { tier: q.opLevel ?? 2, wc: q.wc || 'light', style: q.opStyle || 'muaythai' });
     this.stopBackground();
     this.close();
+    if (this.sbPanel && !sandbox) { this.sbPanel.remove(); this.sbPanel = null; }
+    this.dragMode = false; this.app.sandboxTimeScale = 1;
     const sc = this.app.startFight({ red: me, blue: opp, playerSide: 'red', playerAI: q.mode === 'watch', rounds: q.rounds || 3, roundLen: 300, aiLevel: this.app.save.settings.difficulty, sandbox, brand: 'APEX' });
     sc.quick = true;
     if (sandbox) { this.sandboxPanel(); }
@@ -532,44 +563,55 @@ export class UI {
 
   sandboxPanel() {
     const sc = this.app.scene; if (!sc) return;
+    if (this.sbPanel) this.sbPanel.remove();
     sc.clock = 1e9; sc.roundLen = 1e9;
     this.app.sandboxTimeScale = 1;
+    this.dragMode = false;
     const settings = sc.sbs = { invincible: false, infStam: false, oneHit: false };
-    const panel = el('div', { class: 'sandbox-panel' });
+    const touch = TouchControls.wanted(this.app.save.settings.touch);
+    const panel = el('div', { class: 'sandbox-panel' + (touch ? ' min' : '') });
     const F = () => [sc.red, sc.blue];
-    const btn = (t, fn) => el('button', { class: 'btn small', onclick: () => { fn(); } }, t);
-    const pick = () => (this.sbTarget === 'red' ? sc.red : sc.blue);
-    const injure = (fn) => () => { const f = pick(); fn(f, f.health); f.fx.setDamage(f.damageView()); f.model.setInjuryVisuals(f.health); };
-    const ctlSel = el('select', { onchange: (e) => {
-      this.setControl(sc, e.target.value);
-    } }, ...[['red', 'คุณคุมฝั่งแดง / AI ฝั่งน้ำเงิน'], ['blue', 'คุณคุมฝั่งน้ำเงิน / AI ฝั่งแดง'], ['aiai', 'AI vs AI'], ['dummy', 'คุมแดง / น้ำเงินเป็นหุ่นยืนเฉย'], ['dummyai', 'AI แดง / น้ำเงินเป็นหุ่นยืนเฉย']].map(([v, t]) => el('option', { value: v }, t)));
     this.sbTarget = 'blue';
-    const tgtSel = el('select', { onchange: (e) => { this.sbTarget = e.target.value; } }, el('option', { value: 'blue' }, 'เป้าหมาย: ฝั่งน้ำเงิน'), el('option', { value: 'red' }, 'เป้าหมาย: ฝั่งแดง'));
-    const ts = el('input', { type: 'range', min: 0.05, max: 1.5, step: 0.05, value: 1, oninput: (e) => { this.app.sandboxTimeScale = Number(e.target.value); tsv.textContent = Number(e.target.value).toFixed(2) + 'x'; } });
-    const tsv = el('b', {}, '1.00x');
-    const tog = (k, t) => el('label', { style: { display: 'block' } }, el('input', { type: 'checkbox', onchange: (e) => { settings[k] = e.target.checked; } }), ' ' + t);
-    panel.append(
-      el('h3', {}, '🧪 แซนด์บ็อกซ์'),
-      ctlSel,
-      el('div', { class: 'field', style: { marginTop: '6px' } }, el('label', {}, 'ความเร็วเวลา ', tsv), ts),
-      el('div', { class: 'row' }, btn('📷 กล้องอิสระ/ถ่ายทอด', () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4; }), btn('🔄 รีเซ็ตตำแหน่ง', () => { if (sc.grapple.link) sc.grapple.release(sc.red); sc.red.placeAt(-1.4, 0, Math.PI / 2); sc.blue.placeAt(1.4, 0, -Math.PI / 2); for (const f of F()) { f.state = 'stand'; f.ko = false; } sc.result = null; sc.phase = 'fight'; })),
-      el('h3', {}, 'ร่างกาย'),
-      el('div', { class: 'row' }, btn('💚 รักษาทั้งคู่', () => { for (const f of F()) { const nf = new (f.health.constructor)(f.attrs, {}); f.health = nf; f.fx.clearAll(); f.fx.setDamage(f.damageView()); f.model.setInjuryVisuals(nf); f.model.gloveBlood = 0; f.ko = false; } }), btn('🧽 ล้างเลือดพื้น', () => { this.app.world.cleanMat(); this.app.blood.clear(); for (const f of F()) f.fx.wipe(1); })),
-      tog('invincible', 'อมตะ (ไม่น็อก ไม่โดนหยุด)'), tog('infStam', 'สตามินาไม่จำกัด'), tog('oneHit', 'หมัดเดียวจอด (น็อกง่ายมาก)'),
-      el('h3', {}, 'ทำให้บาดเจ็บ'), tgtSel,
-      el('div', { class: 'row' },
-        btn('🩸 คิ้วซ้ายแตก', injure((f, h) => h.addCut(0.7, 0.355, 'browL', 1.3))), btn('🩸 คิ้วขวาแตก', injure((f, h) => h.addCut(0.3, 0.355, 'browR', 1.3))),
-        btn('🩸 หน้าผากแตก (ศอก)', injure((f, h) => h.addCut(0.5, 0.18, 'forehead', 1.6))), btn('👃 จมูกหัก', injure((f, h) => { h.noseBroken = true; h.noseDeviation = 0.35; h.noseBleed = 0.9; h.nose = 1.2; })),
-        btn('👁 ตาบวมปิด', injure((f, h) => { h.swell.eyeL = 1.1; })), btn('🦵 ขาตาย (Dead leg)', injure((f, h) => { h.legs[f.lead] = 100; h.deadLeg[f.lead] = true; })),
-        btn('😵 มึนงง (Rocked)', injure((f, h) => { h.rocked = 6; h.consc = 0.4; })), btn('💥 น็อกเลย', injure((f, h) => { f.ko = true; h.consc = 0; f.fall({ kind: 'ko', dir: f.rig.F.dir(f.rig.root.clone().set(0, 0, -1), f.rig.root.clone()), power: 1.2, fencing: rng() < 0.6 }); })),
-        btn('🫸 ผลักล้ม', injure((f) => f.fall({ kind: 'trip', power: 0.8 }))), btn('🫃 หมัดตับ (ทรุด)', injure((f, h) => { h.liverDelay = 0.4; }))),
-      el('h3', {}, 'นักสู้ใหม่'),
-      el('div', { class: 'row' }, btn('🎲 สุ่มคู่ชกใหม่', () => { this.qf.opStyle = STYLE_KEYS[Math.floor(rng() * STYLE_KEYS.length)]; this.startQuick(true); })),
-      el('button', { class: 'btn small ghost', style: { marginTop: '8px' }, onclick: () => { panel.remove(); this.app.sandboxTimeScale = 1; this.app.endScene(); this.go('title'); this.backgroundFight(); } }, '← ออกจากแซนด์บ็อกซ์'),
+    const pick = () => (this.sbTarget === 'red' ? sc.red : sc.blue);
+    const B = (pic, t, fn, opts = {}) => {
+      const b = el('button', { class: 'iconbtn' + (opts.sel ? ' sel' : ''), title: opts.tip || t, onclick: () => { fn(b); } }, el('span', { class: 'pic' }, pic), t);
+      return b;
+    };
+    const group = (title, ...btns) => [el('div', { class: 'sb-title' }, title), el('div', { class: 'sb-grid' }, ...btns)];
+    const radio = (b) => { for (const x of b.parentNode.children) x.classList.remove('sel'); b.classList.add('sel'); };
+    const injure = (fn) => () => { const f = pick(); fn(f, f.health); f.fx.setDamage(f.damageView()); f.model.setInjuryVisuals(f.health); };
+    const tog = (k) => (b) => { settings[k] = !settings[k]; b.classList.toggle('sel', settings[k]); };
+    const speed = (v) => (b) => { this.app.sandboxTimeScale = v; radio(b); };
+    const reset = () => { if (sc.grapple.link) sc.grapple.release(sc.red); sc.red.placeAt(-1.4, 0, Math.PI / 2); sc.blue.placeAt(1.4, 0, -Math.PI / 2); for (const f of F()) { f.state = 'stand'; f.ko = false; f.holdRag = false; f.rig.grab = null; } sc.result = null; sc.phase = 'fight'; };
+    const limp = (f) => { f.holdRag = true; f.fall({ kind: 'limp', power: 0.3, dir: new THREE.Vector3(rng() - 0.5, 0, rng() - 0.5) }); };
+    const getUp = (f) => { f.holdRag = false; f.ko = false; f.health.consc = Math.max(f.health.consc, 0.8); f.health.rocked = 0; f.rig.grab = null; };
+    const head = el('div', { class: 'sb-head' }, el('b', {}, '🧪 แซนด์บ็อกซ์'), el('button', { class: 'iconbtn sb-min', onclick: () => panel.classList.toggle('min') }, el('span', { class: 'pic' }, '☰'), 'เมนู'));
+    const body = el('div', { class: 'sb-body' },
+      ...group('🎮 ใครคุม', B('🔴', 'คุมแดง', (b) => { this.setControl(sc, 'red'); radio(b); }, { sel: true }), B('🔵', 'คุมน้ำเงิน', (b) => { this.setControl(sc, 'blue'); radio(b); }), B('🤖', 'AI vs AI', (b) => { this.setControl(sc, 'aiai'); radio(b); }),
+        B('🧍', 'คู่เป็นหุ่น', (b) => { this.setControl(sc, 'dummy'); radio(b); }), B('🎯', 'AI ตีหุ่น', (b) => { this.setControl(sc, 'dummyai'); radio(b); })),
+      ...group('⏱️ เวลา', B('🐌', '0.1x', speed(0.1)), B('🐢', '0.3x', speed(0.3)), B('▶️', '1x', speed(1), { sel: true })),
+      ...group('🪆 Ragdoll',
+        B('✋', 'ลากร่าง', (b) => { this.dragMode = !this.dragMode; b.classList.toggle('sel', this.dragMode); this.toast(this.dragMode ? 'ลากตัวนักสู้ด้วยเมาส์หรือนิ้ว' : 'ปิดโหมดลากร่าง'); }, { tip: 'กดค้างที่ตัวนักสู้แล้วลาก' }),
+        B('🪆', 'ตัวอ่อน', () => limp(pick())), B('💫', 'ล้มทั้งคู่', () => F().forEach(limp)), B('🧍', 'ลุกขึ้น', () => F().forEach(getUp)),
+        B('🫸', 'ผลักล้ม', injure((f) => f.fall({ kind: 'trip', power: 0.9, dir: new THREE.Vector3(rng() - 0.5, 0, rng() - 0.5).normalize() })))),
+      ...group('🎯 เป้าหมาย', B('🔵', 'น้ำเงิน', (b) => { this.sbTarget = 'blue'; radio(b); }, { sel: true }), B('🔴', 'แดง', (b) => { this.sbTarget = 'red'; radio(b); })),
+      ...group('🩸 ทำให้บาดเจ็บ',
+        B('🩸', 'คิ้วซ้าย', injure((f, h) => h.addCut(0.7, 0.355, 'browL', 1.3))), B('🩸', 'คิ้วขวา', injure((f, h) => h.addCut(0.3, 0.355, 'browR', 1.3))),
+        B('🩸', 'หน้าผาก', injure((f, h) => h.addCut(0.5, 0.18, 'forehead', 1.6))), B('👃', 'จมูกหัก', injure((f, h) => { h.noseBroken = true; h.noseDeviation = 0.35; h.noseBleed = 0.9; h.nose = 1.2; })),
+        B('👁️', 'ตาบวม', injure((f, h) => { h.swell.eyeL = 1.1; })), B('🦵', 'ขาตาย', injure((f, h) => { h.legs[f.lead] = 100; h.deadLeg[f.lead] = true; })),
+        B('😵', 'มึนงง', injure((f, h) => { h.rocked = 6; h.consc = 0.4; })), B('💥', 'น็อก', injure((f, h) => { f.ko = true; h.consc = 0; f.fall({ kind: 'ko', dir: f.rig.F.dir(new THREE.Vector3(0, 0, -1), new THREE.Vector3()), power: 1.2, fencing: rng() < 0.6 }); })),
+        B('🫃', 'หมัดตับ', injure((f, h) => { h.liverDelay = 0.4; }))),
+      ...group('⚙️ กติกา', B('🛡️', 'อมตะ', tog('invincible')), B('♾️', 'แรงไม่หมด', tog('infStam')), B('💥', 'หมัดเดียวจอด', tog('oneHit'))),
+      ...group('🧰 อื่นๆ',
+        B('📷', 'กล้อง', () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4; }), B('🔄', 'รีเซ็ต', reset),
+        B('💚', 'รักษา', () => { for (const f of F()) { const nf = new (f.health.constructor)(f.attrs, {}); f.health = nf; f.fx.clearAll(); f.fx.setDamage(f.damageView()); f.model.setInjuryVisuals(nf); f.model.gloveBlood = 0; f.ko = false; } }),
+        B('🧽', 'ล้างเลือด', () => { this.app.world.cleanMat(); this.app.blood.clear(); for (const f of F()) f.fx.wipe(1); }),
+        B('🎲', 'คู่ชกใหม่', () => { this.qf.opStyle = STYLE_KEYS[Math.floor(rng() * STYLE_KEYS.length)]; this.startQuick(true); }),
+        B('🚪', 'ออก', () => this.exitFight())),
     );
+    panel.append(head, body);
     this.app.uiRoot.appendChild(panel);
     this.sbPanel = panel;
-    sc.onEndHook = () => true; // sandbox never auto-ends
     const orig = sc.stepFixed.bind(sc);
     sc.stepFixed = (h) => {
       for (const f of F()) {
@@ -581,6 +623,40 @@ export class UI {
       orig(h);
     };
   }
+
+  // sandbox ragdoll dragging (mouse or finger): pick the nearest joint under the pointer and pull it
+  pickBody(e) {
+    const sc = this.app.scene; if (!sc || !sc.sandbox || !this.dragMode) return false;
+    const rect = this.app.view.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, this.app.world.camera);
+    const o = ray.ray.origin, d = ray.ray.direction;
+    let best = null;
+    for (const f of [sc.red, sc.blue]) {
+      f.rig.pts.forEach((p, idx) => {
+        const v = p.clone().sub(o); const t = v.dot(d); if (t < 0) return;
+        const dist = v.addScaledVector(d, -t).length();
+        if (dist < 0.32 && (!best || dist < best.dist)) best = { f, idx, t, dist };
+      });
+    }
+    if (!best) return false;
+    const f = best.f;
+    if (f.rig.mode !== 'anim' || f.state === 'grapple') { if (sc.grapple.link) sc.grapple.release(f); }
+    if (f.rig.mode === 'anim') f.fall({ kind: 'grab', power: 0 });
+    f.rig.grab = { idx: best.idx, target: f.rig.pts[best.idx].clone() };
+    this.drag = { f, t: best.t };
+    return true;
+  }
+  moveDrag(e) {
+    if (!this.drag) return;
+    const rect = this.app.view.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(ndc, this.app.world.camera);
+    const g = this.drag.f.rig.grab; if (!g) { this.drag = null; return; }
+    g.target.copy(ray.ray.origin).addScaledVector(ray.ray.direction, this.drag.t);
+    if (g.target.y < 0.05) g.target.y = 0.05;
+  }
+  endDrag() { if (this.drag) { this.drag.f.rig.grab = null; this.drag = null; } }
 
   setControl(sc, v) {
     const mkAI = (f) => new (sc._AI)(f, this.app.save.settings.difficulty);
@@ -597,13 +673,14 @@ export class UI {
   // ---------- in-fight overlays ----------
   scr_pause() {
     const sc = this.app.scene;
-    return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(420px, 100%)' } },
-      el('h2', {}, '⏸ หยุดชั่วคราว'),
-      el('div', { class: 'menu', style: { width: '100%' } },
-        el('button', { class: 'btn primary', onclick: () => { sc.paused = false; this.close(); } }, '▶ เล่นต่อ'),
-        el('button', { class: 'btn', onclick: () => this.go('help') }, '🎮 ปุ่มควบคุม'),
-        el('button', { class: 'btn', onclick: () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4.5; sc.paused = false; this.close(); } }, '📷 สลับกล้อง (ถ่ายทอด / อิสระ: ลากเมาส์)'),
-        el('button', { class: 'btn', onclick: () => this.ask(sc.career ? 'โยนผ้ายอมแพ้? ไฟต์นี้จะนับเป็นแพ้ TKO' : 'ออกจากไฟต์นี้?', () => { sc.paused = false; this.close(); if (sc.career) { sc.endFight(sc.blue, 'TKO', 'ถอนตัว (Corner Stoppage)'); } else { this.exitFight(); } }, sc.career ? 'โยนผ้า' : 'ออก') }, sc.career ? '🏳 ยอมแพ้ (โยนผ้า)' : '🚪 ออกไปเมนูหลัก'))));
+    const T = (pic, label, fn, cls = '') => el('button', { class: 'tile ' + cls, onclick: fn }, el('span', { class: 'pic' }, pic), el('span', {}, label));
+    return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(520px, 100%)' } },
+      el('h2', {}, '⏸️ หยุดชั่วคราว'),
+      el('div', { class: 'tiles', style: { gridTemplateColumns: 'repeat(2, 1fr)' } },
+        T('▶️', 'เล่นต่อ', () => { sc.paused = false; this.close(); }, 'primary'),
+        T('🎮', 'ปุ่มควบคุม', () => this.go('help')),
+        T('📷', 'สลับกล้อง', () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4.5; sc.paused = false; this.close(); }),
+        T(sc.career ? '🏳️' : '🚪', sc.career ? 'โยนผ้า' : 'ออก', () => this.ask(sc.career ? 'โยนผ้ายอมแพ้? ไฟต์นี้จะนับเป็นแพ้ TKO' : 'ออกจากไฟต์นี้?', () => { sc.paused = false; this.close(); if (sc.career) { sc.endFight(sc.blue, 'TKO', 'ถอนตัว (Corner Stoppage)'); } else { this.exitFight(); } }, sc.career ? 'โยนผ้า' : 'ออก')))));
   }
 
   showCorner(sc, card) {
@@ -634,7 +711,7 @@ export class UI {
         el('div', { class: 'small', style: { color: '#ffb3b3' } }, h.summary().join(' · ') || 'ยังไม่บาดเจ็บ'),
         el('div', { class: 'small muted' }, `โค้ชประเมินคะแนน: ${myPts > opPts ? 'เอ็งน่าจะนำ' : myPts < opPts ? 'เอ็งน่าจะตามหลัง' : 'สูสี'}`)),
       el('h3', {}, 'คัทแมน & ทีม'),
-      tick('treatCuts', 'กดแผล + อะดรีนาลีน 1:1000 + วาสลีน (ลดเลือดไหล)'), tick('enswell', 'ประคบ Enswell เย็น (ลดบวมรอบตา)'), tick('water', 'จิบน้ำ + หายใจลึก (ฟื้นสตามินา)'),
+      el('div', { class: 'iconbar' }, ...[['treatCuts', '🩹', 'ห้ามเลือด'], ['enswell', '🧊', 'ประคบตา'], ['water', '💧', 'จิบน้ำ']].map(([k, pic, t]) => el('button', { class: 'iconbtn' + (ch[k] ? ' sel' : ''), title: { treatCuts: 'กดแผล + อะดรีนาลีน 1:1000 + วาสลีน', enswell: 'Enswell เย็นลดบวมรอบตา', water: 'ฟื้นสตามินา' }[k], onclick: (e) => { ch[k] = !ch[k]; e.currentTarget.classList.toggle('sel', ch[k]); } }, el('span', { class: 'pic' }, pic), t))),
       el('button', { class: 'btn primary', style: { marginTop: '12px' }, onclick: () => { this.close(); sc.nextRound(ch); } }, `🔔 ยกที่ ${sc.round + 1}`)));
   }
 
@@ -670,7 +747,11 @@ export class UI {
           : [el('button', { class: 'btn primary', onclick: () => { this.close(); this.startQuick(); } }, '🔁 ไฟต์ใหม่'), el('button', { class: 'btn', onclick: () => this.exitFight() }, 'เมนูหลัก')])));
   }
 
-  exitFight() { this.app.endScene(); this.go('title'); this.backgroundFight(); }
+  exitFight() {
+    if (this.sbPanel) { this.sbPanel.remove(); this.sbPanel = null; }
+    this.dragMode = false; this.app.sandboxTimeScale = 1;
+    this.app.endScene(); this.go('title'); this.backgroundFight();
+  }
 
   finishCareerFight(sc) {
     const c = this.career, me = sc.red, opp = sc.blue, r = sc.result;

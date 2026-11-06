@@ -157,6 +157,8 @@ export function paintFace(ctx, look, seed = 1) {
   ctx.fillStyle = g; ctx.fillRect(nx - nw * 1.2, ny + nw * 0.4, nw * 2.4, nw);
   // philtrum
   ctx.fillStyle = shade(skin, -0.15, 0.35); ctx.fillRect(nx - 3, ny + nw * 0.7, 6, H * 0.05);
+  // beard (painted, never 3D so it cannot cover the face)
+  paintBeard(ctx, look, r, { W, H, nx, ny, nw, mx: LM.mouth[0] * W, my: LM.mouth[1] * H, mw: W * 0.13, lu: H * 0.017 * lipFull, ll: H * 0.024 * lipFull });
   // mouth
   const mx = LM.mouth[0] * W, my = LM.mouth[1] * H, mw = W * 0.13, lu = H * 0.017 * lipFull, ll = H * 0.024 * lipFull;
   const lipCol = look.lipColor || tint(skin, [150, 70, 70], 0.38);
@@ -183,24 +185,6 @@ export function paintFace(ctx, look, seed = 1) {
   ctx.strokeStyle = shade(skin, -0.3, 0.35); ctx.lineWidth = 1.6;
   ctx.beginPath(); ctx.moveTo(nx - nw * 1.3, ny + 4); ctx.quadraticCurveTo(mx - mw * 1.25, my - 10, mx - mw * 1.2, my + 8); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(nx + nw * 1.3, ny + 4); ctx.quadraticCurveTo(mx + mw * 1.25, my - 10, mx + mw * 1.2, my + 8); ctx.stroke();
-  // beard / stubble
-  const beard = look.beard || 'none';
-  if (beard !== 'none') {
-    const hc = look.hairColor || '#1a1410';
-    const dens = beard === 'stubble' ? 900 : beard === 'goatee' ? 500 : 2200;
-    for (let i = 0; i < dens; i++) {
-      let x = r() * W, y = H * 0.6 + r() * H * 0.4;
-      // shape masks
-      const dx = (x - W / 2) / W, dy = (y - H * 0.78) / H;
-      if (beard === 'goatee' && Math.abs(dx) > 0.16) continue;
-      if (Math.abs(x - mx) < mw * 0.95 && Math.abs(y - my) < ll * 1.6) continue; // lips
-      if (y < ny + nw * 0.6 && Math.abs(dx) < 0.12) continue;
-      if (beard !== 'goatee' && y < H * 0.62 + Math.abs(dx) * -0.2 * H && Math.abs(dx) < 0.3) continue;
-      ctx.fillStyle = shade(hc, r() * 0.2, beard === 'stubble' ? 0.25 + r() * 0.25 : 0.4 + r() * 0.4);
-      const s = beard === 'stubble' ? 1.2 : 1.8;
-      ctx.fillRect(x, y, s, s * (1 + r()));
-    }
-  }
   // skin texture (pores / mottling)
   for (let i = 0; i < 1600; i++) {
     ctx.fillStyle = r() < 0.5 ? shade(skin, -0.2, 0.06 + r() * 0.06) : shade(skin, 0.15, 0.05 + r() * 0.05);
@@ -216,12 +200,12 @@ export function paintFace(ctx, look, seed = 1) {
   const hs = look.hairStyle || 'short';
   if (hs !== 'bald') {
     const hc = look.hairColor || '#1a1410';
-    const depth = hs === 'buzz' ? 0.09 : hs === 'mohawk' ? 0.06 : 0.12;
+    const depth = hs === 'buzz' ? 0.09 : hs === 'mohawk' ? 0.06 : hs === 'afro' ? 0.16 : hs === 'fade' || hs === 'slick' ? 0.1 : hs === 'long' || hs === 'dreads' ? 0.13 : 0.12;
     ctx.fillStyle = hc;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, H * (depth + 0.08));
     for (let x = W; x >= 0; x -= 6) {
       const u = x / W;
-      const y = H * (depth + 0.04 * Math.pow(Math.abs(u - 0.5) * 2, 2) * 2) + (r() - 0.5) * 4 - (hs === 'mohawk' && Math.abs(u - 0.5) > 0.15 ? H * 0.2 : 0);
+      const y = H * (depth + 0.04 * Math.pow(Math.abs(u - 0.5) * 2, 2) * 2) + (r() - 0.5) * 4 - ((hs === 'mohawk' && Math.abs(u - 0.5) > 0.15) || (hs === 'fade' && Math.abs(u - 0.5) > 0.36) ? H * 0.2 : 0) + (hs === 'long' && Math.abs(u - 0.5) > 0.42 ? H * 0.35 : 0);
       ctx.lineTo(x, Math.max(0, y));
     }
     ctx.closePath();
@@ -231,6 +215,79 @@ export function paintFace(ctx, look, seed = 1) {
   g = ctx.createLinearGradient(0, 0, W, 0);
   g.addColorStop(0, 'rgba(0,0,0,0.22)'); g.addColorStop(0.12, 'rgba(0,0,0,0)'); g.addColorStop(0.88, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.22)');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function beardPath(kind, g) {
+  const { W, H, nx, ny, nw, mx, my, mw, lu, ll } = g;
+  const p = new Path2D();
+  const mustache = () => {
+    p.moveTo(mx - mw * 1.18, my + 3);
+    p.quadraticCurveTo(mx - mw * 0.95, ny + nw * 0.75, mx, ny + nw * 0.9);
+    p.quadraticCurveTo(mx + mw * 0.95, ny + nw * 0.75, mx + mw * 1.18, my + 3);
+    p.quadraticCurveTo(mx + mw * 0.6, my - lu * 0.5, mx, my - lu * 0.9);
+    p.quadraticCurveTo(mx - mw * 0.6, my - lu * 0.5, mx - mw * 1.18, my + 3);
+    p.closePath();
+  };
+  const goatee = () => {
+    p.moveTo(mx - mw * 0.95, my + ll * 1.3);
+    p.quadraticCurveTo(mx - mw * 1.05, H * 0.97, mx, H);
+    p.quadraticCurveTo(mx + mw * 1.05, H * 0.97, mx + mw * 0.95, my + ll * 1.3);
+    p.quadraticCurveTo(mx, my + ll * 2.6, mx - mw * 0.95, my + ll * 1.3);
+    p.closePath();
+  };
+  const full = () => {
+    p.moveTo(0, H * 0.46); p.lineTo(W * 0.07, H * 0.46);
+    p.quadraticCurveTo(W * 0.1, H * 0.62, W * 0.26, H * 0.67);
+    p.quadraticCurveTo(W * 0.36, H * 0.7, nx - nw * 1.25, ny + nw * 0.85);
+    p.lineTo(nx + nw * 1.25, ny + nw * 0.85);
+    p.quadraticCurveTo(W * 0.64, H * 0.7, W * 0.74, H * 0.67);
+    p.quadraticCurveTo(W * 0.9, H * 0.62, W * 0.93, H * 0.46);
+    p.lineTo(W, H * 0.46); p.lineTo(W, H); p.lineTo(0, H); p.closePath();
+  };
+  if (kind === 'mustache') mustache();
+  else if (kind === 'goatee') { mustache(); goatee(); }
+  else if (kind === 'chinstrap') {
+    p.moveTo(0, H * 0.48); p.lineTo(W * 0.06, H * 0.48); p.quadraticCurveTo(W * 0.1, H * 0.86, mx, H * 0.92);
+    p.quadraticCurveTo(W * 0.9, H * 0.86, W * 0.94, H * 0.48); p.lineTo(W, H * 0.48); p.lineTo(W, H); p.lineTo(0, H); p.closePath();
+  } else full(); // full, long, stubble
+  return p;
+}
+
+// Painted beards: a soft base tone plus thousands of short hair strokes that follow the growth direction
+export function paintBeard(ctx, look, r, g) {
+  const kind = look.beard || 'none';
+  if (kind === 'none') return;
+  const col = look.beardColor || look.hairColor || '#1a1410';
+  const path = beardPath(kind, g);
+  const { W, H, mx, my, mw, ll } = g;
+  const lips = new Path2D(); lips.ellipse(mx, my + ll * 0.3, mw * 1.02, ll * 1.6, 0, 0, Math.PI * 2);
+  ctx.save();
+  if (kind === 'stubble') {
+    ctx.globalAlpha = 0.16; ctx.fillStyle = col; ctx.filter = 'blur(4px)'; ctx.fill(path); ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < 2600; i++) {
+      const x = r() * W, y = H * 0.44 + r() * H * 0.56;
+      if (!ctx.isPointInPath(path, x, y) || ctx.isPointInPath(lips, x, y)) continue;
+      ctx.fillStyle = shade(col, r() * 0.2, 0.25 + r() * 0.3); ctx.fillRect(x, y, 1.1, 1.3 + r());
+    }
+    ctx.restore(); return;
+  }
+  const dens = kind === 'mustache' ? 0.8 : kind === 'goatee' ? 0.85 : kind === 'chinstrap' ? 0.8 : kind === 'long' ? 1.0 : 0.9;
+  ctx.globalAlpha = 0.55 * dens; ctx.fillStyle = col; ctx.filter = 'blur(3px)'; ctx.fill(path); ctx.filter = 'none';
+  ctx.globalAlpha = 1; ctx.lineCap = 'round';
+  const n = kind === 'mustache' ? 900 : kind === 'goatee' ? 1700 : kind === 'chinstrap' ? 1800 : 5200;
+  for (let i = 0, tries = 0; i < n && tries < n * 8; tries++) {
+    const x = r() * W, y = H * 0.44 + r() * H * 0.56;
+    if (!ctx.isPointInPath(path, x, y) || ctx.isPointInPath(lips, x, y)) continue;
+    i++;
+    // growth direction: down on the chin, down-and-out on the cheeks, sideways-down on the moustache
+    const side = (x - W / 2) / (W / 2);
+    const ang = Math.PI / 2 - side * 0.5 + (r() - 0.5) * 0.6;
+    const len = (kind === 'long' ? 5 : 3) + r() * 4;
+    ctx.strokeStyle = shade(col, (r() - 0.5) * 0.35, 0.45 + r() * 0.5); ctx.lineWidth = 0.9 + r() * 0.8;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len); ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -429,6 +486,13 @@ export class SkinFX {
       bruise(LM.forehead[0], LM.forehead[1], 0.22, 0.1, d.swell.forehead);
       bruise(LM.mouth[0], LM.mouth[1], 0.12, 0.05, d.swell.lip);
       bruise(LM.nose[0], LM.nose[1] - 0.05, 0.06, 0.1, d.nose * 0.9);
+      if (d.noseBroken) { // crooked bridge
+        const dev = d.noseDeviation || 0.2;
+        c.strokeStyle = 'rgba(90,30,50,0.55)'; c.lineWidth = 5; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(W * 0.5, H * 0.46); c.quadraticCurveTo(W * (0.5 + dev * 0.12), H * 0.53, W * (0.5 + dev * 0.06), H * 0.6); c.stroke();
+        c.strokeStyle = 'rgba(255,235,220,0.25)'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(W * 0.5 + 2, H * 0.47); c.quadraticCurveTo(W * (0.5 + dev * 0.12) + 2, H * 0.53, W * (0.5 + dev * 0.06) + 2, H * 0.59); c.stroke();
+      }
       // swollen eye closing
       for (const [k, s] of [['eyeR', d.swell.eyeR], ['eyeL', d.swell.eyeL]]) {
         if (s > 0.45) {
