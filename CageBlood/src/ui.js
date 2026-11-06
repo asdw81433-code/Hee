@@ -5,7 +5,7 @@ import { makeNPC } from './npc.js';
 import { Creator, computeAttrs, loadFaceCanvas, profileForFight, defaultProfile } from './creator.js';
 import { Career, ACTIVITIES, GYMS, overall } from './career.js';
 import { storyById } from './story.js';
-import { writeSave, DEFAULT_SETTINGS, exportSave, importSave } from './save.js';
+import { writeSave, DEFAULT_SETTINGS, exportSave, importSave, PRESETS } from './save.js';
 import { STYLES, PROMOTIONS, ATTRS, ATTR_LABEL, wcById, WEIGHT_CLASSES } from './data.js';
 import { Fighter } from './fighter.js';
 import { P } from './rig.js';
@@ -63,7 +63,63 @@ export class UI {
     setTimeout(() => { ta.focus(); if (value) ta.select(); }, 30);
   }
   toast(t, ms = 2500) { const e = el('div', { class: 'toast' }, t); this.app.uiRoot.appendChild(e); setTimeout(() => e.remove(), ms); }
-  frame() {}
+  frame(dt) { if (this.tut) this.tutFrame(dt); }
+
+  // ================= TUTORIAL =================
+  startTutorial() {
+    this.stopBackground(); this.close();
+    if (this.sbPanel) { this.sbPanel.remove(); this.sbPanel = null; }
+    const me = makeNPC(Math.floor(rng() * 1e9), { tier: 2, wc: 'light', style: 'boxing' });
+    me.name = 'คุณ'; me.nick = '';
+    const dummy = makeNPC(Math.floor(rng() * 1e9), { tier: 0, wc: 'light', style: 'kickboxing' });
+    dummy.name = 'คู่ซ้อม'; dummy.nick = 'Sparring';
+    for (const k of ['tdDefense', 'clinch', 'subDefense', 'bottomGame', 'strength', 'headMove', 'blocking']) dummy.attrs[k] = 8;
+    const sc = this.app.startFight({ red: me, blue: dummy, playerSide: 'red', rounds: 1, roundLen: 9999, sandbox: true, aiLevel: 0.2, brand: 'IRON GATE', title: 'ฝึกเล่น' });
+    sc.tutorial = true;
+    sc.ais.clear();
+    const orig = sc.stepFixed.bind(sc);
+    sc.stepFixed = (h) => { for (const f of sc.fighters) { f.health.consc = Math.max(f.health.consc, 0.7); f.health.rocked = 0; f.health.stamina = Math.max(f.health.stamina, 40); f.ko = false; } orig(h); };
+    const touch = TouchControls.wanted(this.app.save.settings.touch);
+    const k = (key, btn) => (touch ? btn : key);
+    const P = () => sc.player;
+    const dist = () => P().rig.root.distanceTo(P().opp.rig.root);
+    const STEPS = [
+      { pic: '🕹️', t: 'เดินเข้าหาคู่ซ้อม', s: touch ? 'ดันจอยซ้ายขึ้น' : 'กด W ค้างไว้', done: () => dist() < 1.5 },
+      { pic: '👊', t: 'ต่อย 4 ครั้ง', s: `กด ${k('J', 'ปุ่ม ต่อย')} ติดกัน = คอมโบ (เกมเลือกหมัดให้เอง)`, base: () => P().cnt?.punch || 0, done: (b) => (P().cnt?.punch || 0) - b >= 4 },
+      { pic: '🦵', t: 'เตะ 2 ครั้ง', s: `กด ${k('K', 'ปุ่ม เตะ')} — ใกล้มาก ๆ จะเป็นเข่า`, base: () => (P().cnt?.kick || 0) + (P().cnt?.knee || 0), done: (b) => (P().cnt?.kick || 0) + (P().cnt?.knee || 0) - b >= 2 },
+      { pic: '🛡️', t: 'ยกการ์ดกันหมัด 2 ครั้ง', s: `กด ${k('Space', 'ปุ่ม การ์ด')} ค้างไว้ — คู่ซ้อมจะเริ่มต่อยแล้ว`, start: () => { const ai = new sc._AI(sc.blue, 0.25); ai.plan.aggression = 0.9; ai.plan.shootRate = 0; ai.plan.clinchRate = 0; ai.plan.kicky = 0; sc.ais.set(sc.blue, ai); }, base: () => P().blockCount || 0, done: (b) => (P().blockCount || 0) - b >= 2 },
+      { pic: '↔️', t: 'หลบ 2 ครั้ง', s: `กด ${k('Shift', 'ปุ่ม หลบ')} — หัวจะเบี่ยงหลบหมัด`, base: () => P().slipCount || 0, done: (b) => (P().slipCount || 0) - b >= 2 },
+      { pic: '🤼', t: 'ทุ่มคู่ซ้อมลงพื้น', s: `กด ${k('L', 'ปุ่ม ปล้ำ')} (ถ้าชิดกันกดอีกครั้งเพื่อทุ่ม)`, start: () => { sc.ais.clear(); sc.blue.input = Fighter.blankInput(); }, done: () => { const L = sc.grapple.link; return L && L.type === 'ground' && L.top === P(); } },
+      { pic: '👊', t: 'ทุบจากด้านบน 3 ครั้ง', s: `อยู่ด้านบนแล้ว! กด ${k('J', 'ปุ่ม ต่อย')}`, base: () => P().stats.thrown, done: (b) => P().stats.thrown - b >= 3, fail: () => !sc.grapple.link },
+      { pic: '🔒', t: 'จับล็อกให้ตบ', s: `กด ${k('L', 'ปุ่ม ปล้ำ')} ไล่ตำแหน่งจนล็อกได้ แล้วรัวปุ่มเร็ว ๆ`, done: () => { const L = sc.grapple.link; if (L && L.sub && L.sub.att === P()) this.tut.subSeen = true; return this.tut.subSeen && !(L && L.sub); }, fail: () => !sc.grapple.link },
+      { pic: '🎉', t: 'เก่งมาก! พร้อมขึ้นชกจริงแล้ว', s: 'ลองไฟต์ด่วน หรือเริ่มโหมดอาชีพได้เลย', final: true },
+    ];
+    this.tut = { sc, steps: STEPS, i: -1, base: 0, t: 0, subSeen: false };
+    this.tutBox = el('div', { class: 'tut' });
+    this.app.uiRoot.appendChild(this.tutBox);
+    this.tutNext();
+  }
+  tutNext() {
+    const T = this.tut; T.i++; T.t = 0; T.subSeen = false;
+    const st = T.steps[T.i];
+    if (st.start) st.start();
+    T.base = st.base ? st.base() : 0;
+    const prog = el('div', { class: 'tp' }, ...T.steps.map((_, j) => el('i', { class: j <= T.i ? 'on' : '' })));
+    const btns = st.final
+      ? el('div', { class: 'tbtns' }, el('button', { class: 'btn small primary', onclick: () => { this.endTutorial(); this.qf = null; this.startQuick(); } }, '⚡ ไฟต์ด่วน'), el('button', { class: 'btn small', onclick: () => { this.endTutorial(); this.app.endScene(); this.newCareer(); } }, '🏆 อาชีพ'), el('button', { class: 'btn small', onclick: () => { this.endTutorial(); this.exitFight(); } }, '🏠 เมนู'))
+      : el('div', { class: 'tbtns' }, el('button', { class: 'btn small ghost', onclick: () => { this.endTutorial(); this.exitFight(); } }, 'ข้ามการฝึก'));
+    this.tutBox.innerHTML = '';
+    this.tutBox.append(el('span', { class: 'pic' }, st.pic), el('div', {}, el('div', { class: 'tt' }, `${T.i + 1}. ${st.t}`), el('div', { class: 'ts' }, st.s), prog, btns));
+    if (st.final) { this.app.save.tutorialDone = true; writeSave(this.app.save); this.app.audio.roar && this.app.audio.roar(); }
+  }
+  tutFrame(dt) {
+    const T = this.tut; if (!T || this.app.scene !== T.sc) { this.endTutorial(); return; }
+    const st = T.steps[T.i]; if (!st || st.final) return;
+    T.t += dt;
+    if (st.fail && st.fail() && T.t > 1) { T.i -= 2; this.tutNext(); return; } // fell out of the ground position: redo the takedown
+    if (st.done(T.base)) { this.app.audio.ui && this.app.audio.ui(); this.app.hud.message('✔', 0.6, 'info'); this.tutNext(); }
+  }
+  endTutorial() { if (this.tutBox) this.tutBox.remove(); this.tutBox = null; this.tut = null; }
   error(e) { if (!this._errShown) { this._errShown = true; this.toast('เกิดข้อผิดพลาด: ' + e.message, 6000); } }
 
   bindKeys() {
@@ -134,6 +190,7 @@ export class UI {
       el('div', { class: 'title-sub' }, 'MMA แซนด์บ็อกซ์ · ฟิสิกส์ร่างกาย · เลือดสมจริง'),
       el('div', { class: 'tiles' },
         has ? tile('▶️', 'เล่นต่อ', `${this.career.f.name} · ${this.career.dateStr}`, () => this.openCareer(), 'primary') : null,
+        tile('🎓', 'ฝึกเล่น', this.app.save.tutorialDone ? 'ทบทวนปุ่ม 2 นาที' : 'เริ่มที่นี่! สอนทีละขั้น 2 นาที', () => this.startTutorial(), this.app.save.tutorialDone ? '' : 'glow'),
         tile('🏆', 'อาชีพใหม่', 'สร้างนักสู้ วาดหน้า ไต่สู่แชมป์โลก', () => this.newCareer(), has ? '' : 'primary'),
         tile('⚡', 'ไฟต์ด่วน', 'ชกทันที', () => this.go('quick')),
         tile('🧪', 'แซนด์บ็อกซ์', 'ragdoll สโลว์โม ทำแผล', () => this.go('sandboxSetup')),
@@ -185,11 +242,14 @@ export class UI {
     const [o5, i5] = rng_('difficulty', 0.2, 1, 0.05, (v) => v < 0.4 ? 'ง่าย' : v < 0.65 ? 'ปกติ' : v < 0.85 ? 'ยาก' : 'โปร');
     const [o6, i6] = rng_('refPatience', 0, 1, 0.1, (v) => v < 0.3 ? 'หยุดเร็ว' : v < 0.7 ? 'ปกติ' : 'ปล่อยนาน');
     const [o7, i7] = rng_('brightness', 0.8, 2.2, 0.05, (v) => v < 1.1 ? 'มืด' : v < 1.6 ? 'ปกติ' : v < 1.9 ? 'สว่าง' : 'สว่างมาก');
+    const presetSel = el('div', { class: 'iconbar' }, ...[['easy', '😊', 'ง่าย'], ['normal', '🙂', 'ปกติ'], ['hard', '😤', 'ยาก'], ['pro', '💀', 'โปร']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (s.preset === v ? ' sel' : ''), onclick: () => { s.preset = v; Object.assign(s, PRESETS[v]); writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
+    const ctrlSel = el('div', { class: 'iconbar' }, ...[['simple', '🎮', 'ง่าย (5 ปุ่ม)'], ['pro', '🧠', 'โปร (ทุกท่า)']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + ((s.controls || 'simple') === v ? ' sel' : ''), onclick: () => { s.controls = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     const touchSel = el('div', { class: 'iconbar' }, ...[['auto', '🤖', 'อัตโนมัติ'], ['on', '📱', 'เปิด'], ['off', '⌨️', 'ปิด']].map(([v, pic, t]) => el('button', { class: 'iconbtn' + (s.touch === v ? ' sel' : ''), onclick: () => { s.touch = v; writeSave(this.app.save); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
     return el('div', { class: 'screen dim' }, el('div', { class: 'panel', style: { width: 'min(560px, 100%)' } },
       el('h2', {}, '⚙️ ตั้งค่า'),
       row(el('span', {}, '☀️ ความสว่าง', o7), i7), row(el('span', {}, '🥔 ความละเอียดกราฟิก', o1), i1), row(el('span', {}, '🩸 ระดับเลือด', o2), i2), row(el('span', {}, '🔊 เสียง', o3), i3),
-      row(el('span', {}, '⏱️ นาฬิกาในไฟต์', o4), i4), row(el('span', {}, '🧠 ความยาก AI', o5), i5), row(el('span', {}, '🧑‍⚖️ กรรมการหยุดไฟต์', o6), i6),
+      row(el('span', {}, '🎚️ ความยาก'), presetSel), row(el('span', {}, '🕹️ ปุ่มควบคุม'), ctrlSel),
+      row(el('span', {}, '⏱️ นาฬิกาในไฟต์', o4), i4), row(el('span', {}, '🧑‍⚖️ กรรมการหยุดไฟต์', o6), i6),
       row(el('span', {}, '📱 ปุ่มบนจอสัมผัส'), touchSel),
       el('label', {}, el('input', { type: 'checkbox', checked: s.replay ? 'checked' : null, onchange: (e) => { s.replay = e.target.checked; writeSave(this.app.save); } }), ' แสดงรีเพลย์ตอนน็อก'),
       el('h3', {}, 'สำรองเซฟ'),
@@ -369,14 +429,21 @@ export class UI {
         el('div', {}, `${PROMOTIONS[b.promo].name} · ${b.rounds} ยก${b.title ? ' · 🏆 ชิงแชมป์' : ''} · อีก ${b.weeksOut} สัปดาห์`),
         el('div', { class: 'muted small' }, `ค่าตัว ${money(b.purse.show)} + ชนะ ${money(b.purse.win)}`),
         rep ? el('div', { class: 'small', style: { marginTop: '6px' } }, el('b', {}, 'รายงานคู่ชก: '), rep.join(' · ')) : null,
+        el('div', { class: 'small', style: { marginTop: '4px' } }, '🎯 โอกาสชนะโดยประมาณ: ', el('b', {}, `${Math.round(c.winChance(b.oppRating) * 100)}%`)),
         el('div', { class: 'small', style: { marginTop: '4px', color: (c.f.walkKg - c.wc.kg) / c.f.walkKg > 0.07 ? '#ff9b6b' : '#9fe39f' } }, `ต้องตัดน้ำหนัก ${(Math.max(0, (c.f.walkKg - c.wc.kg) / c.f.walkKg) * 100).toFixed(1)}% ${(c.f.walkKg - c.wc.kg) / c.f.walkKg > 0.07 ? '— หนักเกินไป! เสี่ยงชั่งไม่ผ่านและหมดแรงกลางไฟต์ (คุมอาหาร/คาร์ดิโอ)' : ''}`)));
     } else if (d.health.suspension > 0) box.append(el('p', { class: 'muted' }, 'อยู่ระหว่างพักการชก — ใช้เวลานี้พักฟื้นและพัฒนาฝีมือ'));
     else box.append(el('p', { class: 'muted' }, 'ยังไม่มีไฟต์ — ดูแท็บข้อเสนอไฟต์ หรือรอให้โปรโมเตอร์ติดต่อมา (สร้างกระแสด้วยงานสื่อช่วยได้)'));
-    box.append(el('h3', {}, `🗓️ แผนซ้อม ${d.plan.length}/3`), el('div', { class: 'muted small' }, '😓 = เหนื่อย · 💚 = พักฟื้น · แตะค้างดูคำอธิบาย'));
+    const auto = d.autoPlan !== false;
+    if (auto && d._apWeek !== d.week) { d.plan = c.autoPlan(); d._apWeek = d.week; }
+    box.append(el('h3', {}, `🗓️ แผนซ้อม ${d.plan.length}/3`),
+      el('div', { class: 'iconbar' },
+        el('button', { class: 'iconbtn' + (auto ? ' sel' : ''), onclick: () => { d.autoPlan = true; this.save(); this.refresh(); } }, el('span', { class: 'pic' }, '🤖'), 'โค้ชจัดให้'),
+        el('button', { class: 'iconbtn' + (!auto ? ' sel' : ''), onclick: () => { d.autoPlan = false; this.save(); this.refresh(); } }, el('span', { class: 'pic' }, '✋'), 'เลือกเอง')),
+      el('div', { class: 'muted small' }, auto ? '🤖 โค้ชเลือกซ้อมจุดอ่อน พักเมื่อเหนื่อย และคุมน้ำหนักก่อนไฟต์ให้อัตโนมัติ (แตะกิจกรรมเพื่อเลือกเอง)' : '😓 = เหนื่อย · 💚 = พักฟื้น · แตะค้างดูคำอธิบาย'));
     const grid = el('div', { class: 'tiles', style: { gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', width: '100%' } });
     for (const [k, a] of Object.entries(ACTIVITIES)) {
       const n = d.plan.indexOf(k);
-      grid.append(el('button', { class: 'tile small' + (n >= 0 ? ' sel' : ''), title: a.desc, onclick: () => { c.togglePlan(k); this.refresh(); } },
+      grid.append(el('button', { class: 'tile small' + (n >= 0 ? ' sel' : ''), title: a.desc, onclick: () => { if (d.autoPlan !== false) d.autoPlan = false; c.togglePlan(k); this.refresh(); } },
         el('span', { class: 'pic' }, a.icon), el('span', {}, a.name), el('span', { class: 'sub' }, n >= 0 ? `✔ ช่อง ${n + 1}` : (a.fat > 0 ? '😓'.repeat(Math.min(3, Math.ceil(a.fat / 10))) : '💚'))));
     }
     box.append(grid);
@@ -385,8 +452,23 @@ export class UI {
       box.append(el('div', { class: 'card', style: { marginTop: '10px' } }, el('b', {}, 'สัปดาห์ที่แล้ว: '), g.join(', ') || 'ไม่มีการพัฒนาค่าพลัง', ...c.lastReport.notes.map((n) => el('div', { class: 'small', style: { color: '#ffcf6a' } }, n))));
     }
     box.append(el('div', { class: 'row', style: { marginTop: '12px' } }, el('div', { class: 'grow' }),
+      el('button', { class: 'btn', title: 'เดินเวลาไปเรื่อยๆ จนมีไฟต์ ข้อเสนอใหม่ หรือเหตุการณ์ในเนื้อเรื่อง', onclick: () => this.skipWeeks() }, '⏩ ข้ามไปเหตุการณ์ถัดไป'),
       el('button', { class: 'btn primary', onclick: () => this.nextWeek() }, d.booked && d.booked.weeksOut <= 1 ? '🥊 สัปดาห์ไฟต์! ▶' : '⏭️ สัปดาห์ถัดไป')));
     return box;
+  }
+
+  skipWeeks() {
+    const c = this.career, d = c.d;
+    const offers0 = d.offers.length;
+    for (let i = 0; i < 16; i++) {
+      const out = c.advanceWeek();
+      this.save();
+      if (out.fight) { this.go('weighin'); return; }
+      if (d.pendingStory.length) { this.checkStory(); return; }
+      if (d.offers.length > offers0 && !d.booked) { this.careerTab = 'offers'; this.refresh(); this.toast('📩 มีข้อเสนอไฟต์ใหม่!'); return; }
+      if (out.notes.some((n) => n.includes('บาดเจ็บ'))) { this.refresh(); this.toast('🚑 บาดเจ็บระหว่างซ้อม ดูรายละเอียดด้านซ้าย'); return; }
+    }
+    this.refresh();
   }
 
   nextWeek() {
@@ -402,8 +484,13 @@ export class UI {
     const box = el('div', {});
     if (d.booked) box.append(el('p', { class: 'muted' }, 'คุณมีไฟต์ที่จองไว้แล้ว'));
     if (!d.offers.length) box.append(el('p', { class: 'muted' }, 'ยังไม่มีข้อเสนอใหม่'));
+    const my = c.ovr();
+    const best = d.offers.reduce((b, o) => (!b || Math.abs(o.oppRating - (my - 3)) < Math.abs(b.oppRating - (my - 3)) ? o : b), null);
+    if (d.offers.length && !d.booked) box.append(el('button', { class: 'btn primary', style: { marginBottom: '8px' }, onclick: () => { c.acceptOffer(best.id); this.save(); this.careerTab = 'week'; this.refresh(); } }, `⭐ รับไฟต์ที่แนะนำ (โอกาสชนะ ~${Math.round(c.winChance(best.oppRating) * 100)}%)`));
     for (const o of d.offers) {
-      box.append(el('div', { class: 'offer' },
+      const wc = Math.round(c.winChance(o.oppRating) * 100);
+      box.append(el('div', { class: 'offer' }, o === best ? el('div', { class: 'small', style: { color: '#ffd36a', fontWeight: 800 } }, '⭐ แนะนำ') : null,
+        el('div', { class: 'small', style: { color: wc >= 55 ? '#9fe39f' : wc >= 40 ? '#ffd36a' : '#ff8b8b' } }, `🎯 โอกาสชนะ ~${wc}% ${wc >= 55 ? '(ได้เปรียบ)' : wc >= 40 ? '(สูสี)' : '(ยากมาก)'}`),
         el('div', { class: 'vs' }, `vs ${o.oppName}`), el('div', { class: 'small' }, `สถิติ ${o.oppRec} · สไตล์ ${STYLES[o.oppStyle]?.name || o.oppStyle} · ค่าพลังรวม ~${o.oppRating}`),
         el('div', { class: 'small' }, `${PROMOTIONS[o.promo].name} · ${o.rounds} ยก · อีก ${o.weeksOut} สัปดาห์ ${o.short ? '⚡ แจ้งล่วงหน้าสั้น (+40% ค่าตัว แต่แคมป์สั้น)' : ''}`),
         el('div', { class: 'small' }, o.purse.show + o.purse.win > 0 ? `ค่าตัว ${money(o.purse.show)} + โบนัสชนะ ${money(o.purse.win)}` : 'สมัครเล่น: ไม่มีค่าตัว'),
@@ -512,7 +599,7 @@ export class UI {
 
   // ---------- quick fight ----------
   scr_quick() {
-    const q = this.qf = this.qf || { me: 'random', meStyle: 'boxing', opStyle: 'muaythai', opLevel: 2, rounds: 3, mode: 'play', wc: 'light' };
+    const q = this.qf = this.qf || { me: 'random', meStyle: 'boxing', opStyle: 'muaythai', opLevel: 1, rounds: 3, mode: 'play', wc: 'light' };
     const mine = this.app.save.fighters;
     const sel = (opts, cur, cb) => el('select', { onchange: (e) => { cb(e.target.value); this.refresh(); } }, ...opts.map(([v, t]) => el('option', { value: v, selected: String(v) === String(cur) ? 'selected' : null }, t)));
     const pics = (opts, cur, cb) => el('div', { class: 'iconbar' }, ...opts.map(([v, pic, t]) => el('button', { class: 'iconbtn' + (String(v) === String(cur) ? ' sel' : ''), onclick: () => { cb(v); this.refresh(); } }, el('span', { class: 'pic' }, pic), t)));
@@ -540,7 +627,7 @@ export class UI {
       me = { ...profileForFight(p, { ...p.attrs }), faceCanvas: face };
       me.attrs = { ...me.attrs }; for (const k in me.attrs) me.attrs[k] = clamp(me.attrs[k] + 18, 10, 99); // quick fight: pro level version
     } else me = makeNPC(Math.floor(rng() * 1e9), { tier: 2, wc: q.wc || 'light', style: q.meStyle || 'boxing' });
-    const opp = makeNPC(Math.floor(rng() * 1e9), { tier: q.opLevel ?? 2, wc: q.wc || 'light', style: q.opStyle || 'muaythai' });
+    const opp = makeNPC(Math.floor(rng() * 1e9), { tier: q.opLevel ?? 1, wc: q.wc || 'light', style: q.opStyle || 'muaythai' });
     this.stopBackground();
     this.close();
     if (this.sbPanel && !sandbox) { this.sbPanel.remove(); this.sbPanel = null; }
@@ -552,7 +639,7 @@ export class UI {
 
   // ---------- sandbox ----------
   scr_sandboxSetup() {
-    this.qf = this.qf || { me: 'random', meStyle: 'boxing', opStyle: 'muaythai', opLevel: 2, rounds: 1, mode: 'play', wc: 'light' };
+    this.qf = this.qf || { me: 'random', meStyle: 'boxing', opStyle: 'muaythai', opLevel: 1, rounds: 1, mode: 'play', wc: 'light' };
     const node = this.scr_quick();
     node.querySelector('h2').textContent = '🧪 แซนด์บ็อกซ์ — เลือกนักสู้เริ่มต้น';
     const btn = node.querySelector('.btn.primary');
@@ -748,6 +835,7 @@ export class UI {
   }
 
   exitFight() {
+    this.endTutorial();
     if (this.sbPanel) { this.sbPanel.remove(); this.sbPanel = null; }
     this.dragMode = false; this.app.sandboxTimeScale = 1;
     this.app.endScene(); this.go('title'); this.backgroundFight();

@@ -25,11 +25,11 @@ await page.mouse.move(stick.x + stick.width / 2, stick.y + stick.height / 2); aw
 await page.mouse.move(stick.x + stick.width / 2, stick.y - 30, { steps: 4 }); await page.waitForTimeout(1500);
 await page.mouse.up();
 const moved = await st();
-for (const lbl of ['แย็บ', 'หมัดหลัง', 'ฮุคซ้าย', 'เตะหลัง']) { await page.locator('.tbtn', { hasText: lbl }).first().tap(); await page.waitForTimeout(450); }
+for (const lbl of ['ต่อย', 'ต่อย', 'ต่อย', 'เตะ']) { await page.locator('.teasy .tbtn', { hasText: lbl }).first().tap(); await page.waitForTimeout(450); }
 await page.screenshot({ path: 'test/out/m_fight.png' });
 const after = await st();
 // hold guard
-const g = await page.locator('.tbtn.guard').boundingBox();
+const g = await page.locator('.teasy .tbtn.guard').boundingBox();
 await page.mouse.move(g.x + 20, g.y + 20); await page.mouse.down(); await page.waitForTimeout(400);
 const guard = await st(); await page.mouse.up();
 console.log('before', JSON.stringify(before), 'moved', JSON.stringify(moved), 'after', JSON.stringify(after), 'guard', guard.block);

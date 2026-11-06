@@ -1,5 +1,6 @@
 // ===== Keyboard input -> fighter commands =====
 import { resolveStrike } from './moves.js';
+import { smartPunch, smartKick, smartGrab, smartDodge } from './assist.js';
 
 export class Keys {
   constructor() {
@@ -43,6 +44,7 @@ export function applyPlayerInput(keys, f, game) {
   if (keys.is('KeyD') || keys.is('ArrowRight')) mx -= 1;
   if (keys.analog && keys.analog.on && Math.hypot(keys.analog.x, keys.analog.y) > 0.18) { mx = -keys.analog.x; mz = keys.analog.y; }
   inp.mx = mx; inp.mz = mz;
+  if (!game.settings || game.settings.controls !== 'pro') { applySimple(keys, f, game); return; }
   const body = keys.is('ShiftLeft') || keys.is('ShiftRight');
   const high = keys.is('KeyQ');
   inp.block = keys.is('Space');
@@ -80,5 +82,33 @@ export function applyPlayerInput(keys, f, game) {
       if (!top && (keys.hit('KeyA') || keys.hit('KeyD'))) g.escape = true;
       if (top && keys.hit('KeyS')) g.getup = true;
     }
+  }
+}
+
+// ---- Simple controls: J punch · K kick · L grab · Space guard · Shift/C dodge (touch uses the same virtual codes)
+function applySimple(keys, f, game) {
+  const inp = f.input;
+  const g = (inp.g = inp.g || {});
+  inp.block = keys.is('Space') || keys.is('SmartGuard');
+  inp.blockLow = false;
+  inp.feint = false;
+  const L = game.grapple && game.grapple.link;
+  const inSub = !!(L && L.sub && (L.sub.att === f || L.sub.def === f));
+  if (inSub) {
+    // any button mashes during a submission
+    for (const k of ['KeyJ', 'KeyK', 'KeyL', 'Space', 'ShiftLeft', 'KeyC', 'SmartPunch', 'SmartKick', 'SmartGrab', 'SmartDodge', 'SmartGuard', 'Enter']) if (keys.hit(k)) g.mash = true;
+    inp.mx = 0; inp.mz = 0;
+    return;
+  }
+  if (keys.hit('KeyJ') || keys.hit('SmartPunch')) smartPunch(f, game);
+  if (keys.hit('KeyK') || keys.hit('SmartKick')) smartKick(f, game);
+  if (keys.hit('KeyL') || keys.hit('SmartGrab')) smartGrab(f, game);
+  if (keys.hit('ShiftLeft') || keys.hit('ShiftRight') || keys.hit('KeyC') || keys.hit('SmartDodge')) smartDodge(f, game);
+  if (f.state === 'grapple' && L) {
+    inp.mx = 0; inp.mz = 0;
+    const top = L.top === f;
+    if (keys.hit('KeyW')) g.advance = true;
+    if (keys.hit('KeyS')) g.getup = true;
+    if (!top && (keys.hit('KeyA') || keys.hit('KeyD'))) g.escape = true;
   }
 }

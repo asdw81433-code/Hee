@@ -14,7 +14,7 @@ const errors = [];
   await page.waitForTimeout(1500);
   await page.evaluate(() => { const u = window.__game.ui; u.qf = { me: 'random', meStyle: 'boxing', opStyle: 'boxing', opLevel: 1, rounds: 3, mode: 'play', wc: 'light' }; u.startQuick(); });
   for (let i = 0; i < 40; i++) { if (await page.evaluate(() => window.__game.scene.phase) === 'fight') break; await page.waitForTimeout(300); }
-  const g = await page.locator('.tbtn.guard').boundingBox();
+  const g = await page.locator('.teasy .tbtn.guard').boundingBox();
   await page.mouse.move(g.x + 20, g.y + 20); await page.mouse.down(); await page.waitForTimeout(700);
   const blk = await page.evaluate(() => { const p = window.__game.scene.player; return { block: p.blocking, inp: p.input.block, action: p.action && p.action.type }; });
   await page.mouse.up(); await page.waitForTimeout(300);

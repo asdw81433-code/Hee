@@ -21,7 +21,8 @@ export class HUD {
     this.dmgPanel = el('div', { class: 'hud-dmg hidden' });
     this.hint = el('div', { class: 'hud-hint' }, 'Esc = หยุด/วิธีเล่น · Tab = สภาพร่างกาย');
     this.keysHint = el('div', { class: 'hud-keys hidden' });
-    this.root.append(this.keysHint, this.visL, this.visR, this.bloodL, this.bloodR, this.hurtV, this.top, this.msg, this.feedBox, this.posBox, this.subBox, this.dmgPanel, this.hint);
+    this.tip = el('div', { class: 'hud-tip hidden' });
+    this.root.append(this.tip, this.keysHint, this.visL, this.visR, this.bloodL, this.bloodR, this.hurtV, this.top, this.msg, this.feedBox, this.posBox, this.subBox, this.dmgPanel, this.hint);
     this.msgT = 0; this.feeds = [];
     this.showDmg = false;
   }
@@ -33,16 +34,21 @@ export class HUD {
     const mk = (f) => {
       const rec = f.prof.record ? `${f.prof.record.w}-${f.prof.record.l}${f.prof.record.d ? '-' + f.prof.record.d : ''}` : '';
       return [el('div', { class: 'hf-name' }, f.name, f.prof.nick ? el('span', { class: 'nick' }, ` "${f.prof.nick}"`) : null), el('div', { class: 'hf-rec' }, rec + (f === sc.player ? ' · คุณ' : '')),
-        el('div', { class: 'bar stam' }, el('div', { class: 'fill' })), el('div', { class: 'bar cond' }, el('div', { class: 'fill' }))];
+        el('div', { class: 'barrow' }, el('span', { class: 'bi', title: 'แรง (สตามินา)' }, '⚡'), el('div', { class: 'bar stam' }, el('div', { class: 'fill' }))),
+        el('div', { class: 'barrow' }, el('span', { class: 'bi', title: 'สภาพ (ความรู้สึกตัว)' }, '❤️'), el('div', { class: 'bar cond' }, el('div', { class: 'fill' })))];
     };
     this.redBox.innerHTML = ''; this.blueBox.innerHTML = '';
     this.redBox.append(...mk(sc.red)); this.blueBox.append(...mk(sc.blue));
     clearTimeout(this._kh);
     const touch = document.getElementById('ui') && document.getElementById('ui').classList.contains('touchmode');
     if (touch && sc.player && !sc.opts.playerAI && !sc.background) {
-      this.keysHint.innerHTML = 'จอยซ้าย = เดิน/วน · ปุ่มขวา = หมัด เตะ การ์ด · <b>ลำตัว/ขา</b> และ <b>เตะหัว</b> คือปุ่มเปิด-ปิด · บนพื้น: ดันจอยขึ้น = ไล่ตำแหน่ง, ลง = ลุก, ซ้าย/ขวา = หนี';
+      this.keysHint.innerHTML = (sc.settings.controls || 'simple') !== 'pro' ? 'จอยซ้าย = เดิน · <b>ต่อย</b> <b>เตะ</b> <b>ปล้ำ</b> = เกมเลือกท่าให้ตามระยะ · <b>การ์ด</b> กดค้าง · <b>หลบ</b> หลบหมัด/กันปล้ำ' : 'จอยซ้าย = เดิน/วน · ปุ่มขวา = หมัด เตะ การ์ด · <b>ลำตัว/ขา</b> และ <b>เตะหัว</b> คือปุ่มเปิด-ปิด · บนพื้น: ดันจอยขึ้น = ไล่ตำแหน่ง, ลง = ลุก, ซ้าย/ขวา = หนี';
       this.keysHint.classList.remove('hidden');
       this._kh = setTimeout(() => this.keysHint.classList.add('hidden'), 9000);
+    } else if (sc.player && !sc.opts.playerAI && !sc.background && (sc.settings.controls || 'simple') !== 'pro') {
+      this.keysHint.innerHTML = '<b>W A S D</b> เดิน · <b>J</b> ต่อย · <b>K</b> เตะ · <b>L</b> ปล้ำ/ล็อก · <b>Space</b> การ์ด (ค้าง) · <b>Shift</b> หลบ · <b>Esc</b> หยุด — เกมเลือกท่าให้ตามระยะอัตโนมัติ';
+      this.keysHint.classList.remove('hidden');
+      this._kh = setTimeout(() => this.keysHint.classList.add('hidden'), 14000);
     } else if (sc.player && !sc.opts.playerAI && !sc.background) {
       this.keysHint.innerHTML = '<b>W/S</b> เข้า-ออก · <b>A/D</b> วน · <b>J K U I N M</b> หมัด · <b>Shift</b>+หมัด = ลำตัว · <b>O/L</b> เตะ (<b>Shift</b> ขา · <b>Q</b> หัว) · <b>P</b> ถีบ · <b>H</b> เข่า · <b>Y</b> ศอก<br><b>Space</b> การ์ด · <b>Z/X</b> หลบ · <b>C</b> ก้ม/สปรอล · <b>E</b> บล็อกเตะ · <b>F</b> คลินช์ · <b>G</b> เทคดาวน์/ล็อก · <b>V</b>+หมัด หลอก · <b>Esc</b> คู่มือเต็ม';
       this.keysHint.classList.remove('hidden');
@@ -64,7 +70,33 @@ export class HUD {
   }
   toggleDamage() { this.showDmg = !this.showDmg; this.dmgPanel.classList.toggle('hidden', !this.showDmg); }
 
+  // what to press right now (simple controls)
+  contextTip(sc) {
+    const p = sc.player;
+    if (!p || sc.opts.playerAI || sc.tutorial || sc.phase !== 'fight') return '';
+    const simple = (sc.settings.controls || 'simple') !== 'pro';
+    if (!simple) return '';
+    const touch = document.getElementById('ui').classList.contains('touchmode');
+    const k = (key, btn) => (touch ? `[${btn}]` : `[${key}]`);
+    const o = p.opp, L = sc.grapple.link;
+    if (L && L.sub && L.sub.def === p) return `🔒 โดนล็อก! รัวกดปุ่มไหนก็ได้เร็วๆ เพื่อแก้`;
+    if (L && L.sub && L.sub.att === p) return `🔒 กำลังล็อก! รัวกดปุ่มเพื่อบีบให้ตบ`;
+    if (o.state === 'shoot' && p.state !== 'grapple') return `⚠️ เขาพุ่งเข้ามาปล้ำ! กด หลบ ${k('Shift', 'หลบ')}`;
+    if (p.rig.mode === 'ragdoll' || p.state === 'down' || p.state === 'getup') return '😵 ล้มอยู่... กำลังลุกขึ้น';
+    if (L && L.type === 'ground' && L.bot === p) return `⬇️ อยู่ด้านล่าง: ${k('L', 'ปล้ำ')} หนี/ลุก · ${k('Space', 'การ์ด')} ค้างไว้ปิดหน้า`;
+    if (L && L.type === 'ground' && L.top === p) return `⬆️ อยู่ด้านบน: ${k('J', 'ต่อย')} ทุบ · ${k('L', 'ปล้ำ')} ไล่ตำแหน่ง/ล็อก`;
+    if (p.health.rocked > 0) return `😵 มึน! ${k('Space', 'การ์ด')} ค้างไว้ แล้วถอยออก`;
+    if (o.health.rocked > 0 || o.state === 'down') return `🔥 คู่ชกมึน! รัว ${k('J', 'ต่อย')} เลย`;
+    if (p.clinch) return `🤼 คลินช์: ${k('K', 'เตะ')} = เข่า · ${k('J', 'ต่อย')} = ศอก · ${k('L', 'ปล้ำ')} = ทุ่ม`;
+    const d = Math.hypot(o.rig.root.x - p.rig.root.x, o.rig.root.z - p.rig.root.z);
+    if (d > 2.3) return `👉 เดินเข้าหาคู่ชก ${touch ? '(ดันจอยขึ้น)' : '[W]'}`;
+    if (p.health.stamina < 25) return '🥵 แรงใกล้หมด ถอยออกมาหายใจก่อน';
+    return '';
+  }
+
   tick(sc, dt) {
+    const tip = this.contextTip(sc);
+    if (tip !== this._tip) { this._tip = tip; this.tip.textContent = tip; this.tip.classList.toggle('hidden', !tip); }
     if (this.msgT > 0) { this.msgT -= dt; if (this.msgT <= 0) this.msg.className = 'hud-msg'; }
     const bars = (box, f) => {
       const h = f.health;
@@ -77,18 +109,21 @@ export class HUD {
     };
     bars(this.redBox, sc.red); bars(this.blueBox, sc.blue);
     const ph = sc.phase === 'corner' ? 'พักยก' : sc.phase === 'ended' ? 'จบ' : '';
-    this.clockBox.innerHTML = sc.sandbox ? '<div class="rnd">SANDBOX</div><div class="time">∞</div>' : `<div class="rnd">ROUND ${sc.round}/${sc.rounds}</div><div class="time">${ph || fmtTime(sc.clock)}</div>`;
+    this.clockBox.innerHTML = sc.tutorial ? '<div class="rnd">TRAINING</div><div class="time">ฝึก</div>' : sc.sandbox ? '<div class="rnd">SANDBOX</div><div class="time">∞</div>' : `<div class="rnd">ROUND ${sc.round}/${sc.rounds}</div><div class="time">${ph || fmtTime(sc.clock)}</div>`;
     // ground position + hints
     const L = sc.grapple.link;
     const p = sc.player;
     if (L && L.type === 'ground') {
       this.posBox.classList.remove('hidden');
       const isTop = p ? L.top === p : null;
-      const hint = p == null ? '' : isTop ? 'W ไล่ตำแหน่ง · J/K/U/I ทุบ · Y ศอก · G ล็อก · S ลุกยืน' : 'Space กันหน้า · W สวีป · A/D หนีตำแหน่ง · S ลุกขึ้น · G ล็อกจากล่าง';
+      const simple = (sc.settings.controls || 'simple') !== 'pro';
+      const touch = document.getElementById('ui').classList.contains('touchmode');
+      const hint = p == null ? '' : simple ? (isTop ? (touch ? 'ต่อย = ทุบ · ปล้ำ = ไล่ตำแหน่ง/ล็อก · หลบ = ลุกยืน' : 'J ทุบ · L ไล่ตำแหน่ง/ล็อก · Shift ลุกยืน') : (touch ? 'ปล้ำ = หนี/ลุก · การ์ด = ปิดหน้า · หลบ = หนีตำแหน่ง' : 'L หนี/ลุก · Space ปิดหน้า · Shift หนีตำแหน่ง'))
+        : isTop ? 'W ไล่ตำแหน่ง · J/K/U/I ทุบ · Y ศอก · G ล็อก · S ลุกยืน' : 'Space กันหน้า · W สวีป · A/D หนีตำแหน่ง · S ลุกขึ้น · G ล็อกจากล่าง';
       this.posBox.innerHTML = `<b>${POS_NAMES[L.pos]}</b> — ${L.top.name} อยู่บน<br><span>${hint}</span>${L.attempt ? `<div class="att">${L.attempt.f.name}: ${({ advance: 'ไล่ตำแหน่ง', sweep: 'สวีป', escape: 'หนีตำแหน่ง', getup: 'ลุกขึ้น' })[L.attempt.kind]}...</div>` : ''}`;
     } else if (L && L.type === 'clinch') {
       this.posBox.classList.remove('hidden');
-      this.posBox.innerHTML = '<b>คลินช์</b><br><span>H เข่า · Y ศอก · J/K หมัดสั้น · G ทุ่ม · W ดันติดกรง · S/F ถอยออก</span>';
+      this.posBox.innerHTML = (sc.settings.controls || 'simple') !== 'pro' ? '<b>คลินช์</b><br><span>เตะ = เข่า · ต่อย = ศอก · ปล้ำ = ทุ่ม · ดึงถอยหลังเพื่อออก</span>' : '<b>คลินช์</b><br><span>H เข่า · Y ศอก · J/K หมัดสั้น · G ทุ่ม · W ดันติดกรง · S/F ถอยออก</span>';
     } else this.posBox.classList.add('hidden');
     if (L && L.sub) {
       this.subBox.classList.remove('hidden');

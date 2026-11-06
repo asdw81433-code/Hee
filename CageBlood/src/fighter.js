@@ -243,7 +243,7 @@ export class Fighter {
     }
     if (inp.slip) {
       const dir = inp.slip; inp.slip = null;
-      if (!a || (a.type === 'strike' && a.phase === 'ret')) { this.slip = { dir, t: 0, dur: 0.42, kind: 'slip' }; this.health.stamina -= 1.2; }
+      if (!a || (a.type === 'strike' && a.phase === 'ret')) { this.slip = { dir, t: 0, dur: 0.42, kind: 'slip' }; this.health.stamina -= 1.2; this.slipCount = (this.slipCount || 0) + 1; }
     }
     if (inp.duck) {
       inp.duck = false;
@@ -264,7 +264,7 @@ export class Fighter {
     const h = this.health;
     const isKick = def.kind === 'kick' || def.kind === 'knee';
     const sp = (0.72 + 0.5 * this.A(isKick ? 'kickSpeed' : 'punchSpeed')) * (0.62 + 0.38 * h.output) * (h.stamina < def.stam ? 0.75 : 1);
-    const cost = def.stam * (feint ? 0.35 : 1) * (1.15 - this.A('cardio') * 0.3);
+    const cost = def.stam * (feint ? 0.35 : 1) * (1.15 - this.A('cardio') * 0.3) * (this.isPlayer ? 1 - 0.4 * (this.assist || 0) : 1);
     h.stamina = Math.max(0, h.stamina - cost);
     const hi = def.side === 'lead' ? this.lead : this.rear;
     this.action = {
@@ -273,6 +273,7 @@ export class Fighter {
       kStart: new THREE.Vector3(), kChamber: new THREE.Vector3(), kStrike: new THREE.Vector3(), launched: false, missed: true, active: false,
     };
     if (!feint) { this.stats.thrown++; this.stats.sigThrown += def.mass > 0.5 ? 1 : 0; }
+    this.cnt = this.cnt || {}; this.cnt[def.kind] = (this.cnt[def.kind] || 0) + 1;
     this.updateAim(this.action, true);
     this.game.emit('swing', this, def);
   }
@@ -283,7 +284,7 @@ export class Fighter {
     const def = a.def;
     const acc = this.A('accuracy') * (0.6 + 0.4 * this.health.output);
     const vis = (this.health.visionL + this.health.visionR) * 0.5;
-    const err = (1.05 - acc) * 0.07 * (2 - vis);
+    const err = (1.05 - acc) * 0.07 * (2 - vis) * (this.isPlayer ? 1 - 0.6 * (this.assist || 0) : 1);
     const tgt = _a;
     if (def.zone === 'head') tgt.copy(o.rig.headCenter).add(_b.set(0, -0.03 * o.u, 0));
     else if (def.zone === 'body') {
@@ -772,6 +773,7 @@ export class Fighter {
     let power = eRatio * def.mass * powStat * (0.55 + 0.45 * h.output) * (counter ? 1.25 : 1) * (a.glance || 1);
     // heavier fighters hit harder
     power *= clamp((this.prof.weightKg || 75) / 75, 0.75, 1.5) ** 0.35;
+    if (this.isPlayer) power *= 1 + 0.35 * (this.assist || 0); // difficulty assist
     power = clamp(power, 0.02, 2.4);
     if (window.__testLog && window.__hitLog) console.log(`LOG HIT ${def.name} ${zone}${blocked ? '(blk)' : ''} spd=${closing.toFixed(1)}/${def.nominal} pw=${power.toFixed(2)}`);
     const sig = power > 0.3 && !blocked;
@@ -796,7 +798,7 @@ export class Fighter {
   receiveHit(att, hit) {
     const rig = this.rig, h = this.health, u = this.u;
     const { def, zone, point, dir, blocked } = hit;
-    let power = hit.power;
+    let power = hit.power * (this.isPlayer ? 1 - 0.35 * (this.assist || 0) : 1); // difficulty assist
     this.lastHitT = this.game.time;
     if (rig.mode === 'ragdoll') {
       // hitting a downed/ragdolled body

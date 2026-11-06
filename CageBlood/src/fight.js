@@ -41,6 +41,7 @@ export class FightScene {
     this.ref.state = 'idle';
     this.ref.health.update = () => [];
     this.player = opts.playerSide === 'blue' ? this.blue : opts.playerSide === 'red' ? this.red : null;
+    if (this.player) { this.player.isPlayer = true; this.player.assist = (opts.settings && opts.settings.assist) ?? 0; }
     this.ais = new Map();
     for (const f of this.fighters) if (f !== this.player || opts.playerAI) this.ais.set(f, new AI(f, f === this.red ? opts.aiLevelRed ?? opts.aiLevel ?? 0.6 : opts.aiLevel ?? 0.6));
     this.rounds = opts.rounds || 3;
@@ -166,7 +167,7 @@ export class FightScene {
       // unanswered strikes on a hurt / downed fighter -> referee
       this.uhits.get(def).push(this.time);
     }
-    if (blocked) return;
+    if (blocked) { def.blockCount = (def.blockCount || 0) + 1; return; }
     // ---- blood ----
     const b = this.blood;
     if (zone === 'head') {

@@ -11,6 +11,7 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 page.on('dialog', (d) => d.accept());
 await page.goto('file://' + path.resolve('index.html') + '?warp=3');
 await page.waitForTimeout(1500);
+await page.evaluate(() => { window.__game.save.settings.controls = 'pro'; });
 await page.locator('.tile', { hasText: 'ไฟต์ด่วน' }).first().click(); await page.waitForTimeout(400);
 await page.locator('button', { hasText: 'เริ่มไฟต์' }).click(); await page.waitForTimeout(3500);
 const st = () => page.evaluate(() => { const s = window.__game.scene; const p = s.player; return { phase: s.phase, t: s.time.toFixed(1), thrown: p.stats.thrown, landed: p.stats.landed, state: p.state, opp: p.opp.stats.landed, stam: Math.round(p.health.stamina), dist: p.rig.root.distanceTo(p.opp.rig.root).toFixed(2) }; });

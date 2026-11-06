@@ -24,7 +24,11 @@ export class TouchControls {
     return (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
   }
 
-  show(v) { this.visible = v; this.root.classList.toggle('hidden', !v); if (!v) this.resetStick(); }
+  show(v) {
+    this.visible = v; this.root.classList.toggle('hidden', !v); if (!v) this.resetStick();
+    const simple = (this.app.save.settings.controls || 'simple') !== 'pro';
+    this.root.classList.toggle('simple', simple);
+  }
 
   // a button that taps (or holds) a virtual key
   btn(name, code, label, opts = {}) {
@@ -90,9 +94,15 @@ export class TouchControls {
       T('pause', 'Escape', 'หยุด', { cls: 'sm', onPress: () => this.app.ui.togglePause() }),
       T('body', 'Tab', 'ร่างกาย', { cls: 'sm', onPress: () => this.app.hud.toggleDamage() }),
       T('camera', 'KeyT', 'กล้อง', { cls: 'sm', onPress: () => { const c = this.app.world.cam; c.mode = c.mode === 'orbit' ? 'broadcast' : 'orbit'; c.orbitDist = 4.5; } }));
-    this.mash = el('div', { class: 'tmash hidden' }, T('hand', 'Space', 'รัวเพื่อแก้/บีบ!', { cls: 'huge', onPress: () => { this.keys.vTap('Space'); this.keys.vTap('KeyG'); } }));
+    this.mash = el('div', { class: 'tmash hidden' }, T('hand', 'Space', 'รัวเพื่อแก้/บีบ!', { cls: 'huge', onPress: () => { this.keys.vTap('Space'); this.keys.vTap('KeyG'); this.keys.vTap('SmartGrab'); } }));
+    // simple layout: five big buttons, the game picks the technique
+    this.easy = el('div', { class: 'teasy' },
+      el('div', { class: 'erow' }, T('dodge', 'SmartDodge', 'หลบ', { cls: 'emid' }), T('takedown', 'SmartGrab', 'ปล้ำ', { cls: 'emid grab' })),
+      el('div', { class: 'erow' }, T('kick', 'SmartKick', 'เตะ', { cls: 'ebig kickb' }), T('shield', 'SmartGuard', 'การ์ด', { cls: 'emid guard', hold: true })),
+      el('div', { class: 'erow' }, T('fist', 'SmartPunch', 'ต่อย', { cls: 'ehuge punch' })),
+    );
     const rot = el('div', { class: 'rotate-hint' }, icon('rotate', 28), 'หมุนจอเป็นแนวนอนจะเล่นง่ายกว่า');
-    r.append(zone, this.pad, this.side, this.top, this.mash, rot);
+    r.append(zone, this.pad, this.side, this.easy, this.top, this.mash, rot);
   }
 
   moveStick(dx, dy, R) {

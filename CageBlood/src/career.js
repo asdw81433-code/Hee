@@ -151,6 +151,27 @@ export class Career {
     if (i >= 0) p.splice(i, 1); else if (p.length < 3) p.push(act); else { p.shift(); p.push(act); }
   }
 
+  // coach-made weekly plan: rest when tired, cut weight before fights, otherwise train the weakest areas
+  autoPlan() {
+    const d = this.d, f = this.f, A = this.A;
+    const cut = Math.max(0, (f.walkKg - this.wc.kg) / f.walkKg);
+    if (d.fatigue > 58 || d.health.injuries.some((x) => x.severe)) return ['rest', 'family', cut > 0.05 ? 'diet' : 'film'];
+    if (d.booked && d.booked.weeksOut <= 1) return ['rest', cut > 0.04 ? 'diet' : 'film', 'sparLight'];
+    const pool = ['striking', 'wrestling', 'bjj', 'sc', 'cardio', 'footwork', 'conditioning', 'sparLight'];
+    const need = (act) => { const at = ACTIVITIES[act].attrs; return at.reduce((s, k) => s + (100 - (A[k] ?? 50)), 0) / at.length; };
+    const ranked = pool.map((a) => [a, need(a) + (rng() * 6)]).sort((x, y) => y[1] - x[1]).map((x) => x[0]);
+    const plan = ranked.slice(0, 2);
+    if (cut > 0.05) plan.push('diet');
+    else if (d.money < 300) plan.push('work');
+    else if (d.fatigue > 35) plan.push('rest');
+    else plan.push(d.hype < 20 ? 'media' : ranked[2]);
+    return plan;
+  }
+  winChance(rating) {
+    const me = overall(this.fightAttrs(null));
+    return 1 / (1 + Math.exp(-(me - rating) / 5.5));
+  }
+
   ageFactor() { const a = this.f.age; return a <= 23 ? 1.25 : a <= 27 ? 1.05 : a <= 31 ? 0.85 : a <= 34 ? 0.6 : 0.4; }
 
   advanceWeek() {
@@ -159,6 +180,8 @@ export class Career {
     if (d.retired) return out;
     const gym = GYMS[d.gym];
     const injuredBad = d.health.injuries.some((x) => x.severe);
+    if (d.autoPlan !== false && d._apWeek !== d.week) d.plan = this.autoPlan();
+    d._apWeek = -1;
     // --- training
     for (const act of d.plan) {
       const def = ACTIVITIES[act];

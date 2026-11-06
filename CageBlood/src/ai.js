@@ -74,7 +74,7 @@ export class AI {
     if (oa && oa.type === 'strike' && oa !== this.seen && (oa.phase === 'wind' || oa.phase === 'ext')) {
       this.seen = oa;
       // reaction delay: ~150-350 ms, worse when hurt/tired; kicks take longer so are easier to react to
-      const delay = (0.32 - iq * 0.12 - lvl * 0.1) * (hurt ? 1.6 : 1) * (tired ? 1.2 : 1);
+      const delay = (0.32 - iq * 0.12 - lvl * 0.1) * (hurt ? 1.6 : 1) * (tired ? 1.2 : 1) * (o.isPlayer ? 1 + 0.7 * (o.assist || 0) : 1);
       this.reactT = delay; this.reactTo = oa;
     }
     if (o.state === 'shoot' && !this.sprawled) {
@@ -90,7 +90,7 @@ export class AI {
       if (this.reactT < 0 && this.reactTo === o.action && this.reactTo) {
         const def = this.reactTo.def;
         const r = rng();
-        const pBlock = 0.25 + f.A('blocking') * 0.45 + lvl * 0.15;
+        const pBlock = (0.25 + f.A('blocking') * 0.45 + lvl * 0.15) * (o.isPlayer ? 1 - 0.4 * (o.assist || 0) : 1);
         const pSlip = def.kind === 'punch' && def.path === 'straight' ? f.A('headMove') * 0.45 : f.A('headMove') * 0.2;
         if (this.reactTo.feint && rng() < iq * 0.6) { /* read the feint */ }
         else if (def.zone === 'leg' && rng() < f.A('legTough') * 0.4 + lvl * 0.25) inp.check = true;
@@ -138,7 +138,7 @@ export class AI {
       inp.feint = false;
     } else if (this.decideT <= 0 && !f.action && !hurt) {
       // real MMA pace: ~10-20 strike attempts per minute, with feints, resets and feeling out
-      this.decideT = (0.9 + rng() * 1.6) * (1.35 - aggr * 0.6) * (tired ? 1.6 : 1) / (0.75 + lvl * 0.4);
+      this.decideT = (0.9 + rng() * 1.6) * (1.35 - aggr * 0.6) * (tired ? 1.6 : 1) / (0.75 + lvl * 0.4) * (o.isPlayer ? 1 + 0.5 * (o.assist || 0) : 1);
       const inRange = dist < this.plan.range + 0.25;
       if (f.clinch) {
         // clinch work: knees, elbows, short punches, trips

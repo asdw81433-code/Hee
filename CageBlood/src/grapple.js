@@ -29,7 +29,7 @@ export class Grapple {
   }
   get active() { return !!this.link; }
   A(f, k) { return f.A(k); }
-  stam(f) { return 0.55 + 0.45 * f.health.stamina / 100; }
+  stam(f) { return (0.55 + 0.45 * f.health.stamina / 100) * (f.isPlayer ? 1 + 0.35 * (f.assist || 0) : 1); }
 
   // ---------------- clinch ----------------
   tryClinch(f) {
@@ -37,7 +37,7 @@ export class Grapple {
     if (this.link || !o || !o.onFeet || o.state !== 'stand' || f.state !== 'stand') return false;
     const d = f.rig.root.distanceTo(o.rig.root);
     if (d > 1.0 * f.u) { this.game.emit('whiff', f, 'clinch'); return false; }
-    const off = this.A(f, 'clinch') * 0.8 + this.A(f, 'strength') * 0.3 + (o.health.rocked > 0 ? 0.4 : 0);
+    const off = this.A(f, 'clinch') * 0.8 + this.A(f, 'strength') * 0.3 + (o.health.rocked > 0 ? 0.4 : 0) + (f.isPlayer ? 0.4 * (f.assist || 0) : 0);
     const def = this.A(o, 'clinch') * 0.5 + this.A(o, 'footwork') * 0.3 + (o.action ? -0.2 : 0);
     f.health.stamina -= 3;
     if (rng() < sig((off - def) * 3.5 + 0.6)) {
@@ -422,7 +422,7 @@ export class Grapple {
     if (di.mash) { di.mash = false; s.defEff = Math.min(2, s.defEff + 0.22); def.health.stamina -= 0.4; }
     const posBonus = { rnc: 1.35, armTri: 1.1, armbar: 1.15, kimura: 1.0, triangle: 0.95, guardArmbar: 0.9, halfKimura: 0.85, guillotine: 1.0 }[s.id] || 1;
     const ap = (0.35 + this.A(att, 'subOffense') * 0.9 + this.A(att, 'strength') * 0.15) * this.stam(att) * s.attEff * posBonus;
-    const dfat = 0.35 + 0.65 * def.health.stamina / 100;
+    const dfat = (0.35 + 0.65 * def.health.stamina / 100) * (def.isPlayer ? 1 + 0.35 * (def.assist || 0) : 1);
     const dp = (0.3 + this.A(def, 'subDefense') * 0.85 + this.A(def, 'strength') * 0.2) * dfat * s.defEff * (def.health.rocked > 0 ? 0.55 : 1) * (0.7 + 0.3 * def.health.consc);
     s.prog += (ap - dp * 0.95) * dt * 0.32 + (rng() - 0.5) * dt * 0.1;
     def.health.stamina = Math.max(0, def.health.stamina - dt * 3);

@@ -14,7 +14,7 @@ export function defaultProfile() {
   return {
     id: 'p' + Date.now().toString(36),
     name: 'ธนา ศรีสุข', nick: 'Iron', country: 'TH', age: 21,
-    wc: 'light', height: 1.76, walkKg: 77, reachMul: 1.0, stance: 'orthodox', style: 'muaythai',
+    wc: 'light', height: 1.76, walkKg: 74, reachMul: 1.0, stance: 'orthodox', style: 'muaythai',
     look: { skin: SKIN_TONES[3], hairColor: HAIR_COLORS[0], hairStyle: 'buzz', beard: 'stubble', muscle: 0.5, fat: 0.15, shorts: '#b71c1c', shortsTrim: '#f9a825', tattoo: 'sakyant', cauliflower: false, chestHair: false, scar: false, seed, eyeColor: '#3b2414' },
     alloc: {},
     faceData: null,
@@ -206,7 +206,7 @@ export class Creator {
   tabBody(b) {
     const wc = wcById(this.p.wc);
     b.append(
-      this.field('รุ่นน้ำหนัก (ต้องลดน้ำหนักให้ได้ตามลิมิตก่อนชั่งทุกไฟต์)', el('select', { onchange: (e) => { this.p.wc = e.target.value; const w = wcById(this.p.wc); this.p.height = w.h; this.p.walkKg = Math.round(w.kg * 1.1); this.p.look.fat = w.id === 'heavy' ? 0.35 : 0.15; this.refreshPreview(); this.ui.refresh(); } },
+      this.field('รุ่นน้ำหนัก (ต้องลดน้ำหนักให้ได้ตามลิมิตก่อนชั่งทุกไฟต์)', el('select', { onchange: (e) => { this.p.wc = e.target.value; const w = wcById(this.p.wc); this.p.height = w.h; this.p.walkKg = Math.round(w.kg * 1.05); this.p.look.fat = w.id === 'heavy' ? 0.35 : 0.15; this.refreshPreview(); this.ui.refresh(); } },
         ...WEIGHT_CLASSES.map((w) => el('option', { value: w.id, selected: w.id === this.p.wc ? 'selected' : null }, `${w.name} — ${w.lb} ปอนด์ (${w.kg.toFixed(1)} กก.)`)))),
       this.slider('ส่วนสูง', Math.round((wc.h - 0.12) * 100), Math.round((wc.h + 0.12) * 100), 1, Math.round(this.p.height * 100), (v) => { this.p.height = v / 100; }, (v) => `${v} ซม.`),
       this.slider('ช่วงแขน (Reach)', 92, 108, 1, Math.round(this.p.reachMul * 100), (v) => { this.p.reachMul = v / 100; }, (v) => `${Math.round(this.p.height * 100 * v / 100)} ซม.`),
