@@ -1,0 +1,17 @@
+{
+  "name": "soi-brawl-tools",
+  "private": true,
+  "description": "Dev checks for the Roblox scripts: syntax/global lint + smoke tests in a mocked Roblox API",
+  "scripts": {
+    "check": "node test/check-lua.mjs $(find ../src -name '*.lua')",
+    "test:server": "node test/run.cjs server_test.lua",
+    "test:client": "node test/run.cjs client_test.lua && node test/run.cjs client_test.lua \"TOUCH_MODE = true\"",
+    "test:gore": "node test/run.cjs gore_test.lua",
+    "test:prebuilt": "node test/run.cjs server_test.lua \"PREBUILT = true\"",
+    "place": "node build-place.mjs"
+  },
+  "devDependencies": {
+    "fengari": "0.1.4",
+    "luaparse": "0.3.1"
+  }
+}

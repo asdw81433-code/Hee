@@ -1,0 +1,15 @@
+{
+  "name": "cage-blood",
+  "version": "1.0.0",
+  "private": true,
+  "description": "สังเวียนเลือด (CAGE BLOOD) - MMA sandbox / career game for the web",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:dev": "node build.mjs --dev",
+    "test": "node test/careersim.mjs && node test/ui.mjs && node test/play.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "three": "0.160.0"
+  }
+}

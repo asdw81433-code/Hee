@@ -1,0 +1,602 @@
+diff --git a/Roblox/src/shared/BrawlAnim.lua b/Roblox/src/shared/BrawlAnim.lua
+index b016aa9..8ba5d23 100644
+--- a/Roblox/src/shared/BrawlAnim.lua
++++ b/Roblox/src/shared/BrawlAnim.lua
+@@ -1,5 +1,5 @@
+ -- ============================================================
+---  ALLEY BRAWL : ท่าทาง/แอนิเมชันแบบ procedural (ReplicatedStorage > BrawlAnim)
++--  CAGE BLOOD FC : ท่าทาง MMA แบบ procedural (ReplicatedStorage > BrawlAnim)
+ --  มุมเป็นองศา {rx, ry, rz}
+ --   ไหล่ RS/LS: rx 0 = ห้อยลง, 90 = ชี้ไปหน้า, 180 = ชูขึ้นฟ้า
+ --        ry บวก = แขนขวาหุบเข้าใน (แขนซ้ายใช้ค่าลบ)   rz บวก = แขนขวากางออก (แขนซ้ายใช้ค่าลบ)
+@@ -15,107 +15,178 @@ local A = {}
+ 
+ --@@DATA_BEGIN
+ local DATA = {
++	-- ท่ายืนการ์ดแบบ MMA (ออร์โธด็อกซ์ มือสูง ย่อเข่า)
+ 	Guard = {
+-		RS = { 35, 30, 10 }, RE = { 118, 0, 0 }, LS = { 48, -18, -8 }, LE = { 100, 0, 0 },
+-		RH = { -12, 0, 6 }, RK = { -14, 0, 0 }, LH = { 18, 0, -6 }, LK = { -18, 0, 0 },
+-		N = { -6, 0, 0 }, W = { -4, -10, 0 }, Root = { 0, -10, 0 },
++		RS = { 38, 30, 10 }, RE = { 120, 0, 0 }, LS = { 50, -20, -8 }, LE = { 105, 0, 0 },
++		RH = { -12, 0, 7 }, RK = { -16, 0, 0 }, LH = { 16, 0, -7 }, LK = { -20, 0, 0 },
++		N = { -8, 0, 0 }, W = { -6, -8, 0 }, Root = { 0, -12, 0 },
++	},
++	-- ยืนสบายๆ (คนดู/กรรมการ/พักยก)
++	Relaxed = {
++		RS = { 4, 0, 8 }, RE = { 12, 0, 0 }, LS = { 4, 0, -8 }, LE = { 12, 0, 0 },
++		RH = { 0, 0, 3 }, RK = { -2, 0, 0 }, LH = { 0, 0, -3 }, LK = { -2, 0, 0 },
++		N = { 0, 0, 0 }, W = { 0, 0, 0 }, Root = { 0, 0, 0 },
+ 	},
+ 	Block = {
+-		RS = { 60, 38, 6 }, RE = { 125, 0, 0 }, LS = { 60, -38, -6 }, LE = { 125, 0, 0 }, N = { -14, 0, 0 }, W = { -8, 0, 0 },
++		RS = { 62, 38, 6 }, RE = { 128, 0, 0 }, LS = { 62, -38, -6 }, LE = { 128, 0, 0 }, N = { -16, 0, 0 }, W = { -10, 0, 0 },
++	},
++	-- บนพื้น: ขี่ทับ (mount) / นอนหงายกอดขา (guard)
++	Top = {
++		RH = { -5, 0, 28 }, RK = { -100, 0, 0 }, LH = { -5, 0, -28 }, LK = { -100, 0, 0 },
++		W = { -18, 0, 0 }, N = { -25, 0, 0 }, RS = { 55, 30, 10 }, RE = { 100, 0, 0 }, LS = { 55, -30, -10 }, LE = { 100, 0, 0 }, Root = { 0, 0, 0 },
++	},
++	Bottom = {
++		RH = { 75, 0, 30 }, RK = { -85, 0, 0 }, LH = { 75, 0, -30 }, LK = { -85, 0, 0 },
++		RS = { 95, 35, 10 }, RE = { 115, 0, 0 }, LS = { 95, -35, -10 }, LE = { 115, 0, 0 }, N = { 20, 0, 0 }, W = { 0, 0, 0 }, Root = { 0, 0, 0 },
+ 	},
+-	WeaponArm = { 48, 10, 0 },
+-	WeaponElbow = { 20, 0, 0 },
++	SubTop = { W = { -55, 0, 0 }, N = { -35, 0, 0 }, RS = { 95, 60, 0 }, RE = { 115, 0, 0 }, LS = { 95, -60, 0 }, LE = { 115, 0, 0 } },
++	SubBottom = {
++		RH = { 115, 0, 38 }, RK = { -55, 0, 0 }, LH = { 115, 0, -38 }, LK = { -55, 0, 0 },
++		RS = { 120, 25, 0 }, RE = { 50, 0, 0 }, LS = { 120, -25, 0 }, LE = { 50, 0, 0 }, N = { 25, 0, 0 },
++	},
++	DefendTop = { W = { -35, 0, 0 }, RS = { 60, 10, 0 }, RE = { 30, 0, 0 }, LS = { 60, -10, 0 }, LE = { 30, 0, 0 }, N = { -10, 0, 0 } },
++	DefendBottom = { RS = { 120, 15, 0 }, RE = { 30, 0, 0 }, LS = { 120, -15, 0 }, LE = { 30, 0, 0 }, N = { 30, 0, 0 } },
++	Celebrate = { RS = { 172, 0, 20 }, RE = { 10, 0, 0 }, LS = { 172, 0, -20 }, LE = { 10, 0, 0 }, N = { 22, 0, 0 }, W = { 8, 0, 0 } },
+ 	Clips = {
+ 		jab = {
+-			{ t = 0.00, LS = { 50, -18, -8 }, LE = { 100, 0, 0 } },
+-			{ t = 0.08, LS = { 92, 12, 0 }, LE = { 4, 0, 0 }, RS = { 35, 34, 10 }, RE = { 122, 0, 0 }, W = { -6, -22, 0 }, Root = { 0, -12, 0 }, off = { 0, 0, -0.3 }, N = { -8, 10, 0 } },
++			{ t = 0.00, LS = { 55, -15, -8 }, LE = { 100, 0, 0 } },
++			{ t = 0.08, LS = { 92, 10, 0 }, LE = { 4, 0, 0 }, RS = { 38, 34, 10 }, RE = { 124, 0, 0 }, W = { -6, -22, 0 }, Root = { 0, -12, 0 }, off = { 0, 0, -0.3 }, N = { -8, 10, 0 } },
+ 			{ t = 0.15, hold = true },
+-			{ t = 0.30, LS = { 50, -14, -8 }, LE = { 95, 0, 0 } },
++			{ t = 0.30, LS = { 52, -18, -8 }, LE = { 100, 0, 0 } },
+ 		},
+ 		cross = {
+-			{ t = 0.00, RS = { 32, 30, 12 }, RE = { 118, 0, 0 }, W = { 0, -18, 0 } },
+-			{ t = 0.09, RS = { 92, -10, 0 }, RE = { 4, 0, 0 }, LS = { 60, -34, -6 }, LE = { 120, 0, 0 }, W = { -8, 28, 0 }, Root = { 0, 6, 0 }, off = { 0, 0, -0.4 }, RH = { -18, 0, 6 }, RK = { -6, 0, 0 }, N = { -8, -15, 0 } },
+-			{ t = 0.17, hold = true },
+-			{ t = 0.34, RS = { 35, 30, 10 }, RE = { 112, 0, 0 } },
++			{ t = 0.00, RS = { 34, 30, 12 }, RE = { 118, 0, 0 }, W = { 0, -18, 0 } },
++			{ t = 0.10, RS = { 92, -8, 0 }, RE = { 4, 0, 0 }, LS = { 60, -34, -6 }, LE = { 124, 0, 0 }, W = { -8, 30, 0 }, Root = { 0, 8, 0 }, off = { 0, 0, -0.4 }, RH = { -18, 0, 7 }, RK = { -8, 0, 0 }, N = { -8, -15, 0 } },
++			{ t = 0.18, hold = true },
++			{ t = 0.36, RS = { 38, 30, 10 }, RE = { 118, 0, 0 } },
++		},
++		hook = {
++			{ t = 0.00, LS = { 40, -10, -45 }, LE = { 100, 0, 0 }, W = { 0, 12, 0 } },
++			{ t = 0.13, LS = { 15, -45, -80 }, LE = { 95, 0, 0 }, RS = { 40, 34, 10 }, RE = { 124, 0, 0 }, W = { -6, -38, 0 }, Root = { 0, -16, 0 }, off = { 0, 0, -0.2 }, N = { -8, 20, 0 }, LH = { 12, 0, -7 }, LK = { -10, 0, 0 } },
++			{ t = 0.22, hold = true },
++			{ t = 0.42, LS = { 50, -20, -8 }, LE = { 105, 0, 0 }, W = { -6, -8, 0 } },
+ 		},
+ 		upper = {
+-			{ t = 0.00, RS = { 15, 10, 14 }, RE = { 100, 0, 0 }, W = { 4, -24, 0 }, Root = { 0, -8, 0 }, off = { 0, -0.3, 0 }, RK = { -35, 0, 0 }, LK = { -35, 0, 0 }, RH = { -6, 0, 6 }, LH = { 18, 0, -6 }, N = { -8, 0, 0 } },
++			{ t = 0.00, RS = { 15, 10, 14 }, RE = { 100, 0, 0 }, W = { 4, -24, 0 }, Root = { 0, -8, 0 }, off = { 0, -0.3, 0 }, RK = { -35, 0, 0 }, LK = { -35, 0, 0 }, N = { -8, 0, 0 } },
+ 			{ t = 0.13, RS = { 62, 12, 0 }, RE = { 78, 0, 0 }, LS = { 60, -34, -6 }, LE = { 120, 0, 0 }, W = { 14, 22, 4 }, off = { 0, 0.25, -0.2 }, RK = { -4, 0, 0 }, LK = { -6, 0, 0 }, N = { 16, 0, 0 } },
+ 			{ t = 0.23, hold = true },
+-			{ t = 0.50, RS = { 40, 28, 10 }, RE = { 110, 0, 0 }, W = { 0, -8, 0 } },
++			{ t = 0.45, RS = { 38, 30, 10 }, RE = { 118, 0, 0 }, W = { -6, -8, 0 } },
++		},
++		lowkick = {
++			{ t = 0.00, RH = { 25, 0, 20 }, RK = { -50, 0, 0 }, Root = { 0, 10, 0 }, RS = { 30, 20, 10 }, RE = { 110, 0, 0 } },
++			{ t = 0.17, RH = { 40, 40, 30 }, RK = { -8, 0, 0 }, LK = { -12, 0, 0 }, Root = { 4, 38, 0 }, W = { 0, -10, 0 }, RS = { -15, 0, 25 }, RE = { 20, 0, 0 }, LS = { 60, -30, -10 }, LE = { 110, 0, 0 }, off = { 0, -0.1, -0.2 } },
++			{ t = 0.27, hold = true },
++			{ t = 0.50, RH = { -12, 0, 7 }, RK = { -16, 0, 0 }, Root = { 0, -12, 0 } },
++		},
++		bodykick = {
++			{ t = 0.00, RH = { 45, 0, 30 }, RK = { -70, 0, 0 }, Root = { 4, 15, 0 }, RS = { 30, 20, 10 }, RE = { 110, 0, 0 } },
++			{ t = 0.20, RH = { 85, 38, 28 }, RK = { -8, 0, 0 }, LK = { -14, 0, 0 }, Root = { 10, 42, 0 }, W = { 4, -10, 0 }, RS = { -20, 0, 30 }, RE = { 20, 0, 0 }, LS = { 60, -30, -10 }, LE = { 110, 0, 0 }, off = { 0, 0, -0.15 } },
++			{ t = 0.32, hold = true },
++			{ t = 0.58, RH = { -12, 0, 7 }, RK = { -16, 0, 0 }, Root = { 0, -12, 0 } },
+ 		},
+-		kick = {
+-			{ t = 0.00, RH = { 70, 0, 0 }, RK = { -95, 0, 0 }, LK = { -10, 0, 0 }, Root = { 6, -8, 0 }, W = { 6, 0, 0 }, RS = { 45, 25, 18 }, RE = { 90, 0, 0 }, LS = { 50, -20, -18 }, LE = { 90, 0, 0 } },
+-			{ t = 0.14, RH = { 92, 0, 0 }, RK = { -4, 0, 0 }, LH = { -6, 0, 0 }, LK = { -12, 0, 0 }, Root = { 12, -4, 0 }, W = { 8, 0, 0 }, off = { 0, 0.08, -0.3 }, RS = { 40, 10, 30 }, RE = { 40, 0, 0 }, LS = { 45, -10, -30 }, LE = { 40, 0, 0 } },
+-			{ t = 0.25, hold = true },
+-			{ t = 0.48, RH = { 30, 0, 0 }, RK = { -40, 0, 0 }, Root = { 4, -8, 0 } },
++		headkick = {
++			{ t = 0.00, RH = { 60, 0, 35 }, RK = { -90, 0, 0 }, Root = { 6, 18, 0 }, W = { 6, 0, 0 } },
++			{ t = 0.25, RH = { 120, 32, 26 }, RK = { -4, 0, 0 }, LK = { -14, 0, 0 }, Root = { 18, 46, 0 }, W = { 10, -12, 0 }, N = { -10, -20, 0 }, RS = { -25, 0, 35 }, RE = { 15, 0, 0 }, LS = { 70, -30, -10 }, LE = { 110, 0, 0 }, off = { 0, 0.05, -0.1 } },
++			{ t = 0.38, hold = true },
++			{ t = 0.66, RH = { -12, 0, 7 }, RK = { -16, 0, 0 }, Root = { 0, -12, 0 }, W = { -6, -8, 0 } },
+ 		},
+-		stomp = {
+-			{ t = 0.00, RH = { 75, 0, 0 }, RK = { -100, 0, 0 }, Root = { -8, 0, 0 }, W = { -10, 0, 0 }, N = { -30, 0, 0 }, RS = { 40, 0, 30 }, RE = { 60, 0, 0 }, LS = { 40, 0, -30 }, LE = { 60, 0, 0 } },
+-			{ t = 0.15, RH = { -2, 0, 0 }, RK = { 0, 0, 0 }, LH = { 8, 0, 0 }, LK = { -25, 0, 0 }, Root = { -12, 0, 0 }, W = { -14, 0, 0 }, off = { 0, -0.15, 0 }, N = { -34, 0, 0 }, RS = { 25, 0, 40 }, RE = { 30, 0, 0 }, LS = { 25, 0, -40 }, LE = { 30, 0, 0 } },
++		knee = {
++			{ t = 0.00, RS = { 85, 30, 0 }, RE = { 70, 0, 0 }, LS = { 85, -30, 0 }, LE = { 70, 0, 0 }, W = { -10, 0, 0 } },
++			{ t = 0.14, RH = { 100, 0, 0 }, RK = { -125, 0, 0 }, RS = { 80, 35, 0 }, RE = { 85, 0, 0 }, LS = { 80, -35, 0 }, LE = { 85, 0, 0 }, W = { -18, 0, 0 }, Root = { -6, 0, 0 }, off = { 0, 0.15, -0.3 }, N = { -15, 0, 0 } },
+ 			{ t = 0.24, hold = true },
+-			{ t = 0.42, RH = { 0, 0, 0 }, RK = { 0, 0, 0 }, Root = { -4, 0, 0 } },
++			{ t = 0.45, RH = { -12, 0, 7 }, RK = { -16, 0, 0 } },
+ 		},
+-		dive = {
+-			{ t = 0.00, RS = { 170, 10, 10 }, RE = { 20, 0, 0 }, LS = { 170, -10, -10 }, LE = { 20, 0, 0 }, W = { 10, 0, 0 }, RH = { 30, 0, 0 }, RK = { -60, 0, 0 }, LH = { -20, 0, 0 }, LK = { -40, 0, 0 } },
+-			{ t = 0.10, RS = { 60, 20, 0 }, RE = { 10, 0, 0 }, LS = { 60, -20, 0 }, LE = { 10, 0, 0 }, W = { -25, 0, 0 }, N = { -20, 0, 0 }, RH = { 40, 0, 0 }, RK = { -30, 0, 0 }, LH = { 10, 0, 0 }, LK = { -50, 0, 0 } },
+-			{ t = 0.25, hold = true },
+-			{ t = 0.45, RS = { 35, 30, 10 }, RE = { 118, 0, 0 }, LS = { 48, -18, -8 }, LE = { 100, 0, 0 }, W = { -4, -10, 0 } },
++		shoot = {
++			{ t = 0.00, Root = { -15, 0, 0 }, off = { 0, -0.6, 0 }, RK = { -55, 0, 0 }, LK = { -55, 0, 0 }, RH = { 10, 0, 6 }, LH = { 25, 0, -6 }, W = { -20, 0, 0 }, RS = { 60, 15, 0 }, RE = { 50, 0, 0 }, LS = { 60, -15, 0 }, LE = { 50, 0, 0 }, N = { -10, 0, 0 } },
++			{ t = 0.32, Root = { -35, 0, 0 }, off = { 0, -1.1, -1.3 }, RH = { -35, 0, 6 }, RK = { -30, 0, 0 }, LH = { 50, 0, -6 }, LK = { -95, 0, 0 }, W = { -30, 0, 0 }, RS = { 75, 25, 0 }, RE = { 35, 0, 0 }, LS = { 75, -25, 0 }, LE = { 35, 0, 0 }, N = { 10, 0, 0 } },
++			{ t = 0.50, hold = true },
++			{ t = 0.75, Root = { 0, -12, 0 }, W = { -6, -8, 0 } },
+ 		},
+-		grab = {
+-			{ t = 0.00, RS = { 70, 15, 0 }, RE = { 40, 0, 0 }, LS = { 70, -15, 0 }, LE = { 40, 0, 0 }, W = { -6, 0, 0 } },
+-			{ t = 0.12, RS = { 92, 20, 0 }, RE = { 15, 0, 0 }, LS = { 92, -20, 0 }, LE = { 15, 0, 0 }, W = { -14, 0, 0 }, off = { 0, 0, -0.4 } },
+-			{ t = 0.20, hold = true },
+-			{ t = 0.36, RS = { 60, 25, 0 }, RE = { 70, 0, 0 }, LS = { 60, -25, 0 }, LE = { 70, 0, 0 } },
++		sprawl = {
++			{ t = 0.00, Root = { -25, 0, 0 }, off = { 0, -0.8, 0.6 }, RH = { -45, 0, 15 }, RK = { -20, 0, 0 }, LH = { -45, 0, -15 }, LK = { -20, 0, 0 }, W = { -30, 0, 0 }, RS = { 70, 20, 0 }, RE = { 40, 0, 0 }, LS = { 70, -20, 0 }, LE = { 40, 0, 0 } },
++			{ t = 0.35, hold = true },
++			{ t = 0.60, Root = { 0, -12, 0 }, W = { -6, -8, 0 } },
+ 		},
+-		suplex = {
+-			{ t = 0.00, RS = { 95, 20, 0 }, RE = { 30, 0, 0 }, LS = { 95, -20, 0 }, LE = { 30, 0, 0 }, W = { -8, 0, 0 } },
+-			{ t = 0.15, RS = { 130, 15, 0 }, RE = { 40, 0, 0 }, LS = { 130, -15, 0 }, LE = { 40, 0, 0 }, W = { 10, 0, 0 }, off = { 0, 0.1, 0 }, RK = { -30, 0, 0 }, LK = { -30, 0, 0 } },
+-			{ t = 0.35, RS = { 175, 5, 0 }, RE = { 10, 0, 0 }, LS = { 175, -5, 0 }, LE = { 10, 0, 0 }, W = { 35, 0, 0 }, Root = { 15, 0, 0 }, off = { 0, 0.25, 0.4 }, N = { 35, 0, 0 }, RH = { 25, 0, 0 }, RK = { -60, 0, 0 }, LH = { 25, 0, 0 }, LK = { -60, 0, 0 } },
+-			{ t = 0.60, hold = true },
+-			{ t = 0.85, W = { 0, 0, 0 }, Root = { 0, 0, 0 } },
++		slipL = {
++			{ t = 0.00, W = { -6, 0, 22 }, off = { -0.7, -0.2, 0 }, N = { 0, 0, 10 }, LK = { -30, 0, 0 } },
++			{ t = 0.18, hold = true },
++			{ t = 0.38, W = { -6, -8, 0 } },
+ 		},
+-		swing = {
+-			{ t = 0.00, RS = { 165, 8, 0 }, RE = { 50, 0, 0 }, LS = { 60, -20, -10 }, LE = { 60, 0, 0 }, W = { 10, -18, 0 }, N = { 8, 0, 0 } },
+-			{ t = 0.17, RS = { 85, 12, 0 }, RE = { 5, 0, 0 }, LS = { 50, -10, -25 }, LE = { 40, 0, 0 }, W = { -14, 24, 0 }, off = { 0, -0.05, -0.35 }, N = { -8, 0, 0 } },
+-			{ t = 0.27, RS = { 62, 14, 0 }, RE = { 5, 0, 0 }, LS = { 50, -10, -25 }, LE = { 40, 0, 0 }, W = { -16, 26, 0 }, off = { 0, -0.05, -0.4 }, N = { -10, 0, 0 } },
+-			{ t = 0.50, RS = { 48, 10, 0 }, RE = { 20, 0, 0 }, W = { 0, -6, 0 } },
++		slipR = {
++			{ t = 0.00, W = { -6, 0, -22 }, off = { 0.7, -0.2, 0 }, N = { 0, 0, -10 }, RK = { -30, 0, 0 } },
++			{ t = 0.18, hold = true },
++			{ t = 0.38, W = { -6, -8, 0 } },
+ 		},
+-		throw = {
+-			{ t = 0.00, RS = { 160, -10, 10 }, RE = { 70, 0, 0 }, W = { 6, -28, 0 } },
+-			{ t = 0.10, RS = { 85, 0, 0 }, RE = { 5, 0, 0 }, W = { -12, 30, 0 }, off = { 0, 0, -0.3 } },
++		gnp = {
++			{ t = 0.00, RS = { 150, 10, 10 }, RE = { 90, 0, 0 }, W = { -10, 0, 0 } },
++			{ t = 0.10, RS = { 40, 15, 0 }, RE = { 5, 0, 0 }, W = { -32, 10, 0 }, N = { -30, 0, 0 } },
+ 			{ t = 0.18, hold = true },
+-			{ t = 0.36, RS = { 48, 10, 0 }, RE = { 30, 0, 0 }, W = { 0, -8, 0 } },
++			{ t = 0.34, RS = { 55, 30, 10 }, RE = { 100, 0, 0 }, W = { -18, 0, 0 } },
+ 		},
+-		super = {
+-			{ t = 0.00, RS = { -35, 0, 20 }, RE = { 80, 0, 0 }, LS = { 80, -35, 0 }, LE = { 60, 0, 0 }, W = { 6, -40, 0 }, Root = { 0, -10, 0 }, off = { 0, -0.3, 0.2 }, N = { 0, 30, 0 }, RH = { -16, 0, 0 }, RK = { -30, 0, 0 }, LH = { 24, 0, 0 }, LK = { -40, 0, 0 } },
+-			{ t = 0.36, RS = { -48, -6, 24 }, RE = { 90, 0, 0 }, LS = { 84, -38, 0 }, LE = { 60, 0, 0 }, W = { 8, -46, 0 }, Root = { 0, -12, 0 }, off = { 0, -0.35, 0.25 }, N = { 0, 34, 0 }, RH = { -18, 0, 0 }, RK = { -34, 0, 0 }, LH = { 26, 0, 0 }, LK = { -44, 0, 0 } },
+-			{ t = 0.42, RS = { 94, -8, 0 }, RE = { 0, 0, 0 }, LS = { 40, -10, -30 }, LE = { 30, 0, 0 }, W = { -16, 36, 0 }, Root = { 0, 10, 0 }, off = { 0, 0, -0.9 }, N = { -5, -20, 0 }, RH = { -30, 0, 0 }, RK = { -10, 0, 0 }, LH = { 35, 0, 0 }, LK = { -30, 0, 0 } },
+-			{ t = 0.75, hold = true },
+-			{ t = 1.05, RS = { 35, 30, 10 }, RE = { 118, 0, 0 }, W = { 0, -10, 0 }, Root = { 0, -10, 0 } },
++		gnpL = {
++			{ t = 0.00, LS = { 150, -10, -10 }, LE = { 90, 0, 0 }, W = { -10, 0, 0 } },
++			{ t = 0.10, LS = { 40, -15, 0 }, LE = { 5, 0, 0 }, W = { -32, -10, 0 }, N = { -30, 0, 0 } },
++			{ t = 0.18, hold = true },
++			{ t = 0.34, LS = { 55, -30, -10 }, LE = { 100, 0, 0 }, W = { -18, 0, 0 } },
++		},
++		gnpElbow = {
++			{ t = 0.00, RS = { 170, 10, 20 }, RE = { 140, 0, 0 }, W = { 5, 0, 0 } },
++			{ t = 0.16, RS = { 60, 20, 0 }, RE = { 140, 0, 0 }, W = { -40, 15, 0 }, off = { 0, -0.2, 0 }, N = { -30, 0, 0 } },
++			{ t = 0.26, hold = true },
++			{ t = 0.50, RS = { 55, 30, 10 }, RE = { 100, 0, 0 }, W = { -18, 0, 0 } },
++		},
++		bottomPunch = {
++			{ t = 0.00, RS = { 80, 30, 0 }, RE = { 110, 0, 0 } },
++			{ t = 0.09, RS = { 110, 0, 0 }, RE = { 5, 0, 0 }, N = { 25, 0, 0 } },
++			{ t = 0.16, hold = true },
++			{ t = 0.32, RS = { 95, 35, 10 }, RE = { 115, 0, 0 } },
+ 		},
+-		pickup = {
+-			{ t = 0.00, W = { -35, 0, 0 }, Root = { -10, 0, 0 }, RS = { 40, 10, 0 }, RE = { 10, 0, 0 }, N = { -20, 0, 0 }, RK = { -35, 0, 0 }, LK = { -35, 0, 0 }, off = { 0, -0.3, 0 } },
+-			{ t = 0.15, W = { -40, 0, 0 }, Root = { -10, 0, 0 }, RS = { 25, 10, 0 }, RE = { 5, 0, 0 }, N = { -24, 0, 0 }, RK = { -45, 0, 0 }, LK = { -45, 0, 0 }, off = { 0, -0.4, 0 } },
+-			{ t = 0.30, W = { -5, 0, 0 }, RK = { -5, 0, 0 }, LK = { -5, 0, 0 } },
++		escape = {
++			{ t = 0.00, Root = { 0, 0, 15 }, off = { 0, 0, -0.35 }, RH = { 50, 0, 40 }, LH = { 50, 0, -40 } },
++			{ t = 0.15, Root = { 0, 0, -15 }, off = { 0, 0, -0.5 } },
++			{ t = 0.30, Root = { 0, 0, 0 } },
+ 		},
+ 		hurt = {
+ 			{ t = 0.00, W = { 18, 0, -6 }, N = { 28, 0, 8 }, RS = { 40, 0, 40 }, RE = { 30, 0, 0 }, LS = { 40, 0, -40 }, LE = { 30, 0, 0 }, off = { 0, 0, 0.25 } },
+ 			{ t = 0.12, W = { 12, 0, -3 }, N = { 14, 0, 4 }, RS = { 50, 10, 25 }, RE = { 60, 0, 0 }, LS = { 50, -10, -25 }, LE = { 60, 0, 0 }, off = { 0, 0, 0.15 } },
+-			{ t = 0.40, W = { 0, -8, 0 } },
++			{ t = 0.40, W = { -6, -8, 0 } },
+ 		},
+ 		hurtBody = {
+ 			{ t = 0.00, W = { -30, 0, 4 }, N = { -12, 0, 0 }, RS = { 40, 40, 0 }, RE = { 80, 0, 0 }, LS = { 40, -40, 0 }, LE = { 80, 0, 0 }, off = { 0, -0.1, 0.3 }, RK = { -20, 0, 0 }, LK = { -20, 0, 0 } },
+ 			{ t = 0.15, W = { -22, 0, 2 }, N = { -8, 0, 0 }, RS = { 45, 40, 0 }, RE = { 85, 0, 0 }, LS = { 45, -40, 0 }, LE = { 85, 0, 0 }, off = { 0, -0.05, 0.15 }, RK = { -15, 0, 0 }, LK = { -15, 0, 0 } },
+-			{ t = 0.45, W = { 0, -8, 0 } },
++			{ t = 0.45, W = { -6, -8, 0 } },
++		},
++		hurtLeg = {
++			{ t = 0.00, LH = { -10, 0, -15 }, LK = { -45, 0, 0 }, Root = { 0, 0, -8 }, off = { 0, -0.3, 0.1 }, W = { -10, 0, 6 } },
++			{ t = 0.18, LH = { 5, 0, -10 }, LK = { -35, 0, 0 }, Root = { 0, 0, -5 }, off = { 0, -0.2, 0 } },
++			{ t = 0.45, Root = { 0, -12, 0 } },
+ 		},
+ 		blockHit = {
+-			{ t = 0.00, RS = { 55, 40, 6 }, RE = { 120, 0, 0 }, LS = { 55, -40, -6 }, LE = { 120, 0, 0 }, W = { 10, 0, 0 }, N = { -6, 0, 0 }, off = { 0, 0, 0.3 } },
+-			{ t = 0.20, RS = { 60, 38, 6 }, RE = { 125, 0, 0 }, LS = { 60, -38, -6 }, LE = { 125, 0, 0 }, W = { -8, 0, 0 } },
++			{ t = 0.00, RS = { 58, 40, 6 }, RE = { 124, 0, 0 }, LS = { 58, -40, -6 }, LE = { 124, 0, 0 }, W = { 6, 0, 0 }, N = { -10, 0, 0 }, off = { 0, 0, 0.3 } },
++			{ t = 0.20, RS = { 62, 38, 6 }, RE = { 128, 0, 0 }, LS = { 62, -38, -6 }, LE = { 128, 0, 0 }, W = { -10, 0, 0 } },
+ 		},
+ 		taunt = {
+-			{ t = 0.00, procedural = "dance" },
+-			{ t = 1.60, procedural = "dance" },
++			{ t = 0.00, RS = { 20, 0, 70 }, RE = { 30, 0, 0 }, LS = { 20, 0, -70 }, LE = { 30, 0, 0 }, W = { 10, 0, 0 }, N = { 15, 0, 0 } },
++			{ t = 0.40, RS = { 30, 0, 85 }, RE = { 20, 0, 0 }, LS = { 30, 0, -85 }, LE = { 20, 0, 0 }, W = { 12, 0, 0 }, N = { 15, 25, 0 } },
++			{ t = 0.80, RS = { 30, 0, 85 }, RE = { 20, 0, 0 }, LS = { 30, 0, -85 }, LE = { 20, 0, 0 }, W = { 12, 0, 0 }, N = { 15, -25, 0 } },
++			{ t = 1.20, RS = { 175, 0, 15 }, RE = { 10, 0, 0 }, LS = { 30, 0, -60 }, LE = { 20, 0, 0 }, N = { 20, 0, 0 } },
++			{ t = 1.60, W = { 0, 0, 0 } },
++		},
++		refStart = {
++			{ t = 0.00, RS = { 170, 0, 10 }, RE = { 0, 0, 0 } },
++			{ t = 0.35, RS = { 170, 0, 10 }, RE = { 0, 0, 0 } },
++			{ t = 0.55, RS = { 60, 0, 10 }, RE = { 0, 0, 0 }, W = { -10, 0, 0 } },
++			{ t = 0.90, RS = { 5, 0, 8 } },
++		},
++		refStop = {
++			{ t = 0.00, RS = { 90, 0, 60 }, RE = { 10, 0, 0 }, LS = { 90, 0, -60 }, LE = { 10, 0, 0 }, W = { -15, 0, 0 }, off = { 0, 0, -0.6 } },
++			{ t = 0.80, hold = true },
++			{ t = 1.20, W = { 0, 0, 0 } },
++		},
++		refRaise = {
++			{ t = 0.00, LS = { 175, 0, -5 }, LE = { 5, 0, 0 } },
++			{ t = 3.00, hold = true },
++			{ t = 3.40, LS = { 4, 0, -8 } },
+ 		},
+ 	},
+ }
+@@ -143,9 +214,15 @@ local function convertPose(p)
+ end
+ 
+ A.Guard = convertPose(DATA.Guard)
++A.Relaxed = convertPose(DATA.Relaxed)
+ A.Block = convertPose(DATA.Block)
+-A.WeaponArm = toRad(DATA.WeaponArm)
+-A.WeaponElbow = toRad(DATA.WeaponElbow)
++A.Top = convertPose(DATA.Top)
++A.Bottom = convertPose(DATA.Bottom)
++A.SubTop = convertPose(DATA.SubTop)
++A.SubBottom = convertPose(DATA.SubBottom)
++A.DefendTop = convertPose(DATA.DefendTop)
++A.DefendBottom = convertPose(DATA.DefendBottom)
++A.Celebrate = convertPose(DATA.Celebrate)
+ A.Clips = {}
+ for name, keys in pairs(DATA.Clips) do
+ 	local clip = { keys = {}, len = 0, procedural = nil }
+@@ -236,22 +313,4 @@ function A.sampleClip(clip, t, base, out)
+ 	return 1
+ end
+ 
+--- ท่าเต้นยั่ว (ไก่ย่างแดนซ์: กางศอกกระพือปีก + ยกเข่าสลับ)
+-function A.dance(t, out)
+-	local s = math.sin(t * 9)
+-	local flap = rad(40 + math.sin(t * 18) * 35)
+-	out.RS = { rad(15), 0, flap }
+-	out.LS = { rad(15), 0, -flap }
+-	out.RE = { rad(110), 0, 0 }
+-	out.LE = { rad(110), 0, 0 }
+-	out.RH = { rad(math.max(0, s) * 55), 0, rad(4) }
+-	out.RK = { -rad(math.max(0, s) * 80), 0, 0 }
+-	out.LH = { rad(math.max(0, -s) * 55), 0, rad(-4) }
+-	out.LK = { -rad(math.max(0, -s) * 80), 0, 0 }
+-	out.Root = { 0, 0, rad(s * 6) }
+-	out.W = { rad(-4), rad(math.sin(t * 4.5) * 20), rad(s * 6) }
+-	out.N = { rad(math.abs(s) * 12), rad(math.sin(t * 4.5) * 25), rad(-s * 10) }
+-	out.off = { 0, math.abs(s) * 0.2, 0 }
+-end
+-
+ return A
+diff --git a/Roblox/src/shared/BrawlConfig.lua b/Roblox/src/shared/BrawlConfig.lua
+index 6fca14b..1ae8883 100644
+--- a/Roblox/src/shared/BrawlConfig.lua
++++ b/Roblox/src/shared/BrawlConfig.lua
+@@ -1,189 +1,158 @@
+ -- ============================================================
+---  ALLEY BRAWL  -  ตั้งค่าเกมทั้งหมดอยู่ไฟล์นี้
+---  (ReplicatedStorage > BrawlConfig)
+---  แก้ตัวเลขตรงนี้ได้เลย ไม่ต้องแตะสคริปต์อื่น
++--  CAGE BLOOD FC  -  เกม MMA สไตล์ UFC (ReplicatedStorage > BrawlConfig)
++--  ตั้งค่าเกมทั้งหมดอยู่ไฟล์นี้ แก้ตัวเลขได้เลย ไม่ต้องแตะสคริปต์อื่น
++--  ** อย่าใส่ชื่อ/โลโก้ UFC หรือชื่อนักสู้จริง ถ้าจะ Publish (ติดเครื่องหมายการค้า) **
+ -- ============================================================
+ local C = {}
+ 
+-C.GameName = "ALLEY BRAWL"
++C.GameName = "CAGE BLOOD FC"
++C.EventName = "FIGHT NIGHT"
++C.WeightClass = "LIGHTWEIGHT • 155 LBS"
+ 
+--- ===== กติกา =====
+-C.BotCount = 5            -- จำนวนนักเลง AI (0 = ไม่มีบอท)
+-C.BotsWhenPlayers = 3     -- ถ้ามีผู้เล่นจริง >= 4 คน ลดบอทเหลือเท่านี้
+-C.BotSkill = 0.5          -- 0 = อ่อนปวกเปียก, 1 = โหดมาก
+-C.RoundTime = 180         -- วินาทีต่อรอบ
+-C.ResultTime = 8          -- โชว์ผลจบรอบกี่วินาที
+-C.RespawnTime = 4
+-C.CorpseTime = 14         -- ร่างที่ล้มจะนอนอยู่กี่วินาที
+-C.MaxHealth = 100
+-C.WalkSpeed = 18
+-C.JumpPower = 52
+-C.SpawnProtect = 2.0      -- อมตะหลังเกิดกี่วินาที
+-C.GetUpProtect = 0.7      -- อมตะตอนลุกจากพื้น
+-C.RegenDelay = 6          -- ไม่โดนตีกี่วินาทีถึงเริ่มฟื้นเลือด
+-C.RegenRate = 3           -- เลือดต่อวินาที
+-C.SuperMax = 100
+-C.ComboWindow = 0.75      -- เวลาต่อคอมโบหมัด
+-C.DizzyAt = 60            -- สะสมอาการมึนถึงเท่านี้ = มึนหัว
+-C.DizzyTime = 2.4
+-C.ImpactDamage = 1        -- ดาเมจตอนร่างลอยไปกระแทกพื้น/กำแพง (ตัวคูณ)
++-- ===== กติกาแบบ Unified Rules =====
++C.Rounds = 3              -- จำนวนยก (ไฟต์ชิงแชมป์ = 5)
++C.RoundTime = 120         -- วินาทีต่อยก (ของจริง 300 = 5 นาที)
++C.BreakTime = 12          -- พักระหว่างยก (ของจริง 60)
++C.IntroTime = 6           -- ช่วงแนะนำตัวก่อนชก
++C.ResultTime = 9          -- ช่วงประกาศผล
++C.QueueBotWait = 5        -- อยู่ในคิวคนเดียวกี่วินาทีถึงได้คู่เป็นบอท
++C.BotExhibitions = true   -- ไม่มีใครเข้าคิว ให้บอทชกกันโชว์
++C.ExhibitionWait = 10
++C.BotSkill = 0.55         -- 0 = มือใหม่, 1 = แชมป์
++C.WalkSpeed = 15
++C.SpectatorSpeed = 16
++C.JumpPower = 40
+ 
+--- ===== ความโหด =====
+--- Blood: 0 = ไม่มีเลือด (เป็นดาวการ์ตูนแทน), 0.5 = น้อย, 1 = ปกติ, 2 = สาดกระจาย
+--- ** ถ้าจะเปิดเกมสาธารณะ ให้กรอกแบบสอบถาม Maturity & Compliance ใน Creator Hub ตามจริง **
+-C.Blood = 1
+-C.Teeth = true            -- ฟันกระเด็น
+-C.FaceDamage = true       -- หน้าเลือดออก ตาเขียว
++-- ===== ร่างกายนักสู้ =====
++C.HeadHP = 100            -- หมดหัว = KO
++C.BodyHP = 100            -- หมดลำตัว = TKO (โดนตีท้อง)
++C.LegHP = 100             -- หมดขา = TKO (โดนเตะขา) / ต่ำกว่า 40 = เดินกะเผลก
++C.Stamina = 100
++C.StaminaRegen = 10       -- ต่อวินาที (ตอนไม่ออกท่า)
++C.RockedAt = 30           -- หัวเหลือต่ำกว่านี้ = มึน เดินเซ
++C.KnockdownBase = 0.12    -- โอกาสล้มจากหมัดหนัก (คูณตามความบอบช้ำ)
++C.KnockdownTime = 2.6
++C.RoundRecover = { head = 15, body = 12, leg = 8 }  -- ฟื้นตอนพักยก
++C.TKOStreak = 7           -- ทุบพื้นโดนติดๆ กี่ทีโดยไม่ป้องกัน = กรรมการจับแยก
++C.DoctorCutLevel = 13     -- เลือดบนหน้าถึงระดับนี้ = หมอสั่งยุติได้
++C.GroundStandup = 14      -- บนพื้นไม่มีใครทำอะไรกี่วินาที กรรมการจับลุก
++
++-- ===== เลือด/บาดแผล (ของจริงในกรง: เลือดตกบนผ้าใบ) =====
++C.Blood = 1               -- 0 = ไม่มีเลือด, 0.5 = น้อย, 1 = ปกติ, 2 = มาก
++C.Teeth = false           -- ฟันหลุด (เปิดได้ถ้าอยากฮา)
++C.FaceDamage = true       -- หน้าแตก ตาเขียว เลือดกำเดา
++C.Wounds = true           -- รอยเลือดติดตามตัว
+ C.BloodColor = Color3.fromRGB(150, 8, 12)
+-C.Wounds = true           -- แผลเลือดติดตามตัวตรงจุดที่โดน
+--- ===== แขนขาขาด (สไตล์ gore sandbox) =====
+--- Dismember: true = แขน/ขา/หัวหลุดได้เมื่อโดนหนักๆ
+--- GoreLevel: 0 = หลุดแบบบล็อกคลาสสิก (ไม่มีเนื้อแดง), 1 = มีตอแดง + กระดูก + เลือดพุ่ง
+--- ** Roblox ไม่อนุญาตเนื้อหาชำแหละอวัยวะ (dismemberment/gore) ในเกมสาธารณะ
+---    ถ้าจะ Publish ให้คนอื่นเล่น ให้ตั้ง GoreLevel = 0 หรือ Dismember = false **
+-C.Dismember = true
+-C.GoreLevel = 1
+-C.LimbHP = 38             -- ดาเมจสะสมที่แขน/ขาก่อนหลุด
+-C.MinSeverHit = 11        -- ต้องโดนแรงอย่างน้อยเท่านี้ในทีเดียวถึงจะหลุด
+-C.DecapChance = 0.35      -- โอกาสหัวหลุดตอนโดนน็อคด้วยท่าแรง (GoreLevel 1 เท่านั้น)
+-C.HalfChance = 0.3        -- โอกาสขาดครึ่งท่อนตอนโดนน็อคด้วยหมัดจรวด/อาวุธหนัก (GoreLevel 1 เท่านั้น)
+-C.GibLife = 20            -- ชิ้นส่วนที่หลุดอยู่กี่วินาที
+-C.MaxStains = 350         -- จำนวนรอยเลือดสูงสุดบนพื้น
+-C.StainLife = 90          -- รอยเลือดอยู่กี่วินาที
++C.MaxStains = 350
++C.StainLife = 240
+ C.CameraShake = 1
++C.ImpactDamage = 0.4
+ 
+--- ===== หน้าตาตัวละคร (คนสัดส่วนจริงแบบ ragdoll: เสื้อยืดเทา กางเกงเขียว ผมสั้น) =====
++-- ===== หน้าตานักสู้ =====
+ C.Look = {
+ 	Skin = Color3.fromRGB(232, 188, 146),
+-	Shirt = Color3.fromRGB(128, 131, 137),
+-	Pants = Color3.fromRGB(66, 112, 58),
++	Shorts = Color3.fromRGB(25, 25, 28),
++	ShortsTrim = Color3.fromRGB(200, 30, 30),
++	Gloves = Color3.fromRGB(20, 20, 22),
+ 	Hair = Color3.fromRGB(44, 33, 28),
+-	Shoes = Color3.fromRGB(52, 44, 40),
+ 	Eyes = Color3.fromRGB(24, 20, 20),
+ 	Brows = Color3.fromRGB(44, 33, 28),
+ 	Mouth = Color3.fromRGB(150, 82, 70),
+-	HairStyle = "box",
++	HairStyle = "flat",
+ 	Nose = true,
+-}
+--- ผู้เล่นคนแรกได้หน้าตาตามภาพเป๊ะ คนต่อไปเปลี่ยนสีเสื้อให้แยกออก
+-C.PlayerShirts = {
+-	Color3.fromRGB(128, 131, 137), Color3.fromRGB(196, 58, 52), Color3.fromRGB(52, 98, 190),
+-	Color3.fromRGB(236, 190, 40), Color3.fromRGB(240, 240, 240), Color3.fromRGB(150, 70, 190),
+-	Color3.fromRGB(30, 30, 34), Color3.fromRGB(240, 130, 40),
++	Outfit = "fighter",   -- fighter = กางเกงขาสั้น นวม เท้าเปล่า / referee = ชุดกรรมการ
+ }
+ C.SkinTones = {
+ 	Color3.fromRGB(232, 188, 146), Color3.fromRGB(214, 160, 116), Color3.fromRGB(176, 120, 82),
+-	Color3.fromRGB(120, 80, 56), Color3.fromRGB(245, 210, 180),
+-}
+-C.ShirtColors = {
+-	Color3.fromRGB(128, 131, 137), Color3.fromRGB(196, 58, 52), Color3.fromRGB(52, 98, 190),
+-	Color3.fromRGB(236, 190, 40), Color3.fromRGB(240, 240, 240), Color3.fromRGB(30, 30, 34),
+-	Color3.fromRGB(240, 130, 40), Color3.fromRGB(60, 160, 120), Color3.fromRGB(230, 120, 170),
++	Color3.fromRGB(120, 80, 56), Color3.fromRGB(245, 210, 180), Color3.fromRGB(95, 62, 45),
+ }
+-C.PantsColors = {
+-	Color3.fromRGB(66, 112, 58), Color3.fromRGB(40, 52, 90), Color3.fromRGB(30, 30, 34),
+-	Color3.fromRGB(120, 92, 60), Color3.fromRGB(90, 90, 96), Color3.fromRGB(150, 40, 40),
++C.ShortsColors = {
++	Color3.fromRGB(25, 25, 28), Color3.fromRGB(180, 25, 25), Color3.fromRGB(30, 60, 150), Color3.fromRGB(235, 235, 235),
++	Color3.fromRGB(40, 120, 60), Color3.fromRGB(230, 170, 20), Color3.fromRGB(110, 40, 140),
+ }
+ C.HairColors = {
+ 	Color3.fromRGB(44, 33, 28), Color3.fromRGB(20, 20, 22), Color3.fromRGB(120, 72, 36),
+-	Color3.fromRGB(220, 190, 110), Color3.fromRGB(200, 200, 205), Color3.fromRGB(190, 50, 50),
++	Color3.fromRGB(220, 190, 110), Color3.fromRGB(170, 60, 30),
+ }
+-C.HairStyles = { "box", "box", "flat", "spike", "mohawk", "bald", "cap", "long", "afro" }
++C.HairStyles = { "flat", "flat", "bald", "bald", "box", "spike", "mohawk", "long" }
++C.CornerColors = { red = Color3.fromRGB(200, 30, 30), blue = Color3.fromRGB(30, 80, 200) }
+ 
+--- ===== ชื่อนักเลง AI =====
+-C.BotNames = {
+-	"Big Earl", "Knuckles McGee", "Granny Gertrude", "Crazy Steve", "Tiny Tony",
+-	"Disco Dave", "Sweaty Gary", "Mad Dog Murphy", "Pizza Pete", "Doughnut Dan",
+-	"Chad Thunderfist", "Uncle Rick", "Meatball Marco", "Sir Slaps-a-Lot", "Lunchbox Larry",
++-- ===== นักสู้ AI (ชื่อสมมติ ไม่ใช่นักสู้จริง) =====
++-- style: striker = ชกเตะ, wrestler = ทุ่มลงพื้น, grappler = ล็อก
++C.BotFighters = {
++	{ name = "Tyler 'Iron Jaw' Brooks", style = "striker", record = { 14, 3 } },
++	{ name = "Viktor Sokolov", style = "wrestler", record = { 19, 2 } },
++	{ name = "Mateo 'El Toro' Rivas", style = "striker", record = { 11, 4 } },
++	{ name = "Kenji 'Razor' Mori", style = "grappler", record = { 16, 5 } },
++	{ name = "Liam 'Bulldozer' Kane", style = "wrestler", record = { 9, 2 } },
++	{ name = "Ricardo 'Choke' Almeida", style = "grappler", record = { 21, 6 } },
++	{ name = "Darnell 'Thunder' Price", style = "striker", record = { 13, 1 } },
++	{ name = "Bogdan 'The Bear' Petrov", style = "wrestler", record = { 17, 4 } },
++	{ name = "Jesse 'Hitman' Holloway", style = "striker", record = { 8, 3 } },
++	{ name = "Andre 'Silk' Duval", style = "grappler", record = { 12, 2 } },
+ }
+ 
+--- ===== ท่าต่อสู้ =====
+--- wind = เวลาก่อนโดน(วินาที)  dur = ทั้งท่า  dmg = ดาเมจ  range/arc = ระยะ/มุม
+--- knock = แรงผลัก  lift = แรงยก  ragdoll = ล้มกี่วินาที  daze = สะสมมึน  super = เพิ่มเกจท่าไม้ตาย
++-- ===== ท่า =====
++-- wind = เวลาก่อนโดน  dur = ทั้งท่า  dmg = ดาเมจ  range/arc = ระยะ/มุม  stam = ใช้แรง
++-- target = head/body/leg  kd = โอกาสล้ม (คูณเพิ่มตามความบอบช้ำ)  cut = โอกาสแผลแตก
+ C.Moves = {
+-	jab    = { anim = "jab",   wind = 0.08, dur = 0.30, dmg = 6,  range = 4.8, arc = 80, knock = 9,  lift = 0,  stun = 0.30, daze = 10, word = "punch", super = 6, zone = "head" },
+-	cross  = { anim = "cross", wind = 0.09, dur = 0.34, dmg = 8,  range = 5.0, arc = 75, knock = 14, lift = 0,  stun = 0.34, daze = 14, word = "punch", super = 7, zone = "head" },
+-	upper  = { anim = "upper", wind = 0.13, dur = 0.50, dmg = 12, range = 4.8, arc = 75, knock = 22, lift = 48, stun = 0.5, daze = 24, word = "upper", super = 10, zone = "head", ragdoll = 1.6, teeth = 0.7, heavy = true },
+-	kick   = { anim = "kick",  wind = 0.14, dur = 0.48, dmg = 11, range = 5.8, arc = 65, knock = 58, lift = 14, stun = 0.5, daze = 12, word = "kick", super = 8, zone = "body", ragdoll = 1.5, guardBreak = true },
+-	stomp  = { anim = "stomp", wind = 0.15, dur = 0.42, dmg = 9,  range = 4.8, arc = 90, knock = 6,  lift = 4,  stun = 0,   daze = 0,  word = "stomp", super = 5, zone = "limb", onlyDown = true },
+-	dive   = { anim = "dive",  wind = 0.10, dur = 0.45, dmg = 13, range = 5.5, arc = 110, knock = 20, lift = 10, stun = 0.5, daze = 18, word = "slam", super = 8, zone = "head", ragdoll = 1.3, hitsDown = true },
+-	grab   = { anim = "grab",  wind = 0.12, dur = 0.36, range = 4.4, arc = 75 },
+-	suplex = { anim = "suplex", dur = 0.85, dmg = 10, knock = 15, lift = 46, daze = 20, super = 10, ragdoll = 2.2 },
+-	swing  = { anim = "swing", wind = 0.17, dur = 0.50, range = 6.0, arc = 85, super = 6 },
+-	throw  = { anim = "throw", wind = 0.10, dur = 0.36 },
+-	super  = { anim = "super", wind = 0.42, dur = 1.05, dmg = 30, range = 7.0, arc = 85, knock = 95, lift = 60, stun = 1, daze = 60, word = "super", zone = "head", ragdoll = 3.2, unblockable = true, dash = 60, teeth = 1, heavy = true },
+-	taunt  = { anim = "taunt", dur = 1.6, super = 12 },
+-	pickup = { anim = "pickup", dur = 0.30 },
++	jab      = { anim = "jab",      wind = 0.08, dur = 0.30, dmg = 4,  range = 5.0, arc = 60, stam = 3,  target = "head", knock = 6,  stun = 0.18, cut = 0.10 },
++	cross    = { anim = "cross",    wind = 0.10, dur = 0.36, dmg = 7,  range = 5.2, arc = 55, stam = 5,  target = "head", knock = 10, stun = 0.25, kd = 0.06, cut = 0.15 },
++	hook     = { anim = "hook",     wind = 0.13, dur = 0.42, dmg = 9,  range = 4.6, arc = 85, stam = 7,  target = "head", knock = 12, stun = 0.3, kd = 0.12, cut = 0.2 },
++	upper    = { anim = "upper",    wind = 0.13, dur = 0.45, dmg = 9,  range = 4.2, arc = 60, stam = 7,  target = "head", knock = 8,  stun = 0.3, kd = 0.12, cut = 0.15 },
++	lowkick  = { anim = "lowkick",  wind = 0.17, dur = 0.50, dmg = 9,  range = 5.4, arc = 70, stam = 8,  target = "leg",  knock = 4,  stun = 0.2 },
++	bodykick = { anim = "bodykick", wind = 0.20, dur = 0.58, dmg = 11, range = 5.6, arc = 70, stam = 11, target = "body", knock = 14, stun = 0.35 },
++	headkick = { anim = "headkick", wind = 0.25, dur = 0.66, dmg = 17, range = 5.8, arc = 60, stam = 15, target = "head", knock = 20, stun = 0.5, kd = 0.4, cut = 0.25 },
++	knee     = { anim = "knee",     wind = 0.14, dur = 0.45, dmg = 10, range = 3.6, arc = 70, stam = 9,  target = "body", knock = 10, stun = 0.35, kd = 0.05 },
++	shoot    = { anim = "shoot",    wind = 0.32, dur = 0.75, range = 4.8, arc = 60, stam = 15 },
++	slip     = { dur = 0.38, stam = 5, iframes = 0.28 },
++	-- บนพื้น
++	gnp      = { anim = "gnp",      wind = 0.10, dur = 0.34, dmg = 5,  stam = 4,  target = "head", cut = 0.15 },
++	elbow    = { anim = "gnpElbow", wind = 0.16, dur = 0.50, dmg = 9,  stam = 8,  target = "head", cut = 0.5 },
++	upkick   = { anim = "bottomPunch", wind = 0.09, dur = 0.32, dmg = 3, stam = 3, target = "head" },
++	escape   = { anim = "escape",   dur = 0.30, stam = 4 },
++	taunt    = { anim = "taunt",    dur = 1.6 },
+ }
+--- คอมโบปุ่มต่อย: กด 3 ครั้งติด = หมัดแย็บ > หมัดตรง > อัปเปอร์คัต (ลอย!)
+-C.PunchCombo = { "jab", "cross", "upper" }
+-
+--- ===== อาวุธข้างถนน =====
+-C.Weapons = {
+-	pan    = { name = "Frying Pan",      icon = "🍳", dmg = 15, knock = 30, lift = 10, stun = 0.6, daze = 26, uses = 10, word = "pan",   ragdoll = 1.2, ragdollChance = 0.35, sound = "clang" },
+-	plank  = { name = "2x4 With A Nail", icon = "🪵", dmg = 19, knock = 26, lift = 8,  stun = 0.5, daze = 20, uses = 7,  word = "wood",  ragdoll = 1.4, ragdollChance = 0.45, sound = "wood", heavy = true },
+-	chair  = { name = "Folding Chair",   icon = "🪑", dmg = 22, knock = 42, lift = 18, stun = 0.7, daze = 30, uses = 3,  word = "chair", ragdoll = 1.8, ragdollChance = 1, sound = "wood", heavy = true },
+-	fish   = { name = "Giant Fish",      icon = "🐟", dmg = 5,  knock = 75, lift = 38, stun = 0.4, daze = 6,  uses = 999, word = "fish", ragdoll = 2.0, ragdollChance = 1, sound = "slap" },
+-	cone   = { name = "Traffic Cone",    icon = "🔺", dmg = 7,  knock = 14, lift = 4,  stun = 0.6, daze = 12, uses = 1,  word = "cone",  ragdoll = 0, ragdollChance = 0, sound = "thud", hat = true },
+-	bottle = { name = "Ketchup Bottle",  icon = "🍅", dmg = 17, knock = 16, lift = 4,  stun = 0.7, daze = 30, uses = 1,  word = "glass", ragdoll = 1.2, ragdollChance = 0.5, sound = "glass", extraBlood = 2 },
++-- คลิกต่อเนื่อง = คอมโบมาตรฐาน 1-2-hook-uppercut
++C.PunchCombo = { "jab", "cross", "hook", "upper" }
++C.ComboWindow = 0.6
++C.Submissions = {
++	top = { "ARM-TRIANGLE CHOKE", "AMERICANA", "NECK CRANK" },
++	bottom = { "ARMBAR", "TRIANGLE CHOKE", "GUILLOTINE" },
+ }
+-C.WeaponOrder = { "pan", "plank", "chair", "fish", "cone", "bottle" }
+-C.WeaponRespawn = 10      -- วินาที
+-C.MaxWeaponsOnMap = 9
+-C.ThrowSpeed = 85
+ 
+--- ===== คำการ์ตูนเด้งตอนตี =====
++-- ===== ข้อความในเกม =====
+ C.Words = {
+-	punch = { "POW!", "BAM!", "WHAM!", "SMACK!", "BOP!" },
+-	upper = { "KAPOW!!", "LIFTOFF!", "UPPERCUT!!", "SKY HIGH!!" },
+-	kick  = { "THWACK!", "BOOT!", "WHUMP!", "YEET!!" },
+-	stomp = { "STOMP!", "CRUNCH!", "SQUISH!", "CURB STOMP!" },
+-	slam  = { "CRASH!!", "BOOM!!", "THUD!!", "OOF!" },
+-	block = { "BLOCKED!", "NOPE!", "DENIED!" },
+-	guard = { "GUARD BREAK!!" },
+-	crit  = { "CRITICAL!!", "BRUTAL!!", "OUCH!!" },
+-	pan   = { "CLANG!!", "BONK!!", "DONG!!" },
+-	wood  = { "THOCK!!", "WHACK!!", "CRACK!!" },
+-	chair = { "CRASH!!", "SLAM!!", "BANG!!" },
+-	fish  = { "SLAP!", "FISH SLAP!!", "SPLOOSH!", "SMELLY!" },
+-	cone  = { "BONK!", "CONEHEAD!" },
+-	glass = { "SMASH!!", "SHATTER!!", "KETCHUP!!" },
+-	super = { "ROCKET PUNCH!!!", "TO THE MOON!!!" },
+-	impact = { "THUD!", "CRASH!", "OOF!", "WHUMP!" },
+-	melon = { "SPLAT!!", "JUICY!" },
+-	sever = { "ARM OFF!!", "LEG OFF!!", "HEADLESS!!" },
++	hit = { "POW!", "BAM!", "SMACK!" },
++	big = { "WHAM!!", "CRACK!!", "BOOM!!" },
++	block = { "BLOCKED", "COVERED UP" },
++	kick = { "THWACK!", "WHUMP!" },
+ }
+-
+--- ===== Funny KO messages (%s = the one who got knocked out) =====
+-C.KOMessages = {
+-	"%s is taking a dirt nap 💤",
+-	"%s is seeing stars ⭐",
+-	"%s lost all their teeth 🦷",
+-	"%s got launched to Mars 🚀",
+-	"%s needs a minute... or ten 😵",
+-	"%s is crying for mommy 😭",
+-	"%s became a doormat 🧽",
+-	"%s got absolutely folded 🫠",
+-	"%s is going home in a bucket 🪣",
+-	"%s forgot their own name 🤪",
++C.Commentary = {
++	knockdown = { "HE'S DOWN! WHAT A SHOT!", "DOWN GOES HIS OPPONENT!", "OH! HE DROPPED HIM!" },
++	ko = { "IT'S ALL OVER!", "GOOD NIGHT! LIGHTS OUT!", "THAT IS A BRUTAL KNOCKOUT!" },
++	tko = { "THE REFEREE HAS SEEN ENOUGH!", "HE WASN'T DEFENDING HIMSELF!", "THE REF STEPS IN!" },
++	sub = { "HE TAPS! HE TAPS!", "THE SUBMISSION IS LOCKED IN!", "TAP, SNAP OR NAP - HE TAPPED!" },
++	takedown = { "BIG TAKEDOWN!", "HE TAKES IT TO THE MAT!", "BEAUTIFUL DOUBLE LEG!" },
++	stuffed = { "TAKEDOWN STUFFED!", "GREAT SPRAWL!" },
++	rocked = { "HE'S HURT! HE'S HURT!", "HE'S WOBBLY!", "HE'S IN TROUBLE!" },
++	headkick = { "WHAT A HEAD KICK!", "HEAD KICK LANDS!" },
++	escape = { "HE'S BACK TO HIS FEET!", "GREAT ESCAPE!" },
++	legs = { "THOSE LEG KICKS ARE ADDING UP!", "HE'S LIMPING NOW!" },
++	doctor = { "THE DOCTOR STOPS IT! THAT CUT IS NASTY!" },
+ }
+-C.FallMessages = { "%s fell off the world 🌍", "%s took a wrong turn 🗺️" }
+-C.StreakNames = { [3] = "🔥 ON FIRE!", [5] = "👹 RAMPAGE!", [8] = "💀 GOD OF THE ALLEY!", [12] = "👑 GRIM REAPER!" }
+ 
+ -- ===== เสียง (เปลี่ยนเป็น rbxassetid://เลขเสียงของคุณเองได้) =====
+ C.Sounds = {
+-	swing  = { id = "rbxasset://sounds/swordlunge.wav", vol = 0.5 },
++	swing  = { id = "rbxasset://sounds/swordlunge.wav", vol = 0.35 },
+ 	hit    = { id = "rbxasset://sounds/swordslash.wav", vol = 0.45, pitch = 0.6 },
+ 	heavy  = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 1.0, pitch = 0.7 },
+ 	thud   = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 0.9 },
+-	clang  = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.8, pitch = 0.5 },
+-	wood   = { id = "rbxasset://sounds/action_jump_land.mp3", vol = 1.0, pitch = 1.4 },
+-	slap   = { id = "rbxasset://sounds/swordslash.wav", vol = 0.6, pitch = 1.5 },
+-	glass  = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.6, pitch = 1.8 },
++	clang  = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.4, pitch = 0.5 },
++	bell   = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 1.0, pitch = 0.35 },
+ 	ouch   = { id = "rbxasset://sounds/uuhhh.mp3", vol = 0.7 },
+ 	ko     = { id = "rbxasset://sounds/uuhhh.mp3", vol = 1.0, pitch = 0.8 },
+ 	getup  = { id = "rbxasset://sounds/action_get_up.mp3", vol = 0.5 },
+-	super  = { id = "rbxasset://sounds/swordlunge.wav", vol = 1.0, pitch = 0.5 },
+ 	ui     = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.4 },
+ }
+ 
