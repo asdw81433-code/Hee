@@ -107,7 +107,7 @@ namespace NeonBay
                 foreach (var x in Parse(c)) plan.Enqueue(x);
                 gap = 0f;
             }
-            if (plan.Count == 0 && comboCd <= 0f && inRange && me.stamina > 18f && Random.value < aggression * dt * 3.2f)
+            if (plan.Count == 0 && comboCd <= 0f && inRange && me.stamina > 18f && Random.value < aggression * dt * 2.6f)
             {
                 var combo = combos[Random.Range(0, combos.Count)];
                 // go downstairs against a high guard, upstairs against a low one

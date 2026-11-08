@@ -295,8 +295,8 @@ namespace NeonBay
             }
 
             // damage
-            float dmg = def.damage * a.PowerFactor * (power ? 1.45f : 1f) * a.StaminaFactor * mult * Random.Range(0.9f, 1.1f);
-            if (counter) dmg *= 1.25f;
+            float dmg = def.damage * Boxing.DamageScale * a.PowerFactor * (power ? Boxing.PowerMult : 1f) * a.StaminaFactor * mult * Random.Range(0.9f, 1.1f);
+            if (counter) dmg *= Boxing.CounterMult;
             if (a.isPlayer) dmg *= Mathf.Lerp(1f, Game.PlayerDamageMult, 0.5f) * (1f + aggressionBuff * 0.1f);
             else dmg *= Mathf.Lerp(1f, Game.EnemyDamageMult, 0.5f);
             if (d.isPlayer) dmg *= 1f + aggressionBuff * 0.12f;
@@ -378,7 +378,7 @@ namespace NeonBay
             // AI decides when (and whether) to beat the count
             if (!v.isPlayer)
             {
-                float will = v.profile.stats.heart / 100f + 0.25f - v.kdTotal * 0.18f - Mathf.Clamp01(-v.headHP / 30f) * 0.5f + (Game.Difficulty == Difficulty.Brutal ? 0.15f : 0f);
+                float will = v.profile.stats.heart / 100f + 0.4f - (v.kdTotal - 1) * 0.15f - Mathf.Clamp01(-v.headHP / 40f) * 0.35f + (Game.Difficulty == Difficulty.Brutal ? 0.15f : 0f);
                 aiGetUpAt = will > Random.value * 0.9f ? Random.Range(4, 10) : 11;
             }
         }
@@ -516,7 +516,7 @@ namespace NeonBay
             {
                 var i = b.rig.injury;
                 if (i == null) continue;
-                bool bad = i.MaxCut > 0.92f || i.EyeClosure(true) > 0.96f || i.EyeClosure(false) > 0.96f;
+                bool bad = Round >= 2 && (i.MaxCut > 0.95f || i.EyeClosure(true) > 0.98f || i.EyeClosure(false) > 0.98f);
                 if (bad && Random.value < 0.5f)
                 {
                     Say("RINGSIDE DOCTOR", "I can't let " + b.profile.name.Split(' ')[0] + " continue. That's it!");

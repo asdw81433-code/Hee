@@ -25,3 +25,6 @@
 *.apk
 *.aab
 crashlytics-build.properties
+
+# Roblox edition: the place builder lives in Roblox/build (not a Unity build output)
+!/Roblox/build/

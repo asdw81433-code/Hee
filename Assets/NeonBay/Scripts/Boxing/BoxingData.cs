@@ -57,6 +57,8 @@ namespace NeonBay
     public static class Boxing
     {
         public static BoxingMatch Match;
+        // global tuning shared with the Roblox edition (Config.DamageScale etc.)
+        public const float DamageScale = 0.36f, PowerMult = 1.35f, CounterMult = 1.2f;
         public static PitArena Arena;
 
         public static readonly Color[] TrunkColors =

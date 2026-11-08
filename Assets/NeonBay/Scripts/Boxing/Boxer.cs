@@ -217,7 +217,7 @@ namespace NeonBay
                 headCap = Mathf.Max(30f, headCap - d * 0.16f);
                 recentHead += d;
                 stamina = Mathf.Max(0f, stamina - d * 0.25f);
-                float rockLine = Mathf.Lerp(20f, 34f, S.chin / 100f) / ChinFactor;
+                float rockLine = Mathf.Lerp(14f, 24f, S.chin / 100f) / ChinFactor;
                 if (recentHead > rockLine || headHP < 28f && d > 6f) Rock(Mathf.Lerp(1.6f, 3.6f, Mathf.Clamp01(recentHead / 50f)));
                 // injuries
                 if (rig.injury != null && (Game.Settings == null || Game.Settings.gore))
@@ -233,12 +233,12 @@ namespace NeonBay
                             z = r < 0.35f ? InjuryZone.Nose : r < 0.55f ? InjuryZone.Mouth : (attacker.profile.southpaw == (def.lead) ? InjuryZone.EyeR : InjuryZone.EyeL);
                             break;
                     }
-                    rig.injury.Register(z, sev, def.kind == PunchKind.Hook ? 0.3f : 0.15f + (power ? 0.15f : 0f));
+                    rig.injury.Register(z, sev * 0.75f, def.kind == PunchKind.Hook ? 0.1f : 0.04f + (power ? 0.05f : 0f));
                 }
                 // knockdown rules: out of head health, or a flush counter on a hurt fighter
                 if (headHP <= 0f) kd = true;
-                else if (Rocked && (counter || power) && d > 9f && Random.value < 0.45f) kd = true;
-                else if (counter && power && d > 15f && headHP < 55f && Random.value < 0.3f) kd = true;
+                else if (Rocked && (counter || power) && d > 6f && headHP < 50f && Random.value < 0.3f) kd = true;
+                else if (counter && power && d > 9f && headHP < 40f && Random.value < 0.2f) kd = true;
                 if (Game.Fx != null)
                 {
                     Game.Fx.Sweat(rig.head.TransformPoint(new Vector3(0, 0.15f, 0)), dir, Mathf.RoundToInt(10 + powerK * 26 + sweat * 20));
@@ -295,7 +295,7 @@ namespace NeonBay
             state = BoxerState.GettingUp; stateT = 0f;
             feetInit = false;
             float heart = S.heart / 100f;
-            headHP = Mathf.Max(headHP, Mathf.Lerp(18f, 42f, heart) * Mathf.Lerp(1f, 0.6f, (kdTotal - 1) / 3f));
+            headHP = Mathf.Max(headHP, Mathf.Lerp(28f, 55f, heart) * Mathf.Lerp(1f, 0.6f, (kdTotal - 1) / 3f));
             recentHead = 0f;
             stamina = Mathf.Max(stamina, staminaMax * 0.5f);
             rockedT = 0f;

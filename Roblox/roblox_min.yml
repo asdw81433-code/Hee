@@ -1,0 +1,46 @@
+---
+base: luau
+name: roblox_min
+globals:
+  game: {any: true}
+  workspace: {any: true}
+  script: {any: true}
+  plugin: {any: true}
+  Instance: {any: true}
+  Vector3: {any: true}
+  Vector2: {any: true}
+  CFrame: {any: true}
+  Color3: {any: true}
+  BrickColor: {any: true}
+  UDim: {any: true}
+  UDim2: {any: true}
+  Enum: {any: true}
+  Ray: {any: true}
+  RaycastParams: {any: true}
+  NumberSequence: {any: true}
+  NumberSequenceKeypoint: {any: true}
+  ColorSequence: {any: true}
+  ColorSequenceKeypoint: {any: true}
+  NumberRange: {any: true}
+  TweenInfo: {any: true}
+  Random: {any: true}
+  Rect: {any: true}
+  Font: {any: true}
+  task: {any: true}
+  typeof: {any: true}
+  warn: {any: true}
+  tick: {any: true}
+  time: {any: true}
+  wait: {any: true}
+  delay: {any: true}
+  spawn: {any: true}
+  require: {any: true}
+  table: {any: true}
+  string: {any: true}
+  math: {any: true}
+  os: {any: true}
+  debug: {any: true}
+  utf8: {any: true}
+  bit32: {any: true}
+  buffer: {any: true}
+  DateTime: {any: true}

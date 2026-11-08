@@ -1,0 +1,36 @@
+{
+  "name": "NeonBay_ThePit",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "NeonBay": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "NeonBay": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "$properties": { "EnableMouseLockOption": false, "CameraMaxZoomDistance": 45 },
+      "StarterPlayerScripts": {
+        "NeonBay": { "$path": "src/client" }
+      }
+    },
+    "Players": {
+      "$properties": { "CharacterAutoLoads": false }
+    },
+    "SoundService": {
+      "$properties": { "AmbientReverb": "Hangar" }
+    },
+    "Workspace": {
+      "Map": { "$path": "build/Map.rbxmx" }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 0.2,
+        "Ambient": [0.11, 0.094, 0.157],
+        "OutdoorAmbient": [0.141, 0.133, 0.227],
+        "ExposureCompensation": 0.15
+      }
+    }
+  }
+}
