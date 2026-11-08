@@ -97,6 +97,25 @@ namespace NeonBay
             PostFX.SetMotionBlur(motionBlur ? 0.25f : 0f);
             var cam = Game.Cam;
             if (cam != null) cam.farClipPlane = viewDistance;
+            if (Application.isMobilePlatform) ApplyMobile();
+        }
+
+        /// <summary>Phone budget: lower render resolution, no MSAA, short shadows and a tighter prop/detail radius.</summary>
+        void ApplyMobile()
+        {
+            if (Game.Chunks != null) Game.Chunks.detailDistance = Mathf.Clamp(viewDistance * 0.35f, 160f, 380f);
+            var rp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+            if (rp == null) return;
+            var t = rp.GetType();
+            void Set(string name, object value)
+            {
+                var prop = t.GetProperty(name);
+                if (prop == null || !prop.CanWrite) return;
+                try { prop.SetValue(rp, value); } catch (System.Exception) { }
+            }
+            Set("renderScale", viewDistance < 900f ? 0.75f : 0.85f);
+            Set("msaaSampleCount", 1);
+            Set("shadowDistance", Mathf.Clamp(viewDistance * 0.08f, 40f, 90f));
         }
     }
 }
