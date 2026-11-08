@@ -50,7 +50,7 @@ namespace NeonBay
         void Update()
         {
             if (Game.Stats == null) return;
-            bool playing = Game.IsPlaying && !Game.Player.InVehicle;
+            bool playing = Game.IsPlaying && !Game.Player.InVehicle && !(Boxing.Match != null && Boxing.Match.Running);
             bool want = playing && InputHub.Held(Btn.Scan);
             if (want != Scanning)
             {

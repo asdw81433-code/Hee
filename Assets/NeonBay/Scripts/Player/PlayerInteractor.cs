@@ -16,6 +16,7 @@ namespace NeonBay
         {
             focus = null; takedownTarget = null; nearVehicle = null; PromptText = null;
             if (!Game.IsPlaying || Game.Player == null) return;
+            if (Boxing.Match != null && Boxing.Match.Running) return;
             var pc = Game.Player;
             if (pc.InVehicle) return;
             var cam = Game.Cam.transform;

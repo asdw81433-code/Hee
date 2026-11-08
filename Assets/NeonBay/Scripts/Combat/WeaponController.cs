@@ -234,6 +234,7 @@ namespace NeonBay
             float rm = stats != null ? stats.RecoilMult : 1f;
             pc.AddRecoil(def.recoil * rm * Mathf.Lerp(1f, 0.6f, aimBlend), Random.Range(-0.35f, 0.35f) * def.recoil * rm);
             bloom = Mathf.Min(2.5f, bloom + def.recoil * 0.15f);
+            CameraFX.Shake(def.recoil * 0.012f * (def.cls == WeaponClass.Shotgun || def.cls == WeaponClass.Sniper ? 2.5f : 1f));
             kick += 1f;
             if (w.ammoInMag <= 0 && Game.Inventory.Ammo(def.ammo) > 0) TryReload(w);
         }
@@ -340,7 +341,13 @@ namespace NeonBay
                 HitMarker = 1f; HitMarkerKill = d.isDead;
                 any = true;
             }
-            if (any) pc.Shake(0.15f);
+            if (any)
+            {
+                pc.Shake(0.15f);
+                CameraFX.HitStop(stats.HasCyber("piston_fists") ? 0.07f : 0.04f);
+                CameraFX.FovPunch(-1.5f);
+                CameraFX.Kick(new Vector3(1.5f, meleeCombo % 2 == 0 ? -1f : 1f, 0));
+            }
             GameEvents.RaiseNoise(transform.position, 8f, gameObject);
             return any;
         }

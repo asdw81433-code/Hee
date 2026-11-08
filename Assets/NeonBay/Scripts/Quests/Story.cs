@@ -694,11 +694,11 @@ namespace NeonBay
             ds.RegisterDefault("ring_master", npc =>
             {
                 var t = new DialogueTree("ring_default");
-                t.Say("start", "PROMOTER CHAZ", "Welcome to the Pit! Three rounds, fists only, no chrome sidearms. Win and the purse is yours. Lose and... we'll mop you up.")
-                    .Opt("Put me in the ring. (Entry $100)", null, () => { Game.Dialogue.Abort(); Game.Manager.SetState(GameState.Playing); Game.Activities.StartFight(); }, null, null, () => Game.Stats.Money >= 100)
+                t.Say("start", "PROMOTER CHAZ", "Welcome to the Pit! Real gloves, real judges, real blood. Climb the card, beat Iron Polly, become undisputed. Lose and... we'll mop you up.")
+                    .Opt("Show me the fight card.", null, () => { Game.Dialogue.Abort(); Game.Manager.SetState(GameState.Playing); Game.Activities.StartFight(); })
                     .Opt("Who's the champ?", "champ")
                     .Opt("Not tonight.", "bye");
-                t.Say("champ", "PROMOTER CHAZ", "Iron Polly. Forty-one fights, forty-one wins, two reinforced titanium shins. She's a sweetheart outside the ring.", "start");
+                t.Say("champ", "PROMOTER CHAZ", Boxing.IsChampion ? "You are, kid. Don't let it go to your head - everyone in Neon Bay wants that belt now." : "Iron Polly. Forty-one fights, forty-one wins, a chrome right arm. She's a sweetheart outside the ring.", "start");
                 t.Say("bye", "PROMOTER CHAZ", "The Pit is always hungry. Come back when you are.");
                 return t;
             });
@@ -719,10 +719,10 @@ namespace NeonBay
                 var t = new DialogueTree("clinic_default");
                 t.Say("start", "DOC REYES", "Bleeding, broken, or bored of your body? I fix all three.")
                     .Opt("Let's talk chrome.", null, () => { Game.Dialogue.Abort(); Game.Manager.SetState(GameState.Playing); Game.UI.OpenShop("clinic", "Doc Reyes"); })
-                    .Opt("Patch me up. ($80)", "heal", () => { if (Game.Stats.Spend(80)) Game.Stats.HealFraction(1f); }, null, null, () => Game.Stats.Money >= 80)
+                    .Opt("Patch me up. ($80)", "heal", () => { if (Game.Stats.Spend(80)) { Game.Stats.HealFraction(1f); Boxing.PlayerInjuries = new InjuryRecord(); } }, null, null, () => Game.Stats.Money >= 80)
                     .Opt("[Side job] Need anything?", "job", null, () => QS.IsDone("m4") && QS.Get("s_drone").status == QuestStatus.Inactive)
                     .Opt("Bye, Doc.", "bye");
-                t.Say("heal", "DOC REYES", "Hold still. ...There. Try to get shot less.");
+                t.Say("heal", "DOC REYES", Boxing.PlayerInjuries.Any ? "Who used your face as a heavy bag? ...Stitches, ice, a little nano-gel. Try to get punched less." : "Hold still. ...There. Try to get shot less.");
                 t.Say("job", "DOC REYES", "A med-drone with my supplies went down near the Raider camp in the Scar. Insulin, synth-blood... people die without it.")
                     .Opt("I'll get it.", "bye", () => QS.StartQuest("s_drone"))
                     .Opt("Too dangerous.", "bye");

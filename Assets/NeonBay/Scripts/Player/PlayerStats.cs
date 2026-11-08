@@ -14,7 +14,7 @@ namespace NeonBay
         public Origin origin = Origin.GutterKid;
         public int frame;          // 0 lean, 1 athletic, 2 heavy
         public int skin = 2;
-        public int hairStyle = 1;  // 0 shaved, 1 short, 2 mohawk, 3 long, 4 topknot
+        public int hairStyle = 2;  // see BodyBuilder.HairName (14 styles since appearance v2)
         public int hairColor;
         public Color eyeColor = Palette.Cyan;
         public Color cyberColor = Palette.Magenta;
@@ -24,6 +24,31 @@ namespace NeonBay
         public Color accent = Palette.Magenta;
         public int difficulty = 1;
         public int[] attributes = { 3, 3, 3, 3, 3 };
+        // appearance v2: anatomy, facial hair and the boxing persona
+        public int beard;
+        public int beardColor = -1;   // -1 = match hair
+        public int brows;
+        public bool female;
+        public float jaw = 0.5f;
+        public float muscle = 0.45f;
+        public string nickname = "";
+        public bool southpaw;
+        public int trunksColor;
+        public int gloveColor;
+        public int appearanceVersion;
+
+        /// <summary>Upgrades profiles saved before the character overhaul (5 old hair styles -> 14 new ones).</summary>
+        public void Migrate()
+        {
+            if (appearanceVersion >= 2) return;
+            int[] map = { 0, 2, 5, 10, 9 };
+            hairStyle = map[Mathf.Clamp(hairStyle, 0, map.Length - 1)];
+            beardColor = -1;
+            if (jaw <= 0f) jaw = 0.5f;
+            if (muscle <= 0f) muscle = 0.45f;
+            if (nickname == null) nickname = "";
+            appearanceVersion = 2;
+        }
 
         public static string OriginName(Origin o) => o switch
         {
@@ -40,7 +65,7 @@ namespace NeonBay
         };
 
         public static string FrameName(int f) => f == 0 ? "Lean" : f == 1 ? "Athletic" : "Heavy";
-        public static string HairName(int h) => h switch { 0 => "Shaved", 1 => "Short Crop", 2 => "Neon Mohawk", 3 => "Long", _ => "Top Knot" };
+        public static string HairName(int h) => BodyBuilder.HairName(h);
     }
 
     public class PerkDef

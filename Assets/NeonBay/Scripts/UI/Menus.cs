@@ -305,6 +305,8 @@ namespace NeonBay
             }
             s.invertY = Toggle("Invert mouse Y", s.invertY);
             s.headBob = Toggle("Head bob", s.headBob);
+            s.screenShake = Toggle("Screen shake & hit-stop", s.screenShake);
+            s.gore = Toggle("Blood & injuries", s.gore);
             s.postFx = Toggle("Post processing", s.postFx);
             s.motionBlur = Toggle("Motion blur", s.motionBlur);
             s.subtitles = Toggle("Subtitles", s.subtitles);

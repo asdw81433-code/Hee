@@ -49,7 +49,7 @@ namespace NeonBay
                 Set(volume, "sharedProfile", profile);
 
                 var add = profileType.GetMethod("Add", new[] { typeof(Type), typeof(bool) });
-                foreach (var n in new[] { "Tonemapping", "Bloom", "ColorAdjustments", "Vignette", "ChromaticAberration", "FilmGrain", "MotionBlur", "WhiteBalance", "SplitToning", "LensDistortion" })
+                foreach (var n in new[] { "Tonemapping", "Bloom", "ColorAdjustments", "Vignette", "ChromaticAberration", "FilmGrain", "MotionBlur", "WhiteBalance", "SplitToning", "LensDistortion", "DepthOfField" })
                 {
                     var t = FindType(URPNs + n);
                     if (t == null || add == null) continue;
@@ -133,6 +133,20 @@ namespace NeonBay
         {
             Param("Vignette", "intensity", intensity);
             Param("Vignette", "color", color);
+        }
+
+        static float lastBlur = -1f;
+        /// <summary>Concussion blur through URP depth of field (gaussian). 0 disables it.</summary>
+        public static void SetBlur(float amount)
+        {
+            amount = Mathf.Clamp01(amount);
+            if (Mathf.Abs(amount - lastBlur) < 0.01f) return;
+            lastBlur = amount;
+            if (amount < 0.02f) { Param("DepthOfField", "mode", "Off"); return; }
+            Param("DepthOfField", "mode", "Gaussian");
+            Param("DepthOfField", "gaussianStart", Mathf.Lerp(6f, 0.3f, amount));
+            Param("DepthOfField", "gaussianEnd", Mathf.Lerp(25f, 3f, amount));
+            Param("DepthOfField", "gaussianMaxRadius", Mathf.Lerp(0.6f, 1.5f, amount));
         }
 
         public static void SetChromatic(float v) => Param("ChromaticAberration", "intensity", Mathf.Clamp01(v));

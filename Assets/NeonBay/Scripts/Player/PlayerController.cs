@@ -34,7 +34,6 @@ namespace NeonBay
         float fallSpeed;
         float eyeHeight = 1.65f;
         float recoilPitch, recoilYaw, kickVisual;
-        float trauma;
         float fovCurrent;
         public float fovOverride = -1f;
         public float sensitivityMult = 1f;
@@ -104,7 +103,7 @@ namespace NeonBay
             kickVisual += pitchDeg * 0.6f;
         }
 
-        public void Shake(float amount) => trauma = Mathf.Clamp01(trauma + amount);
+        public void Shake(float amount) => CameraFX.Shake(amount);
 
         public void LookAt(Vector3 worldPoint, float speed)
         {
@@ -129,6 +128,7 @@ namespace NeonBay
 
             if (playing) Look();
             if (InVehicle) { UpdateCamera(dt); return; }
+            if (!cc.enabled) { UpdateCamera(dt); return; }
             if (mantling) { UpdateMantle(dt); UpdateCamera(dt); return; }
             Move(dt, playing);
             UpdateCamera(dt);
@@ -349,12 +349,9 @@ namespace NeonBay
             var bob = new Vector3(Mathf.Cos(bobPhase * 0.5f * Mathf.PI) * amp * 0.6f, Mathf.Abs(Mathf.Sin(bobPhase * 0.5f * Mathf.PI)) * amp, 0f);
             landDip = Mathf.MoveTowards(landDip, 0f, dt * 0.9f);
             if (!InVehicle) pivot.localPosition = new Vector3(0, eyeHeight - landDip, 0);
-            // trauma shake
-            trauma = Mathf.MoveTowards(trauma, 0f, dt * 1.2f);
-            float sh = trauma * trauma;
-            float t = Time.unscaledTime * 22f;
-            var shakePos = new Vector3(Mathf.PerlinNoise(t, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, t) - 0.5f, 0) * sh * 0.25f;
-            var shakeRot = new Vector3(Mathf.PerlinNoise(t, 3.1f) - 0.5f, Mathf.PerlinNoise(5.3f, t) - 0.5f, Mathf.PerlinNoise(t, 7.7f) - 0.5f) * sh * 6f;
+            // trauma shake, kicks and concussion sway (shared CameraFX layer)
+            var shakePos = CameraFX.PositionOffset;
+            var shakeRot = CameraFX.RotationOffset;
             kickVisual = Mathf.MoveTowards(kickVisual, 0f, dt * 20f * Mathf.Max(1f, kickVisual));
             float roll = Sliding ? 4f : 0f;
             shakeRoot.localPosition = bob + shakePos;
@@ -364,7 +361,7 @@ namespace NeonBay
             float baseFov = s != null ? s.fov : 78f;
             float target = fovOverride > 0 ? fovOverride : baseFov + (Sprinting ? 7f : 0f) + (Sliding ? 9f : 0f);
             fovCurrent = Mathf.Lerp(fovCurrent, target, 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime));
-            Cam.fieldOfView = fovCurrent;
+            Cam.fieldOfView = fovCurrent + CameraFX.FovOffset;
         }
 
         // ----------------------------------------------------------------- vehicles

@@ -7,6 +7,7 @@ namespace NeonBay
         void DrawHUD(bool minimal = false)
         {
             if (!Game.HasPlayer) return;
+            if (Boxing.Match != null && Boxing.Match.Running) { DrawBoxingHUD(); return; }
             var stats = Game.Stats;
             var pc = Game.Player;
             var wc = Game.Weapons;
@@ -166,7 +167,7 @@ namespace NeonBay
                 UISkin.Text(new Rect(W * 0.5f - 300, 96, 600, 40), Activities.Fmt(act.RaceTime) + "    CP " + act.RaceCheckpoint + "/" + act.RaceTotal, UISkin.centerBig, Palette.Yellow);
                 if (act.Countdown > 0f) UISkin.Text(new Rect(0, H * 0.35f, W, 120), Mathf.CeilToInt(act.Countdown).ToString(), new GUIStyle(UISkin.title) { fontSize = 120 }, Palette.Yellow);
             }
-            if (act != null && act.FightActive) UISkin.Text(new Rect(W * 0.5f - 300, 96, 600, 40), "THE PIT  -  ROUND " + Mathf.Max(1, act.FightRound) + " / 3", UISkin.centerBig, Palette.Red);
+
             if (timerLeft > 0f) UISkin.Text(new Rect(W * 0.5f - 300, 136, 600, 40), timerLabel + "  " + Activities.Fmt(timerLeft), UISkin.centerBig, timerLeft < 20f ? Palette.Red : Palette.Yellow);
             if (nearMiss > 0f) UISkin.Text(new Rect(W * 0.5f - 100, H * 0.5f - 80, 200, 24), "~ near miss ~", UISkin.center, new Color(1f, 0.8f, 0.6f, nearMiss * 2f));
 

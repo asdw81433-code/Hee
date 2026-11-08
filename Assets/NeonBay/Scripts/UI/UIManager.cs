@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace NeonBay
 {
-    public enum Modal { None, Shop, Gigs, Sleep, Metro, Garage, Lore }
+    public enum Modal { None, Shop, Gigs, Sleep, Metro, Garage, Lore, Pit }
 
     /// <summary>All UI is immediate-mode (IMGUI) drawn in code at a 1080p virtual resolution.</summary>
     public partial class UIManager : MonoBehaviour
@@ -117,10 +117,12 @@ namespace NeonBay
             {
                 bool drunk = Game.Stats.HasBuff("drunk");
                 float g = glitch + (drunk ? 0.4f + Mathf.Sin(Time.time * 1.3f) * 0.2f : 0f);
-                PostFX.SetChromatic(0.08f + g * 0.6f + (Game.Manager.SlowMotion ? 0.4f : 0f));
-                PostFX.SetLensDistortion(drunk ? Mathf.Sin(Time.time * 0.9f) * 0.25f : Game.Manager.SlowMotion ? -0.25f : glitch > 0.3f ? -glitch * 0.3f : 0f);
+                PostFX.SetChromatic(0.08f + g * 0.6f + (Game.Manager.SlowMotion ? 0.4f : 0f) + CameraFX.ChromaExtra);
+                PostFX.SetLensDistortion((drunk ? Mathf.Sin(Time.time * 0.9f) * 0.25f : Game.Manager.SlowMotion ? -0.25f : glitch > 0.3f ? -glitch * 0.3f : 0f) + CameraFX.LensExtra);
                 float low = Game.Stats.dmg.Fraction < 0.3f ? (0.3f - Game.Stats.dmg.Fraction) * 1.4f : 0f;
-                PostFX.SetVignette(0.32f + low + hurtFlash * 0.3f, Color.Lerp(Color.black, new Color(0.6f, 0f, 0f), Mathf.Clamp01(low * 2f + hurtFlash)));
+                if (Boxing.Match != null && Boxing.Match.Running) low = Boxing.Match.PlayerDanger;
+                PostFX.SetVignette(0.32f + low + hurtFlash * 0.3f + CameraFX.FlashAmount * 0.25f, Color.Lerp(Color.black, new Color(0.6f, 0f, 0f), Mathf.Clamp01(low * 2f + hurtFlash)));
+                PostFX.SetBlur(CameraFX.BlurAmount);
             }
 
             fpsFrames++; fpsT += dt;
@@ -194,6 +196,7 @@ namespace NeonBay
                 case Modal.Metro: DrawMetro(); break;
                 case Modal.Garage: DrawGarage(); break;
                 case Modal.Lore: DrawLore(); break;
+                case Modal.Pit: DrawPit(); break;
             }
         }
 

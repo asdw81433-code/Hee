@@ -298,6 +298,85 @@ namespace NeonBay
             am.Register("heartbeat", Clip("heartbeat", Mix(Thud(0.2f, 55f, 0.05f, 0.1f, 300f, 408), Thud(0.2f, 50f, 0.06f, 0.1f, 300f, 409), 0.7f, (int)(0.25f * SR)), true, 0.7f));
             am.Register("hurt", Clip("hurt", Mix(Thud(0.25f, 70f, 0.06f, 1.3f, 700f, 410), Whoosh(0.15f, 2000f, 600f, 411), 0.4f), true, 0.8f));
             am.Register("flatline", Clip("flatline", Tone(2.5f, 1000f, 1000f, 50f, 0, 0.01f), true, 0.3f));
+            BuildBoxing(am);
+        }
+
+        // ------------------------------------------------------------------ boxing
+        static float[] Bell(float len, float f0, int s)
+        {
+            seed = (uint)(s * 71 + 5);
+            int n = (int)(len * SR); var d = new float[n];
+            float[] ratio = { 1f, 2.76f, 5.4f, 8.93f, 13.3f };
+            float[] decay = { 1.5f, 0.85f, 0.45f, 0.25f, 0.12f };
+            float[] amp = { 1f, 0.6f, 0.35f, 0.2f, 0.12f };
+            for (int i = 0; i < n; i++)
+            {
+                float t = i / (float)SR;
+                float v = 0f;
+                for (int k = 0; k < ratio.Length; k++) v += Mathf.Sin(TAU * f0 * ratio[k] * t + k) * amp[k] * Mathf.Exp(-t / decay[k]);
+                v += Noise() * Mathf.Exp(-t / 0.004f) * 0.8f;
+                v *= 1f + 0.08f * Mathf.Sin(TAU * 5.5f * t);
+                d[i] = v;
+            }
+            return d;
+        }
+
+        static float[] Crowd(float len, int s, float excitement)
+        {
+            seed = (uint)(s * 131 + 9);
+            int n = (int)(len * SR); var d = new float[n];
+            // many murmuring voices: band-passed noise with slow random swells + a low room rumble
+            var band = NoiseLoop(len + 0.6f, 250f, 2600f, s + 1);
+            var low = Brown(len + 0.6f, 500f, s + 2);
+            float swell = 0f, target = 0f; int hold = 0;
+            for (int i = 0; i < n; i++)
+            {
+                if (--hold <= 0) { hold = (int)(SR * (0.2f + (Noise() * 0.5f + 0.5f) * 0.9f)); target = (Noise() * 0.5f + 0.5f); }
+                swell += (target - swell) * 0.0004f;
+                float t = i / (float)SR;
+                float voices = band[i % band.Length] * (0.55f + swell * 0.6f * excitement);
+                float chatter = Mathf.Sin(TAU * (180f + 40f * Mathf.Sin(TAU * 0.3f * t)) * t) * 0.02f * (Noise() > 0.3f ? 1f : 0f);
+                d[i] = voices + low[i % low.Length] * 5f + chatter;
+            }
+            return Loopable(d, SR / 2);
+        }
+
+        static void BuildBoxing(AudioManager am)
+        {
+            am.Register("glove_head", Clip("gh1", Mix(Thud(0.28f, 92f, 0.05f, 1.9f, 2600f, 501), Thud(0.06f, 700f, 0.007f, 2.8f, 7000f, 502), 0.7f), true, 0.95f));
+            am.Register("glove_head", Clip("gh2", Mix(Thud(0.3f, 84f, 0.055f, 2.1f, 2200f, 511), Thud(0.06f, 820f, 0.006f, 3f, 7600f, 512), 0.65f), true, 0.95f));
+            am.Register("glove_heavy", Clip("ghh", Mix(Mix(Thud(0.45f, 62f, 0.09f, 2.4f, 1800f, 513), Thud(0.08f, 900f, 0.008f, 3f, 8000f, 514), 0.8f), Whoosh(0.2f, 1800f, 300f, 515), 0.25f), true, 1f));
+            am.Register("glove_body", Clip("gb1", Mix(Thud(0.34f, 58f, 0.075f, 1.3f, 950f, 503), Thud(0.05f, 400f, 0.01f, 2f, 4000f, 504), 0.45f), true, 0.95f));
+            am.Register("glove_body", Clip("gb2", Mix(Thud(0.36f, 52f, 0.08f, 1.4f, 900f, 516), Thud(0.05f, 360f, 0.01f, 2f, 3600f, 517), 0.45f), true, 0.95f));
+            am.Register("glove_block", Clip("gbl", Mix(Thud(0.16f, 190f, 0.028f, 1.5f, 2600f, 505), Thud(0.08f, 120f, 0.03f, 0.6f, 900f, 506), 0.5f), true, 0.7f));
+            am.Register("whiff", Clip("wf1", Whoosh(0.22f, 380f, 2700f, 507, 0.25f), true, 0.5f));
+            am.Register("whiff", Clip("wf2", Whoosh(0.26f, 300f, 2300f, 508, 0.22f), true, 0.5f));
+            var bell = Bell(1.9f, 1180f, 520);
+            am.Register("bell", Clip("bell", bell, true, 0.85f));
+            var b3 = Mix(Mix(bell, bell, 1f, (int)(0.32f * SR)), bell, 1f, (int)(0.64f * SR));
+            am.Register("bell3", Clip("bell3", b3, true, 0.85f));
+            am.Register("crowd_loop", Clip("crowd_loop", Crowd(8f, 530, 0.6f), true, 0.5f));
+            var cheer = Crowd(3.2f, 540, 1f);
+            for (int i = 0; i < cheer.Length; i++) { float t = i / (float)SR; cheer[i] *= Mathf.Min(1f, t / 0.25f) * Mathf.Exp(-Mathf.Max(0f, t - 0.6f) / 1.1f) * 2.2f; }
+            seed = 541;
+            for (int w = 0; w < 4; w++) { int o = (int)((0.2f + (Noise() * 0.5f + 0.5f) * 1.2f) * SR); var wh = Tone(0.5f, 2400f + w * 300f, 2900f + w * 200f, 0.3f, 0, 0.05f); for (int k = 0; k < wh.Length && o + k < cheer.Length; k++) cheer[o + k] += wh[k] * 0.12f; }
+            am.Register("crowd_cheer", Clip("crowd_cheer", cheer, true, 0.8f));
+            var ooh = new float[(int)(1.3f * SR)];
+            seed = 545;
+            float lp1 = 0f;
+            for (int i = 0; i < ooh.Length; i++)
+            {
+                float t = i / (float)SR;
+                lp1 += Lp(700f) * (Noise() - lp1);
+                float voice = 0f; for (int v = 0; v < 6; v++) voice += Mathf.Sin(TAU * (150f + v * 23f - t * 30f) * t + v) * 0.12f;
+                ooh[i] = (lp1 * 3f + voice) * Mathf.Min(1f, t / 0.08f) * Mathf.Exp(-t / 0.6f);
+            }
+            am.Register("crowd_ooh", Clip("crowd_ooh", ooh, true, 0.75f));
+            am.Register("canvas", Clip("canvas", Mix(Thud(0.6f, 44f, 0.13f, 2.2f, 750f, 509), Thud(0.2f, 140f, 0.04f, 1.5f, 1600f, 510), 0.6f, (int)(0.07f * SR)), true, 1f));
+            am.Register("rope", Clip("rope", Mix(Tone(0.5f, 96f, 88f, 0.22f, 2), Thud(0.12f, 160f, 0.03f, 0.8f, 1500f, 518), 0.6f), true, 0.6f));
+            am.Register("count", Clip("count", Mix(Tone(0.09f, 880f, 860f, 0.05f, 1), Thud(0.08f, 300f, 0.02f, 0.5f, 3000f, 519), 0.4f), true, 0.45f));
+            am.Register("tinnitus", Clip("tinnitus", Tone(2.6f, 4300f, 4150f, 1.3f, 0, 0.25f), true, 0.22f));
+            am.Register("breath", Clip("breath", Mix(Whoosh(0.35f, 500f, 1400f, 520, 0.6f), Whoosh(0.4f, 1300f, 400f, 521, 0.6f), 0.8f, (int)(0.4f * SR)), true, 0.35f));
         }
     }
 }

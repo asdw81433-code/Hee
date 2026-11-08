@@ -212,17 +212,9 @@ namespace NeonBay
             var ring = new Vector3(inside.center.x, Kerb, inside.center.y + 2);
             float hs = 5f;
             Building(c, ring + new Vector3(-hs, 0, -hs), ring + new Vector3(hs, 0.8f, hs), M.fabric, Vector2.one * 2, true, r);
-            var rope = M.Neon(Palette.Red, 3f);
             foreach (var corner in new[] { new Vector3(-hs, 0, -hs), new Vector3(hs, 0, -hs), new Vector3(hs, 0, hs), new Vector3(-hs, 0, hs) })
                 c.staticMB.Box(ring + corner + new Vector3(-0.15f, 0.8f, -0.15f), ring + corner + new Vector3(0.15f, 2.3f, 0.15f), M.metal, M.metal, Vector2.one);
-            for (int k = 0; k < 3; k++)
-            {
-                float y = 1.2f + k * 0.4f;
-                c.detailMB.SimpleBox(ring + new Vector3(0, y, -hs), new Vector3(hs * 2, 0.05f, 0.05f), rope);
-                c.detailMB.SimpleBox(ring + new Vector3(0, y, hs), new Vector3(hs * 2, 0.05f, 0.05f), rope);
-                c.detailMB.SimpleBox(ring + new Vector3(-hs, y, 0), new Vector3(0.05f, 0.05f, hs * 2), rope);
-                c.detailMB.SimpleBox(ring + new Vector3(hs, y, 0), new Vector3(0.05f, 0.05f, hs * 2), rope);
-            }
+            // the ropes themselves are simulated at runtime (Boxing/RingRopes.cs)
             // invisible ring walls so fighters stay in
             c.AddCollider(ring + new Vector3(-hs, 0.8f, -hs - 0.1f), ring + new Vector3(hs, 3f, -hs));
             c.AddCollider(ring + new Vector3(-hs, 0.8f, hs), ring + new Vector3(hs, 3f, hs + 0.1f));

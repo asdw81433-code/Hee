@@ -11,6 +11,8 @@ namespace NeonBay
         HumanoidRig rig;
         string builtKey;
         public float spin = 200f;
+        public bool zoomFace, boxerPreview;
+        float zoomBlend;
 
         public static CreatorStudio Create()
         {
@@ -55,17 +57,34 @@ namespace NeonBay
 
         public void Show(CharacterProfile p)
         {
-            string key = p.frame + "|" + p.skin + "|" + p.hairStyle + "|" + p.hairColor + "|" + p.eyeColor + "|" + p.accent + "|" + p.faceTattoo + "|" + p.height.ToString("0.00") + "|" + p.jacket + "|" + p.origin;
+            string key = p.frame + "|" + p.skin + "|" + p.hairStyle + "|" + p.hairColor + "|" + p.eyeColor + "|" + p.accent + "|" + p.faceTattoo + "|" + p.height.ToString("0.00") + "|" + p.jacket + "|" + p.origin
+                + "|" + p.beard + "|" + p.beardColor + "|" + p.brows + "|" + p.female + "|" + p.jaw.ToString("0.0") + "|" + p.muscle.ToString("0.00") + "|" + p.trunksColor + "|" + p.gloveColor + "|" + boxerPreview;
             if (key == builtKey) return;
             builtKey = key;
             if (rig != null) Destroy(rig.gameObject);
-            rig = HumanoidRig.Build(turntable, Appearance.FromProfile(p), null, false);
+            var look = Appearance.FromProfile(p);
+            if (boxerPreview) look.outfit = 1;
+            rig = HumanoidRig.Build(turntable, look, null, false);
+            rig.forceNear = true;
         }
 
         void Update()
         {
             if (turntable != null) turntable.localRotation = Quaternion.Euler(0, spin, 0);
-            if (rig != null) rig.Animate(0f, false, false, Time.unscaledDeltaTime);
+            if (rig != null)
+            {
+                rig.Animate(0f, false, false, Time.unscaledDeltaTime);
+                if (cam != null) rig.LookAt(cam.transform.position);
+            }
+            zoomBlend = Mathf.MoveTowards(zoomBlend, zoomFace ? 1f : 0f, Time.unscaledDeltaTime * 3f);
+            if (cam != null)
+            {
+                float k = zoomBlend * zoomBlend * (3f - 2f * zoomBlend);
+                float headY = rig != null && rig.head != null ? rig.head.position.y - transform.position.y + 0.13f : 1.72f;
+                cam.transform.localPosition = Vector3.Lerp(new Vector3(0, 1.15f, -3.4f), new Vector3(0, headY, -0.95f), k);
+                cam.transform.localRotation = Quaternion.Euler(Mathf.Lerp(4f, 0f, k), 0, 0);
+                cam.fieldOfView = Mathf.Lerp(34f, 30f, k);
+            }
         }
 
         void OnDestroy()
@@ -88,7 +107,7 @@ namespace NeonBay
 
         public void BeginCreator()
         {
-            draft = new CharacterProfile { name = "Vega", attributes = new[] { 3, 3, 3, 3, 3 } };
+            draft = new CharacterProfile { name = "Vega", attributes = new[] { 3, 3, 3, 3, 3 }, appearanceVersion = 2, hairStyle = 4, beard = 1, muscle = 0.55f };
             if (studio == null) studio = CreatorStudio.Create();
             creatorTab = 0;
         }
@@ -104,9 +123,10 @@ namespace NeonBay
             if (draft == null) BeginCreator();
             UISkin.Rect(new Rect(0, 0, W, H), new Color(0.01f, 0.01f, 0.02f, 0.94f));
             UISkin.Text(new Rect(60, 30, 900, 50), "CREATE YOUR CHARACTER", UISkin.header, UISkin.Accent);
-            string[] tabs = { "IDENTITY", "ATTRIBUTES", "APPEARANCE" };
+            string[] tabs = { "IDENTITY", "ATTRIBUTES", "FACE & HAIR", "BODY & STYLE", "FIGHTER" };
             for (int i = 0; i < tabs.Length; i++)
-                if (GUI.Button(new Rect(60 + i * 210, 90, 200, 44), tabs[i], creatorTab == i ? UISkin.tabSel : UISkin.tab)) creatorTab = i;
+                if (GUI.Button(new Rect(60 + i * 172, 90, 164, 44), tabs[i], creatorTab == i ? UISkin.tabSel : UISkin.tab)) creatorTab = i;
+            if (studio != null) { studio.zoomFace = creatorTab == 2; studio.boxerPreview = creatorTab == 4; }
 
             // preview
             if (studio != null)
@@ -170,25 +190,64 @@ namespace NeonBay
                     GUILayout.Label("Your origin adds +1 to one attribute when the game starts. Dialogue skill checks show up as [COOL 6], [TECH 5] etc.", UISkin.labelSmall);
                     break;
                 case 2:
-                    Picker("FRAME", ref draft.frame, 3, i => CharacterProfile.FrameName(i));
-                    Picker("SKIN", ref draft.skin, Palette.SkinTones.Length, i => i == Palette.SkinTones.Length - 1 ? "Full Chrome" : "Tone " + (i + 1));
-                    Picker("HAIR", ref draft.hairStyle, 5, CharacterProfile.HairName);
-                    Picker("HAIR COLOR", ref draft.hairColor, Palette.HairColors.Length, i => "Color " + (i + 1));
+                    creatorScroll = GUILayout.BeginScrollView(creatorScroll, GUILayout.Width(area.width), GUILayout.Height(area.height));
+                    Picker("HAIR", ref draft.hairStyle, BodyBuilder.HairStyles, BodyBuilder.HairName);
+                    Picker("HAIR COLOR", ref draft.hairColor, Palette.HairColors.Length, HairColorName);
+                    GUI.enabled = !draft.female;
+                    Picker("FACIAL HAIR", ref draft.beard, BodyBuilder.BeardStyles, BodyBuilder.BeardName);
+                    GUI.enabled = true;
+                    int bc = draft.beardColor + 1;
+                    Picker("BEARD COLOR", ref bc, Palette.HairColors.Length + 1, i => i == 0 ? "Match hair" : HairColorName(i - 1)); draft.beardColor = bc - 1;
+                    Picker("EYEBROWS", ref draft.brows, BodyBuilder.BrowStyles, BodyBuilder.BrowName);
+                    Slider("JAWLINE", ref draft.jaw, 0f, 1f, draft.jaw < 0.35f ? "Narrow" : draft.jaw < 0.7f ? "Average" : "Square");
                     int eye = System.Array.IndexOf(Palette.Neon, draft.eyeColor); if (eye < 0) eye = 0;
                     Picker("CYBER-OPTICS", ref eye, Palette.Neon.Length, i => "Glow " + (i + 1)); draft.eyeColor = Palette.Neon[eye];
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("FACE TATTOO", UISkin.label, GUILayout.Width(200));
+                    if (GUILayout.Button(draft.faceTattoo ? "GLOWING" : "NONE", draft.faceTattoo ? UISkin.tabSel : UISkin.tab, GUILayout.Width(200), GUILayout.Height(38))) draft.faceTattoo = !draft.faceTattoo;
+                    GUILayout.EndHorizontal();
+                    GUILayout.Space(8);
+                    GUILayout.Label("The camera zooms in on your face while this tab is open. Drag the preview to turn your head.", UISkin.labelSmall);
+                    GUILayout.EndScrollView();
+                    break;
+                case 3:
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("BODY TYPE", UISkin.label, GUILayout.Width(200));
+                    if (GUILayout.Button("MASCULINE", !draft.female ? UISkin.tabSel : UISkin.tab, GUILayout.Width(150), GUILayout.Height(38))) draft.female = false;
+                    if (GUILayout.Button("FEMININE", draft.female ? UISkin.tabSel : UISkin.tab, GUILayout.Width(150), GUILayout.Height(38))) { draft.female = true; draft.beard = 0; }
+                    GUILayout.EndHorizontal();
+                    GUILayout.Space(4);
+                    Picker("FRAME", ref draft.frame, 3, i => CharacterProfile.FrameName(i));
+                    Slider("MUSCLE DEFINITION", ref draft.muscle, 0f, 1f, draft.muscle < 0.3f ? "Soft" : draft.muscle < 0.65f ? "Athletic" : "Shredded");
+                    Picker("SKIN", ref draft.skin, Palette.SkinTones.Length, i => i == Palette.SkinTones.Length - 1 ? "Full Chrome" : "Tone " + (i + 1));
                     int acc = System.Array.IndexOf(Palette.Neon, draft.accent); if (acc < 0) acc = 1;
                     Picker("NEON ACCENTS", ref acc, Palette.Neon.Length, i => "Glow " + (i + 1)); draft.accent = Palette.Neon[acc];
                     int jk = System.Array.IndexOf(jackets, draft.jacket); if (jk < 0) jk = 0;
                     Picker("JACKET", ref jk, jackets.Length, i => "Style " + (i + 1)); draft.jacket = jackets[jk];
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label("FACE TATTOO", UISkin.label, GUILayout.Width(200));
-                    if (GUILayout.Button(draft.faceTattoo ? "GLOWING" : "NONE", draft.faceTattoo ? UISkin.tabSel : UISkin.tab, GUILayout.Width(200), GUILayout.Height(38))) draft.faceTattoo = !draft.faceTattoo;
-                    GUILayout.EndHorizontal();
-                    GUILayout.BeginHorizontal();
                     GUILayout.Label("HEIGHT", UISkin.label, GUILayout.Width(200));
                     draft.height = GUILayout.HorizontalSlider(draft.height, 0.92f, 1.08f, GUILayout.Width(300));
                     GUILayout.Label(Mathf.RoundToInt(178 * draft.height) + " cm", UISkin.labelSmall, GUILayout.Width(90));
                     GUILayout.EndHorizontal();
+                    break;
+                case 4:
+                    GUILayout.Label("Your persona in THE PIT, Neon Bay's underground boxing ring.", UISkin.labelSmall);
+                    GUILayout.Space(6);
+                    GUILayout.Label("RING NAME (nickname)", UISkin.glow);
+                    GUI.SetNextControlName("nick");
+                    draft.nickname = GUILayout.TextField(draft.nickname ?? "", 18, UISkin.field, GUILayout.Height(44), GUILayout.Width(420));
+                    InputHub.Typing = GUI.GetNameOfFocusedControl() == "nick" || GUI.GetNameOfFocusedControl() == "name";
+                    GUILayout.Space(8);
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("STANCE", UISkin.label, GUILayout.Width(200));
+                    if (GUILayout.Button("ORTHODOX", !draft.southpaw ? UISkin.tabSel : UISkin.tab, GUILayout.Width(150), GUILayout.Height(38))) draft.southpaw = false;
+                    if (GUILayout.Button("SOUTHPAW", draft.southpaw ? UISkin.tabSel : UISkin.tab, GUILayout.Width(150), GUILayout.Height(38))) draft.southpaw = true;
+                    GUILayout.EndHorizontal();
+                    GUILayout.Space(4);
+                    Picker("TRUNKS", ref draft.trunksColor, Boxing.TrunkColors.Length, i => Boxing.TrunkNames[i]);
+                    Picker("GLOVES", ref draft.gloveColor, Boxing.GloveColors.Length, i => Boxing.GloveNames[i]);
+                    GUILayout.Space(8);
+                    GUILayout.Label("BODY feeds your power and chin, REFLEX your hand speed, defense and footwork, COOL your heart. Train with Coach Ma Ruiz in the Pit to improve further.", UISkin.labelSmall);
                     break;
             }
             GUILayout.EndArea();
@@ -206,6 +265,19 @@ namespace NeonBay
             }
             GUI.enabled = true;
             if (PointsLeft() > 0) UISkin.Text(new Rect(700, H - 80, 600, 30), "You still have " + PointsLeft() + " attribute points to spend.", UISkin.labelSmall, UISkin.Warn);
+        }
+
+        Vector2 creatorScroll;
+        static string HairColorName(int i) => i switch { 0 => "Black", 1 => "Brown", 2 => "Blonde", 3 => "Silver", 4 => "Neon Magenta", 5 => "Neon Cyan", 6 => "Red", 7 => "Toxic Green", _ => "Violet" };
+
+        void Slider(string label, ref float value, float min, float max, string text)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, UISkin.label, GUILayout.Width(200));
+            value = GUILayout.HorizontalSlider(value, min, max, GUILayout.Width(300));
+            GUILayout.Label(text, UISkin.labelSmall, GUILayout.Width(120));
+            GUILayout.EndHorizontal();
+            GUILayout.Space(6);
         }
 
         void DestroyStudio()

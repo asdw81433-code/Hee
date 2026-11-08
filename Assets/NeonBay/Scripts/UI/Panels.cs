@@ -229,6 +229,7 @@ namespace NeonBay
             {
                 Game.Env.SkipHours(h);
                 Game.Stats.HealFraction(1f);
+                Boxing.HealPlayerInjuries(h * 0.07f);
                 Game.Stats.ClearBuffs();
                 Game.Stats.ram = Game.Stats.MaxRam;
                 CloseModal();

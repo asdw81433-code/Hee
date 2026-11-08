@@ -128,15 +128,24 @@ namespace NeonBay
             if (State == GameState.Paused || State == GameState.Dialogue || State == GameState.Shop || State == GameState.CharacterCreation || State == GameState.Dead || State == GameState.Ending || State == GameState.Intro) ts = 0f;
             else if (SlowMotion) ts = 0.3f;
             else if (scanSlow) ts = 0.35f;
+            baseTimeScale = ts;
+            ts *= ts > 0f ? CameraFX.TimeScale : 1f;
             Time.timeScale = ts;
             Time.fixedDeltaTime = 0.02f * Mathf.Max(0.05f, ts);
         }
+        float baseTimeScale = 1f;
 
         public void SetSlowMotion(bool on) { SlowMotion = on; ApplyTimeScale(); }
         public void SetScanSlow(bool on) { scanSlow = on; ApplyTimeScale(); }
 
         void Update()
         {
+            CameraFX.Tick(Time.unscaledDeltaTime);
+            if (baseTimeScale > 0f)
+            {
+                float want = baseTimeScale * CameraFX.TimeScale;
+                if (!Mathf.Approximately(Time.timeScale, want)) { Time.timeScale = want; Time.fixedDeltaTime = 0.02f * Mathf.Max(0.05f, want); }
+            }
             if (State == GameState.MainMenu || State == GameState.CharacterCreation && Game.Player == null || State == GameState.Loading)
                 UpdateMenuCamera();
 
@@ -215,6 +224,7 @@ namespace NeonBay
         {
             ResetWorld();
             Game.Profile = profile;
+            profile.Migrate();
             Game.Difficulty = (Difficulty)Mathf.Clamp(profile.difficulty, 0, 3);
             Game.PlayTime = 0f;
             var spawn = Game.City.Loc("apt_spawn");
@@ -262,6 +272,9 @@ namespace NeonBay
 
         void ResetWorld()
         {
+            if (Boxing.Match != null) Boxing.Match.Abort();
+            Boxing.PlayerInjuries = new InjuryRecord();
+            CameraFX.Clear();
             Spawner.ClearAll();
             Game.Traffic?.ClearAll();
             Game.Crowd?.ClearAll();
@@ -329,6 +342,8 @@ namespace NeonBay
         public bool SaveTo(string slot)
         {
             if (Game.Player == null || Game.Stats.dmg.isDead) return false;
+            if (Boxing.Match != null && Boxing.Match.Running) return false;
+            Boxing.SaveInjuries();
             var d = new SaveData
             {
                 seed = CitySeed,
@@ -367,10 +382,12 @@ namespace NeonBay
             ResetWorld();
             yield return null;
             Game.Profile = d.profile ?? new CharacterProfile();
+            Game.Profile.Migrate();
             Game.Difficulty = (Difficulty)d.difficulty;
             Game.PlayTime = d.playTime;
             SpawnPlayer(Game.Profile, d.position + Vector3.up * 0.2f, d.yaw);
             Flags.Load(d.flags, d.vars);
+            Boxing.LoadInjuries();
             Factions.Load(d.reputation);
             Game.Stats.LoadFrom(d);
             Game.Inventory.LoadFrom(d);

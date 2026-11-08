@@ -108,7 +108,7 @@ namespace NeonBay
         {
             var r = new Rng(spot.look + 17);
             var look = Appearance.Random(FactionId.Civilian, r);
-            if (spot.npcId == "mamasol") { look.hair = 4; look.hairColor = new Color(0.85f, 0.85f, 0.88f); look.jacket = new Color(0.45f, 0.1f, 0.15f); look.accent = Palette.Magenta; look.height = 0.92f; }
+            if (spot.npcId == "mamasol") { look.hair = 9; look.female = true; look.beard = 0; look.hairColor = new Color(0.85f, 0.85f, 0.88f); look.jacket = new Color(0.45f, 0.1f, 0.15f); look.accent = Palette.Magenta; look.height = 0.92f; }
             if (spot.npcId == "clinic") { look.jacket = new Color(0.85f, 0.88f, 0.9f); look.visor = true; look.accent = Palette.Cyan; }
             var npc = Spawn(Archetype.Vendor, FactionId.Civilian, spot.pos + Vector3.up * 0.0f, Quaternion.LookRotation(spot.facing).eulerAngles.y, 3, null, false, "fists", spot.name, look);
             npc.npcId = spot.npcId ?? "vendor_" + spot.shopId;

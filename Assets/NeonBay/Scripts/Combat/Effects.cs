@@ -7,7 +7,9 @@ namespace NeonBay
     /// <summary>Pooled visual effects: muzzle flashes, tracers, impacts, decals, explosions, bursts.</summary>
     public class Effects : MonoBehaviour
     {
-        ParticleSystem sparks, blood, oil, smoke, burst, fire;
+        ParticleSystem sparks, blood, oil, smoke, burst, fire, drip, sweat, spit;
+        readonly List<Transform> stains = new List<Transform>();
+        int stainIdx;
         readonly List<LineRenderer> tracers = new List<LineRenderer>();
         readonly List<float> tracerLife = new List<float>();
         int tracerIdx;
@@ -32,6 +34,21 @@ namespace NeonBay
             var grav = sparks.main; grav.gravityModifier = 1.2f;
             var bg = blood.main; bg.gravityModifier = 0.6f;
             var og = oil.main; og.gravityModifier = 0.8f;
+            drip = MakePs("BloodDrip", Mats.Particle(new Color(0.38f, 0.01f, 0.02f, 0.95f), Tex.Glow, false), 1.4f, 0.6f, 0.022f, true, 400);
+            var dm = drip.main; dm.gravityModifier = 1f;
+            var dc = drip.collision; dc.enabled = true; dc.type = ParticleSystemCollisionType.World; dc.mode = ParticleSystemCollisionMode.Collision3D; dc.bounce = 0f; dc.lifetimeLoss = 1f; dc.collidesWith = Layers.WorldMask;
+            sweat = MakePs("Sweat", Mats.Particle(new Color(0.85f, 0.93f, 1f, 0.55f), Tex.Glow, false), 0.7f, 3.5f, 0.018f, true, 600);
+            var sm = sweat.main; sm.gravityModifier = 0.9f;
+            spit = MakePs("Spit", Mats.Particle(new Color(0.55f, 0.03f, 0.05f, 0.9f), Tex.Smoke, false), 0.6f, 3f, 0.05f, false, 300);
+            var spm = spit.main; spm.gravityModifier = 0.8f;
+            var stainMat = Mats.Particle(new Color(0.3f, 0.0f, 0.02f, 0.85f), Tex.Splat, false);
+            for (int i = 0; i < 40; i++)
+            {
+                var q = Util.Primitive(PrimitiveType.Quad, "Stain" + i, transform, Vector3.zero, Vector3.one * 0.12f, stainMat);
+                q.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+                q.SetActive(false);
+                stains.Add(q.transform);
+            }
 
             tracerMat = Mats.Additive(new Color(1f, 0.85f, 0.5f, 0.9f) * 2f, Tex.Glow);
             for (int i = 0; i < 24; i++)
@@ -195,6 +212,50 @@ namespace NeonBay
             d.position = p + n * 0.01f;
             d.rotation = Quaternion.LookRotation(-n) * Quaternion.Euler(0, 0, Random.Range(0, 360f));
             d.localScale = Vector3.one * Random.Range(0.1f, 0.16f);
+        }
+
+        bool Gore => Game.Settings == null || Game.Settings.gore;
+
+        /// <summary>A single drop of blood that falls and splats on the floor.</summary>
+        public void BloodDrip(Vector3 p, Vector3 vel)
+        {
+            if (!Gore || drip == null) return;
+            drip.Emit(new ParticleSystem.EmitParams { position = p, velocity = vel, startSize = Random.Range(0.012f, 0.024f), startLifetime = 1.4f, applyShapeToPosition = false }, 1);
+        }
+
+        /// <summary>Blood mist from a hard blow or a wound.</summary>
+        public void BloodSpray(Vector3 p, Vector3 dir, int count)
+        {
+            if (!Gore || spit == null) return;
+            for (int i = 0; i < count; i++)
+            {
+                var v = (dir.normalized + Random.insideUnitSphere * 0.55f) * Random.Range(1.2f, 3.6f);
+                spit.Emit(new ParticleSystem.EmitParams { position = p, velocity = v, startSize = Random.Range(0.02f, 0.06f), startLifetime = Random.Range(0.35f, 0.7f), applyShapeToPosition = false }, 1);
+                if (i % 2 == 0) BloodDrip(p, v * 0.6f);
+            }
+        }
+
+        /// <summary>The sweat spray that flies off a fighter's head on a clean shot.</summary>
+        public void Sweat(Vector3 p, Vector3 dir, int count)
+        {
+            if (sweat == null) return;
+            for (int i = 0; i < count; i++)
+            {
+                var v = (dir.normalized * 1.2f + Random.insideUnitSphere * 0.8f + Vector3.up * 0.3f) * Random.Range(1.5f, 4.5f);
+                sweat.Emit(new ParticleSystem.EmitParams { position = p + Random.insideUnitSphere * 0.06f, velocity = v, startSize = Random.Range(0.008f, 0.022f), startLifetime = Random.Range(0.3f, 0.75f), applyShapeToPosition = false }, 1);
+            }
+        }
+
+        /// <summary>Blood stain on the floor (ring canvas, pavement).</summary>
+        public void BloodDecal(Vector3 p, Vector3 n)
+        {
+            if (!Gore || stains.Count == 0) return;
+            var t = stains[stainIdx];
+            stainIdx = (stainIdx + 1) % stains.Count;
+            t.gameObject.SetActive(true);
+            t.position = p + n * 0.006f;
+            t.rotation = Quaternion.LookRotation(-n) * Quaternion.Euler(0, 0, Random.Range(0f, 360f));
+            t.localScale = Vector3.one * Random.Range(0.06f, 0.16f);
         }
 
         public void Burst(Vector3 p, Color c, int count)

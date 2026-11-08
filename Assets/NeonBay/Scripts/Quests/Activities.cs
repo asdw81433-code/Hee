@@ -306,86 +306,29 @@ namespace NeonBay
             Game.Audio?.Play2D("quest_done");
         }
 
-        // ================================================================== fight ring
-        public bool FightActive { get; private set; }
-        public int FightRound { get; private set; }
-        const string RingGroup = "ring_fighters";
-        float roundDelay;
+        // ================================================================== fight ring (THE PIT boxing)
+        public bool FightActive => Boxing.Match != null && Boxing.Match.Running;
+        public int FightRound => Boxing.Match != null ? Boxing.Match.Round : 0;
 
-        public void StartFight()
+        /// <summary>Promoter Chaz: open the fight card / training / medical menu.</summary>
+        public void StartFight() => Game.UI?.OpenPit();
+
+        public void StartBoxingMatch(FighterProfile opponent)
         {
-            if (FightActive || !Game.Stats.Spend(100)) return;
-            FightActive = true;
-            FightRound = 0;
-            var spawn = Game.City.Loc("ring_spawn");
-            Game.UI?.Fade(0.4f);
-            Game.Player.Teleport(spawn.pos + Vector3.up * 0.1f, 45f);
-            Game.Weapons.forceFists = true;
-            Game.Police.suppressed = true;
-            roundDelay = 2f;
-            Game.UI?.Banner("THE PIT", "Three rounds. Fists only. Don't die.", Palette.Red);
+            if (FightActive || opponent == null) return;
+            EnsureArena();
+            if (Boxing.Arena == null) { Game.UI?.Notify("The Pit isn't open right now", Palette.Red); return; }
+            Game.UI?.Fade(0.6f);
+            var m = BoxingMatch.Begin(opponent);
+            if (m == null) Game.UI?.Notify("Can't start the fight", Palette.Red);
         }
 
-        void SpawnRound()
+        void EnsureArena()
         {
-            FightRound++;
-            var c = Game.City.Loc("ring_center").pos;
-            int lvl = Game.Stats.Level + FightRound - 1;
-            if (FightRound == 1) Spawner.Spawn(Archetype.Bruiser, FactionId.None, c + new Vector3(2.5f, 0, 2.5f), 225f, lvl, RingGroup, true, "fists", "Sammy 'Brick' Kowalski");
-            else if (FightRound == 2)
-            {
-                Spawner.Spawn(Archetype.Grunt, FactionId.None, c + new Vector3(2.5f, 0, 2.5f), 225f, lvl, RingGroup, true, "fists", "Twin Fang A");
-                Spawner.Spawn(Archetype.Grunt, FactionId.None, c + new Vector3(-2.5f, 0, 2.5f), 135f, lvl, RingGroup, true, "fists", "Twin Fang B");
-            }
-            else
-            {
-                var look = Appearance.Random(FactionId.Raiders, new Rng(41));
-                look.mask = false; look.hair = 4; look.chromeArm = true; look.bulk = 1.3f;
-                Spawner.Spawn(Archetype.Boss, FactionId.None, c + new Vector3(2.5f, 0, 2.5f), 225f, lvl + 2, RingGroup, true, "fists", "IRON POLLY", look);
-            }
-            foreach (var n in Spawner.Group(RingGroup)) if (n != null && n.state != NPCState.Dead) n.EngageTarget(Game.Stats.dmg);
-            Game.UI?.Banner("ROUND " + FightRound, FightRound == 3 ? "Champion: IRON POLLY" : "FIGHT!", Palette.Red);
-            Game.Audio?.Play2D("ui_confirm");
-        }
-
-        void UpdateFight(float dt)
-        {
-            if (!FightActive) return;
-            if (Game.Stats.dmg.Fraction < 0.1f) { EndFight(false); return; }
-            if (roundDelay > 0f)
-            {
-                roundDelay -= dt;
-                if (roundDelay <= 0f) SpawnRound();
-                return;
-            }
-            if (Spawner.Alive(RingGroup) == 0)
-            {
-                if (FightRound >= 3) { EndFight(true); return; }
-                roundDelay = 3f;
-                Game.UI?.Notify("Round " + FightRound + " won!", Palette.Green);
-            }
-        }
-
-        void EndFight(bool won)
-        {
-            FightActive = false;
-            Spawner.DespawnGroups(RingGroup);
-            Game.Weapons.forceFists = false;
-            Game.Police.suppressed = false;
-            if (won)
-            {
-                int purse = 1500 + Game.Stats.Level * 100;
-                Game.Stats.AddMoney(purse); Game.Stats.AddXP(450); Game.Stats.AddCred(10);
-                Flags.Add("ring_wins", 1);
-                Game.UI?.Banner("CHAMPION", "The Pit roars your name.  +" + Util.Credits(purse), Palette.Yellow);
-            }
-            else
-            {
-                Game.Stats.dmg.health = Game.Stats.dmg.maxHealth * 0.3f;
-                Game.UI?.Banner("KNOCKED OUT", "You wake up on the warehouse floor. Your pride hurts more.", Palette.Red);
-                var spawn = Game.City.Loc("ring_spawn");
-                Game.Player.Teleport(spawn.pos + new Vector3(-4f, 0, -6f), 0);
-            }
+            if (Boxing.Arena != null || Game.City == null) return;
+            var c = Game.City.Loc("ring_center");
+            if (c == null) return;
+            PitArena.Create(c.pos);
         }
 
         // ================================================================== metro
@@ -418,7 +361,10 @@ namespace NeonBay
             if (!Game.IsPlaying || !Game.HasPlayer) return;
             float dt = Time.deltaTime;
             UpdateRace(dt);
-            UpdateFight(dt);
+            EnsureArena();
+            // injuries from the ring fade with time (much faster while sleeping)
+            Boxing.PlayerInjuryHealTimer += dt;
+            if (Boxing.PlayerInjuryHealTimer > 5f && !FightActive) { Boxing.PlayerInjuryHealTimer = 0f; Boxing.HealPlayerInjuries(0.004f); }
         }
     }
 }

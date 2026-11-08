@@ -356,7 +356,14 @@ namespace NeonBay
                     float dmgAmt = (archetype == Archetype.Bruiser ? 28f : 16f) * LevelMult;
                     target.ApplyDamage(new DamageInfo { amount = dmgAmt, type = DamageType.Melee, point = target.transform.position + Vector3.up, direction = transform.forward, source = gameObject });
                     Game.Audio?.Play3D("punch", target.transform.position, 0.9f);
-                    if (isPlayer) Game.Player.Shake(0.25f);
+                    if (isPlayer)
+                    {
+                        Game.Player.Shake(0.25f);
+                        CameraFX.KickFrom(Game.Cam, transform.forward, archetype == Archetype.Bruiser ? 7f : 4f);
+                        CameraFX.Flash(new Color(0.6f, 0f, 0f), 0.25f);
+                        CameraFX.Chroma(0.3f);
+                        if (archetype == Archetype.Bruiser || archetype == Archetype.Boss) CameraFX.HitStop(0.05f);
+                    }
                 }
                 if (meleeT >= 1f) meleeT = -1f;
                 return;
@@ -570,6 +577,7 @@ namespace NeonBay
 
         void OnDamaged(DamageInfo info)
         {
+            ReactToHit(info);
             if (info.source == null) return;
             var src = info.source.GetComponent<Damageable>();
             bool fromPlayer = info.fromPlayer || (Game.Player != null && info.source == Game.Player.gameObject);
@@ -613,6 +621,31 @@ namespace NeonBay
             foreach (var n in all)
                 if (n != this && (n.transform.position - transform.position).sqrMagnitude < 400f && (n.archetype == Archetype.Civilian)) n.Panic(transform.position);
             Destroy(gameObject, 0.05f);
+        }
+
+        /// <summary>Body language for a hit: the head snaps, the face winces, skin bruises, cuts and bullet wounds bleed.</summary>
+        void ReactToHit(DamageInfo info)
+        {
+            if (rig == null || info.amount < 3f || dmg.isDead && state == NPCState.Dead) return;
+            var dir = info.direction.sqrMagnitude > 0.001f ? info.direction.normalized : -transform.forward;
+            bool head = info.headshot || info.point.y > rig.head.position.y + 0.04f;
+            float power = Mathf.Clamp(info.amount / (info.type == DamageType.Melee ? 22f : 35f), 0.25f, 1.5f);
+            rig.React(dir, info.point, power, head, !head);
+            if (Game.Settings != null && !Game.Settings.gore) return;
+            var inj = rig.injury;
+            if (inj == null || rig.FarFromCamera) return;
+            if (info.type == DamageType.Melee)
+            {
+                if (head) inj.Register(inj.HeadZoneAt(info.point), Mathf.Clamp01(info.amount / 40f), 0.25f);
+                else inj.Register(inj.BodyZoneAt(info.point), Mathf.Clamp01(info.amount / 50f));
+                if (head) Game.Fx?.Sweat(rig.HeadPos, dir, 10);
+            }
+            else if (info.type == DamageType.Ballistic && !dmg.isRobotic)
+            {
+                var bone = rig.NearestBone(info.point);
+                inj.Wound(info.point, -dir, bone, 0.035f + power * 0.03f);
+                if (bone == rig.thighL || bone == rig.thighR || bone == rig.kneeL || bone == rig.kneeR) Cripple(4f);
+            }
         }
 
         // ------------------------------------------------------------------ status effects from hacks / weapons

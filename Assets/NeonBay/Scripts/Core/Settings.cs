@@ -15,6 +15,8 @@ namespace NeonBay
         public bool postFx = true;
         public bool motionBlur = true;
         public bool headBob = true;
+        public bool screenShake = true;
+        public bool gore = true;
         public bool showFps;
         public float viewDistance = 1400f;
         public bool subtitles = true;
@@ -36,6 +38,8 @@ namespace NeonBay
                 postFx = PlayerPrefs.GetInt(P + "pfx", 1) == 1,
                 motionBlur = PlayerPrefs.GetInt(P + "mb", 1) == 1,
                 headBob = PlayerPrefs.GetInt(P + "bob", 1) == 1,
+                screenShake = PlayerPrefs.GetInt(P + "shk", 1) == 1,
+                gore = PlayerPrefs.GetInt(P + "gore", 1) == 1,
                 showFps = PlayerPrefs.GetInt(P + "fps", 0) == 1,
                 viewDistance = PlayerPrefs.GetFloat(P + "vd", 1400f),
                 subtitles = PlayerPrefs.GetInt(P + "sub", 1) == 1,
@@ -57,6 +61,8 @@ namespace NeonBay
             PlayerPrefs.SetInt(P + "pfx", postFx ? 1 : 0);
             PlayerPrefs.SetInt(P + "mb", motionBlur ? 1 : 0);
             PlayerPrefs.SetInt(P + "bob", headBob ? 1 : 0);
+            PlayerPrefs.SetInt(P + "shk", screenShake ? 1 : 0);
+            PlayerPrefs.SetInt(P + "gore", gore ? 1 : 0);
             PlayerPrefs.SetInt(P + "fps", showFps ? 1 : 0);
             PlayerPrefs.SetFloat(P + "vd", viewDistance);
             PlayerPrefs.SetInt(P + "sub", subtitles ? 1 : 0);
