@@ -1,0 +1,94 @@
+# Builds the Android APK of Neon Bay in the cloud (no Unity install needed on your machine).
+#
+# One-time setup - repository Settings > Secrets and variables > Actions > New repository secret:
+#   UNITY_EMAIL     your Unity ID e-mail
+#   UNITY_PASSWORD  your Unity ID password
+#   UNITY_LICENSE   the full text of your Unity licence file (Unity_lic.ulf). Sign in to Unity Hub on a PC once,
+#                   then open C:\ProgramData\Unity\Unity_lic.ulf (Windows) or
+#                   /Library/Application Support/Unity/Unity_lic.ulf (macOS) and paste its contents.
+# Optional, to sign with your own key instead of the debug key:
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASS, ANDROID_KEYALIAS_NAME, ANDROID_KEYALIAS_PASS
+#
+# Run it: Actions tab > "Android APK" > Run workflow. The APK appears under the run's Artifacts.
+# Pushing a tag such as v2.0.0 also attaches the APK to a GitHub Release.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - name: Check Unity licence secrets
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ] || [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; then
+            echo "::error::Add the UNITY_LICENSE, UNITY_EMAIL and UNITY_PASSWORD repository secrets first (see the top of .github/workflows/android-apk.yml)."
+            exit 1
+          fi
+
+      # the Unity Android image is large; make room on the runner
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          tool-cache: false
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Android-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-Android-
+
+      - name: Build with Unity
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: auto            # read from ProjectSettings/ProjectVersion.txt
+          targetPlatform: Android
+          buildName: NeonBay
+          buildMethod: NeonBay.EditorTools.AndroidBuild.BuildCI
+          androidExportType: androidPackage
+          versioning: Custom
+          version: 2.0.${{ github.run_number }}
+          androidVersionCode: ${{ github.run_number }}
+          androidKeystoreName: neonbay.keystore
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeonBay-Android-APK
+          path: build/Android/*.apk
+          if-no-files-found: error
+
+      - name: Attach APK to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Android/*.apk

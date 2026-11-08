@@ -39,7 +39,9 @@ namespace NeonBay
             }
 
             // ---------------- bottom-left: vitals
-            var bl = new Rect(30, H - 150, 420, 130);
+            bool touch = TouchControls.Active;
+            // with touch controls the thumbs live in the bottom corners, so vitals / weapon move up
+            var bl = touch ? new Rect(30, 400, 420, 130) : new Rect(30, H - 150, 420, 130);
             UISkin.Rect(new Rect(bl.x - 10, bl.y - 10, bl.width + 20, bl.height + 10), new Color(0, 0, 0, 0.35f));
             float hp = stats.dmg.health, mhp = stats.dmg.maxHealth;
             UISkin.Text(new Rect(bl.x, bl.y, 200, 22), "HEALTH", UISkin.tiny, UISkin.Dim);
@@ -71,7 +73,7 @@ namespace NeonBay
             }
 
             // ---------------- bottom-right: weapon / vehicle
-            var br = new Rect(W - 450, H - 150, 420, 130);
+            var br = touch ? new Rect(W - 450, 70, 420, 130) : new Rect(W - 450, H - 150, 420, 130);
             if (pc.InVehicle)
             {
                 var v = pc.vehicle;
@@ -95,7 +97,7 @@ namespace NeonBay
                     }
                     else UISkin.Text(new Rect(br.x, br.y + 36, 420, 40), wc.Blocking ? "BLOCKING" : "MELEE", UISkin.right, UISkin.Dim);
                 }
-                else UISkin.Text(new Rect(br.x, br.y + 36, 420, 30), "HOLSTERED  [H]", UISkin.right, UISkin.Dim);
+                else UISkin.Text(new Rect(br.x, br.y + 36, 420, 30), "HOLSTERED  [" + InputHub.Label(NeonBay.Btn.Holster) + "]", UISkin.right, UISkin.Dim);
                 string gren = "FRAG x" + Game.Inventory.Count("frag") + "   EMP x" + Game.Inventory.Count("emp");
                 UISkin.Text(new Rect(br.x, br.y + 108, 420, 22), gren + "   [G]", UISkin.right, UISkin.Dim);
                 string abil = "";
@@ -140,7 +142,7 @@ namespace NeonBay
             }
 
             // ---------------- top-right: quest tracker
-            DrawTracker(new Rect(W - 470, 30, 440, 300));
+            DrawTracker(touch ? new Rect(W - 470, 215, 440, 280) : new Rect(W - 470, 30, 440, 300));
 
             // ---------------- center prompts
             var ia = Game.Interactor;
@@ -348,7 +350,7 @@ namespace NeonBay
         {
             var r = new Rect(W * 0.5f + 140, H * 0.5f - 160, 420, 330);
             var t = hk.scanTarget;
-            UISkin.Text(new Rect(W * 0.5f - 200, H * 0.5f + 160, 400, 24), "SCANNER  //  scroll or 1-4 to pick, LMB to execute", UISkin.center, Palette.Cyan);
+            UISkin.Text(new Rect(W * 0.5f - 200, H * 0.5f + 160, 400, 24), (TouchControls.Active ? "SCANNER  //  NEXT to pick, HACK to execute" : "SCANNER  //  scroll or 1-4 to pick, LMB to execute"), UISkin.center, Palette.Cyan);
             if (t == null) return;
             GUI.Box(r, GUIContent.none, UISkin.panel);
             GUILayout.BeginArea(new Rect(r.x + 16, r.y + 12, r.width - 32, r.height - 24));

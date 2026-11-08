@@ -1,0 +1,8 @@
+<!-- IL2CPP code stripping: Neon Bay builds its URP volume/post-processing setup through reflection,
+     so keep those assemblies (and the game itself) whole in player builds. -->
+<linker>
+  <assembly fullname="Assembly-CSharp" preserve="all" ignoreIfMissing="1"/>
+  <assembly fullname="Unity.RenderPipelines.Universal.Runtime" preserve="all" ignoreIfMissing="1"/>
+  <assembly fullname="Unity.RenderPipelines.Core.Runtime" preserve="all" ignoreIfMissing="1"/>
+  <assembly fullname="Unity.InputSystem" preserve="all" ignoreIfMissing="1"/>
+</linker>

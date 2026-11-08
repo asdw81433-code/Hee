@@ -61,7 +61,7 @@ namespace NeonBay
                         break;
                     }
                 case 1: GUILayout.BeginArea(area); DrawSaveSlots(false); if (GUILayout.Button("BACK", UISkin.button, GUILayout.Height(44))) menuScreen = 0; GUILayout.EndArea(); break;
-                case 2: GUILayout.BeginArea(new Rect(area.x, area.y, 560, 700)); DrawSettings(); if (GUILayout.Button("BACK", UISkin.button, GUILayout.Height(44))) menuScreen = 0; GUILayout.EndArea(); break;
+                case 2: GUILayout.BeginArea(new Rect(area.x, area.y - 70, 560, 790)); DrawSettings(); if (GUILayout.Button("BACK", UISkin.button, GUILayout.Height(44))) menuScreen = 0; GUILayout.EndArea(); break;
                 case 3: GUILayout.BeginArea(new Rect(area.x, area.y - 40, 620, 760)); DrawControls(); if (GUILayout.Button("BACK", UISkin.button, GUILayout.Height(44))) menuScreen = 0; GUILayout.EndArea(); break;
                 case 4:
                     GUILayout.BeginArea(area);
@@ -286,7 +286,8 @@ namespace NeonBay
         {
             var s = Game.Settings;
             GUILayout.Label("SETTINGS", UISkin.header);
-            s.mouseSensitivity = Slider("Mouse sensitivity", s.mouseSensitivity, 0.1f, 4f);
+            bool touch = TouchControls.Supported;
+            s.mouseSensitivity = Slider(touch ? "Look sensitivity" : "Mouse sensitivity", s.mouseSensitivity, 0.1f, 4f);
             s.fov = Slider("Field of view", s.fov, 60f, 110f, "0");
             s.masterVolume = Slider("Master volume", s.masterVolume, 0f, 1f);
             s.musicVolume = Slider("Music volume", s.musicVolume, 0f, 1f);
@@ -311,6 +312,16 @@ namespace NeonBay
             s.motionBlur = Toggle("Motion blur", s.motionBlur);
             s.subtitles = Toggle("Subtitles", s.subtitles);
             s.showFps = Toggle("Show FPS", s.showFps);
+            if (touch || s.touchControls == 1)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Touch controls", UISkin.label, GUILayout.Width(220));
+                string[] modes = { "AUTO", "ON", "OFF" };
+                for (int i = 0; i < 3; i++)
+                    if (GUILayout.Button(modes[i], s.touchControls == i ? UISkin.tabSel : UISkin.tab, GUILayout.Width(90))) s.touchControls = i;
+                GUILayout.EndHorizontal();
+                s.touchSize = Slider("Touch button size", s.touchSize, 0.7f, 1.4f);
+            }
             if (Game.Manager.State == GameState.Paused || Game.Manager.State == GameState.MainMenu)
             {
                 GUILayout.BeginHorizontal();
@@ -348,7 +359,8 @@ namespace NeonBay
             GUILayout.Label(
                 "<b>On foot</b>\nWASD move   Mouse look   SPACE jump / mantle / double-jump\nSHIFT sprint   C crouch (slide while sprinting)   CTRL walk\nLMB fire / attack   RMB aim / block   R reload   V quick melee\n1-4 / wheel switch weapon   H holster   G grenade (SHIFT+G = EMP)\nE interact / talk / takedown   F enter vehicle   T call your car\nTAB (hold) scanner + quickhacks   Q Chronoweave   X Optical camo\n\n" +
                 "<b>Driving</b>\nW/S throttle & brake   A/D steer   SPACE handbrake\nB camera view   N radio station   L headlights   ALT horn   F exit\n\n" +
-                "<b>Menus</b>\nESC pause   M map   J journal   I inventory   K character & perks\nF5 quicksave   F9 quickload", UISkin.labelSmall);
+                "<b>Menus</b>\nESC pause   M map   J journal   I inventory   K character & perks\nF5 quicksave   F9 quickload" +
+                (TouchControls.Supported ? "\n\n<b>Touch</b>\nLeft thumb anywhere bottom-left: move (push all the way to sprint, lightly to walk)\nDrag the right side to look (also while holding FIRE / AIM)   II pause   MAP map\nBoxing: punch pad on the right, BLOCK under the thumb, swipe to slip / duck,\ntap BODY or POWER before a punch (hold to keep it on)" : ""), UISkin.labelSmall);
         }
 
         void DrawSaveSlots(bool canSave)

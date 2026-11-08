@@ -15,7 +15,7 @@ namespace NeonBay.EditorTools
     [InitializeOnLoad]
     public static class NeonBaySetup
     {
-        const string ScenePath = "Assets/NeonBay/Scenes/NeonBay.unity";
+        internal const string ScenePath = "Assets/NeonBay/Scenes/NeonBay.unity";
         const string SettingsDir = "Assets/NeonBay/Settings";
         const string DoneKey = "NeonBay.SetupDone.v1";
 
@@ -49,7 +49,7 @@ namespace NeonBay.EditorTools
             EditorApplication.isPlaying = true;
         }
 
-        static void Setup(bool verbose)
+        internal static void Setup(bool verbose)
         {
             try
             {

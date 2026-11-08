@@ -39,8 +39,16 @@ namespace NeonBay
             if (Game.Manager != null && Game.Manager != this) { Destroy(gameObject); return; }
             Game.Manager = this;
             DontDestroyOnLoad(gameObject);
-            Application.targetFrameRate = 144;
+            Application.targetFrameRate = Application.isMobilePlatform ? 60 : 144;
+            if (Application.isMobilePlatform)
+            {
+                Screen.sleepTimeout = SleepTimeout.NeverSleep;
+                Screen.autorotateToPortrait = false; Screen.autorotateToPortraitUpsideDown = false;
+                Screen.autorotateToLandscapeLeft = true; Screen.autorotateToLandscapeRight = true;
+                Screen.orientation = ScreenOrientation.AutoRotation;
+            }
             Game.Settings = Settings.Load();
+            gameObject.AddComponent<TouchControls>();
         }
 
         IEnumerator Start()

@@ -21,6 +21,9 @@ namespace NeonBay
         public float viewDistance = 1400f;
         public bool subtitles = true;
         public float uiScale = 1f;
+        /// <summary>On-screen touch controls: 0 = auto (phones/tablets), 1 = always on, 2 = off.</summary>
+        public int touchControls;
+        public float touchSize = 1f;
 
         const string P = "nb_";
 
@@ -44,8 +47,17 @@ namespace NeonBay
                 viewDistance = PlayerPrefs.GetFloat(P + "vd", 1400f),
                 subtitles = PlayerPrefs.GetInt(P + "sub", 1) == 1,
                 uiScale = PlayerPrefs.GetFloat(P + "ui", 1f),
+                touchControls = PlayerPrefs.GetInt(P + "touch", 0),
+                touchSize = PlayerPrefs.GetFloat(P + "tsize", 1f),
             };
             if (s.quality < 0) s.quality = QualitySettings.GetQualityLevel();
+            if (Application.isMobilePlatform && !PlayerPrefs.HasKey(P + "vd"))
+            {
+                // first launch on a phone: shorter draw distance, no motion blur, slightly larger UI
+                s.viewDistance = 750f;
+                s.motionBlur = false;
+                s.uiScale = 1.1f;
+            }
             return s;
         }
 
@@ -67,6 +79,8 @@ namespace NeonBay
             PlayerPrefs.SetFloat(P + "vd", viewDistance);
             PlayerPrefs.SetInt(P + "sub", subtitles ? 1 : 0);
             PlayerPrefs.SetFloat(P + "ui", uiScale);
+            PlayerPrefs.SetInt(P + "touch", touchControls);
+            PlayerPrefs.SetFloat(P + "tsize", touchSize);
             PlayerPrefs.Save();
         }
 

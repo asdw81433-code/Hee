@@ -47,7 +47,7 @@ namespace NeonBay
                 var old = GUI.color; GUI.color = new Color(1, 1, 1, 0.06f);
                 GUI.DrawTextureWithTexCoords(new Rect(0, 0, W, H), Tex.Scanlines, new Rect(0, 0, 1, H / 6f));
                 GUI.color = old;
-                UISkin.Text(new Rect(W - 460, H - 80, 420, 40), "[SPACE] skip", UISkin.right, UISkin.Dim);
+                UISkin.Text(new Rect(W - 460, H - 80, 420, 40), (TouchControls.Active ? "" : "[SPACE] skip"), UISkin.right, UISkin.Dim);
             }
 
             if (m.phase == MatchPhase.Intro) { DrawTaleOfTape(m); return; }
@@ -81,14 +81,14 @@ namespace NeonBay
             // commentary
             if (m.commentaryT > 0f && !string.IsNullOrEmpty(m.commentary))
             {
-                var r = new Rect(W * 0.5f - 520, H - 210, 1040, 46);
+                var r = new Rect(W * 0.5f - 520, TouchControls.Active ? 150 : H - 210, 1040, 46);
                 UISkin.Rect(r, new Color(0, 0, 0, 0.55f * Mathf.Clamp01(m.commentaryT)));
                 UISkin.Text(r, "<color=#ffd633>MIC MALONE:</color>  " + m.commentary, UISkin.center, Color.white.WithAlpha(Mathf.Clamp01(m.commentaryT)));
             }
 
             if (m.phase == MatchPhase.Knockdown) DrawCount(m);
             if (m.phase == MatchPhase.Corner) DrawCorner(m);
-            if (m.phase == MatchPhase.Fight && showBoxControls) DrawBoxControls();
+            if (m.phase == MatchPhase.Fight && showBoxControls && !TouchControls.Active) DrawBoxControls();
         }
 
         void SwollenSide(float closure, bool right)
@@ -152,7 +152,7 @@ namespace NeonBay
             float pulse = 1f + Mathf.Clamp01(1f - (Time.time % 1f) * 3f) * 0.25f;
             var st = new GUIStyle(UISkin.title) { fontSize = Mathf.RoundToInt(150 * pulse) };
             UISkin.Text(new Rect(0, H * 0.22f, W, 200), m.count > 0 ? m.count.ToString() : "", st, m.count >= 8 ? Palette.Red : Color.white);
-            UISkin.Text(new Rect(0, H * 0.22f + 190, W, 40), m.downed.isPlayer ? "GET UP! Press SPACE when the marker is in the zone" : m.downed.profile.name.ToUpperInvariant() + " IS DOWN", UISkin.centerBig, Color.white);
+            UISkin.Text(new Rect(0, H * 0.22f + 190, W, 40), m.downed.isPlayer ? (TouchControls.Active ? "GET UP! Tap when the marker is in the zone" : "GET UP! Press SPACE when the marker is in the zone") : m.downed.profile.name.ToUpperInvariant() + " IS DOWN", UISkin.centerBig, Color.white);
             if (m.downed.isPlayer && m.count >= 1)
             {
                 var bar = new Rect(W * 0.5f - 360, H * 0.62f, 720, 34);
@@ -206,7 +206,7 @@ namespace NeonBay
             }
             y += 124;
             UISkin.Bar(new Rect(r.x + 24, y, r.width - 48, 6), 1f - m.phaseT / 14f, Palette.Cyan, new Color(0, 0, 0, 0.6f));
-            UISkin.Text(new Rect(r.x + 24, y + 10, r.width - 48, 22), m.cornerChoice >= 0 ? "Seconds out..." : "Pick one before the bell (1-4)", UISkin.tiny, UISkin.Dim);
+            UISkin.Text(new Rect(r.x + 24, y + 10, r.width - 48, 22), m.cornerChoice >= 0 ? "Seconds out..." : (TouchControls.Active ? "Pick one before the bell" : "Pick one before the bell (1-4)"), UISkin.tiny, UISkin.Dim);
             for (int i = 0; i < 4; i++) if (InputHub.KeyDown(KeyCode.Alpha1 + i)) m.ChooseCorner(i);
         }
 
@@ -261,7 +261,7 @@ namespace NeonBay
                 y += 24;
             }
             UISkin.Text(new Rect(r.x, r.yMax - 46, r.width, 30), "\"" + b.bio + "\"", UISkin.center, UISkin.Dim);
-            UISkin.Text(new Rect(r.x, r.yMax + 20, r.width, 30), "[SPACE] Touch gloves", UISkin.centerBig, Color.Lerp(Color.white, Palette.Yellow, Mathf.PingPong(Time.unscaledTime, 1f)));
+            UISkin.Text(new Rect(r.x, r.yMax + 20, r.width, 30), (TouchControls.Active ? "Tap TOUCH GLOVES" : "[SPACE] Touch gloves"), UISkin.centerBig, Color.Lerp(Color.white, Palette.Yellow, Mathf.PingPong(Time.unscaledTime, 1f)));
         }
 
         void DrawFightResult(BoxingMatch m)

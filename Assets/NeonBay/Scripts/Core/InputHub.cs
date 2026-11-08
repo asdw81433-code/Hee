@@ -40,6 +40,7 @@ namespace NeonBay
 
         public static string Label(Btn b)
         {
+            if (TouchActive && TouchControls.Labels.TryGetValue(b, out var touchName)) return touchName;
             var k = Binding(b);
             switch (k)
             {
@@ -60,6 +61,42 @@ namespace NeonBay
         /// <summary>Set by UI while a text field has focus so gameplay keys are ignored.</summary>
         public static bool Typing;
 
+        // ------------------------------------------------------------------ virtual input
+        // The on-screen touch controls (TouchControls) press "virtual keys" here, so every system that reads
+        // InputHub works on phones without knowing about touch at all.
+        /// <summary>True while the on-screen touch controls are in charge (mouse emulation from touches is ignored).</summary>
+        public static bool TouchActive;
+        public static Vector2 VirtualMove, VirtualLook;
+        static readonly HashSet<KeyCode> vHeld = new HashSet<KeyCode>();
+        static readonly Dictionary<KeyCode, int> vDownFrame = new Dictionary<KeyCode, int>(), vUpFrame = new Dictionary<KeyCode, int>();
+        static float vScroll; static int vScrollFrame = -1;
+
+        public static void SetVirtual(KeyCode k, bool held)
+        {
+            if (k == KeyCode.None || vHeld.Contains(k) == held) return;
+            if (held) { vHeld.Add(k); vDownFrame[k] = Time.frameCount; }
+            else { vHeld.Remove(k); vUpFrame[k] = Time.frameCount; }
+        }
+
+        public static bool VirtualHeld(KeyCode k) => vHeld.Contains(k);
+
+        static readonly List<KeyCode> releaseTmp = new List<KeyCode>();
+        public static void ReleaseVirtual()
+        {
+            releaseTmp.Clear(); releaseTmp.AddRange(vHeld);
+            foreach (var k in releaseTmp) SetVirtual(k, false);
+            VirtualMove = Vector2.zero; VirtualLook = Vector2.zero;
+        }
+
+        public static void PushScroll(float s) { vScroll = s; vScrollFrame = Time.frameCount; }
+
+        static bool Virtual(KeyCode k, int mode)
+        {
+            if (mode == 0) return vHeld.Contains(k);
+            var d = mode == 1 ? vDownFrame : vUpFrame;
+            return d.TryGetValue(k, out var f) && f == Time.frameCount;
+        }
+
         public static bool Held(Btn b) => !Typing && KeyState(Binding(b), 0);
         public static bool Down(Btn b) => !Typing && KeyState(Binding(b), 1);
         public static bool Up(Btn b) => !Typing && KeyState(Binding(b), 2);
@@ -73,13 +110,15 @@ namespace NeonBay
                 if (Typing) return Vector2.zero;
                 float x = (KeyState(KeyCode.D, 0) ? 1 : 0) - (KeyState(KeyCode.A, 0) ? 1 : 0);
                 float y = (KeyState(KeyCode.W, 0) ? 1 : 0) - (KeyState(KeyCode.S, 0) ? 1 : 0);
-                var v = new Vector2(x, y);
+                var v = new Vector2(x, y) + VirtualMove;
                 return v.sqrMagnitude > 1f ? v.normalized : v;
             }
         }
 
         /// <summary>Mouse delta in "legacy axis" units (roughly 0.1 per pixel).</summary>
-        public static Vector2 Look
+        public static Vector2 Look => TouchActive ? VirtualLook : MouseLook + VirtualLook;
+
+        static Vector2 MouseLook
         {
             get
             {
@@ -99,6 +138,7 @@ namespace NeonBay
         {
             get
             {
+                if (vScrollFrame == Time.frameCount) return vScroll;
 #if ENABLE_INPUT_SYSTEM
                 var m = Mouse.current;
                 if (m == null) return 0f;
@@ -131,6 +171,9 @@ namespace NeonBay
         static bool KeyState(KeyCode k, int mode)
         {
             if (k == KeyCode.None) return false;
+            if (Virtual(k, mode)) return true;
+            // phones report touches as mouse buttons; the touch overlay handles those itself
+            if (TouchActive && k >= KeyCode.Mouse0 && k <= KeyCode.Mouse6) return false;
 #if ENABLE_INPUT_SYSTEM
             ButtonControl c = Control(k);
             if (c == null) return false;
