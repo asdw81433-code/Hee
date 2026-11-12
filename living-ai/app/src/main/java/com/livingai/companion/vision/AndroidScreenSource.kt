@@ -14,6 +14,7 @@ import com.livingai.core.safety.FrameDiff
 import com.livingai.core.safety.Redactor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 
 /**
@@ -63,7 +64,7 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
                         if (!protectedContent) {
                             if (sparse && prefs.ocrEnabled && !lowMemory) {
                                 // Re-run OCR only when the picture really changed.
-                                ocrText = if (FrameDiff.distance(sig, lastSig) < 0.04) lastOcr else ocr.recognize(frame).also { lastOcr = it }
+                                ocrText = if (FrameDiff.distance(sig, lastSig) < 0.04) lastOcr else (withTimeoutOrNull(6000L) { ocr.recognize(frame) } ?: "").also { lastOcr = it }
                                 lastSig = sig
                                 if (ocrText.isNotBlank()) source = if (snap != null) "nodes+ocr" else "ocr"
                             }

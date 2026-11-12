@@ -31,9 +31,9 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests (agents, safety, redaction)
-        run: ./gradlew :core:test --stacktrace
+        run: ./gradlew :core:test || ./gradlew :core:test  # retry once: Maven Central is occasionally flaky
       - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
+        run: ./gradlew :app:assembleDebug || ./gradlew :app:assembleDebug
       - name: Lint
         run: ./gradlew :app:lintDebug
         continue-on-error: true
@@ -79,7 +79,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: living-ai
-          script: ./gradlew :app:connectedDebugAndroidTest
+          script: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest || ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest; ./gradlew :app:connectedDebugAndroidTest
       - name: Device test summary
         if: always()
         run: |

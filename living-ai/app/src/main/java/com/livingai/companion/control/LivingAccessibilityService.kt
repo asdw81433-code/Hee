@@ -15,6 +15,7 @@ import com.livingai.companion.LivingState
 import com.livingai.companion.overlay.RobotOverlay
 import com.livingai.companion.vision.ScreenMetrics
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -115,7 +116,11 @@ class LivingAccessibilityService : AccessibilityService() {
     suspend fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long = 320L): Boolean =
         gesture(Path().apply { moveTo(x1.toFloat(), y1.toFloat()); lineTo(x2.toFloat(), y2.toFloat()) }, durationMs)
 
-    private suspend fun gesture(path: Path, durationMs: Long): Boolean = suspendCancellableCoroutine { cont ->
+    // A system callback that never arrives must not hang the agent.
+    private suspend fun gesture(path: Path, durationMs: Long): Boolean =
+        withTimeoutOrNull(durationMs + 3000L) { gestureAwait(path, durationMs) } ?: false
+
+    private suspend fun gestureAwait(path: Path, durationMs: Long): Boolean = suspendCancellableCoroutine { cont ->
         val g = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs)).build()
         val accepted = dispatchGesture(g, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) { if (cont.isActive) cont.resume(true) }
@@ -130,6 +135,11 @@ class LivingAccessibilityService : AccessibilityService() {
      */
     suspend fun screenshot(): Bitmap? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return withTimeoutOrNull(4000L) { screenshotAwait() }
+    }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.R)
+    private suspend fun screenshotAwait(): Bitmap? {
         return suspendCancellableCoroutine { cont ->
             try {
                 takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {

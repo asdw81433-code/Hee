@@ -26,7 +26,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Wires the four agents to Android and owns their lifecycle:
@@ -67,6 +69,10 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     // ---------- user commands ----------
 
+    private companion object {
+        const val TASK_TIMEOUT_MS = 180_000L
+    }
+
     fun submit(text: String, fromOverlay: Boolean = false) {
         if (LivingState.paused.value) {
             onSay("ตอนนี้จิ๋วถูกสั่งหยุดอยู่ กด \"ทำงานต่อ\" ในแอป LIVING AI ก่อนนะ")
@@ -81,7 +87,11 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
             // Let our own panel close and focus return to the app before looking at the screen.
             if (fromOverlay) delay(400)
             try {
-                mainAgent.handleUserMessage(text)
+                // Hard ceiling for one task, so a stuck step can never keep the robot "busy" forever.
+                withTimeout(TASK_TIMEOUT_MS) { mainAgent.handleUserMessage(text) }
+            } catch (e: TimeoutCancellationException) {
+                onSay("งานนี้ใช้เวลานานเกินไป จิ๋วขอหยุดไว้ก่อนนะ")
+                onStatus(AgentStatus.IDLE)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

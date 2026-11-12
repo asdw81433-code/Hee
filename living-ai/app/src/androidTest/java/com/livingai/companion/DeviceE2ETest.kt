@@ -44,6 +44,7 @@ class DeviceE2ETest {
     private val ctx = instr.targetContext
     private val graph get() = LivingApp.graph(ctx)
     private lateinit var automation: UiAutomation
+    private var note = ""
 
     @Before
     fun enableAccessibilityService() {
@@ -67,7 +68,11 @@ class DeviceE2ETest {
             if (condition()) return
             SystemClock.sleep(250)
         }
-        throw AssertionError("Timed out waiting until $what")
+        val chat = LivingState.chat.value.takeLast(6).joinToString(" | ") { (if (it.fromUser) "U:" else "R:") + it.text.take(160) }
+        throw AssertionError(
+            "Timed out waiting until $what; status=${LivingState.status.value} detail=${LivingState.statusDetail.value} " +
+                "busy=${graph.controller.isBusy} note=$note chat=[$chat]"
+        )
     }
 
     private fun observe(image: Boolean = false): ScreenObservation =
@@ -133,10 +138,12 @@ class DeviceE2ETest {
             it.clickable && it.enabled && !it.editable && it.label.length in 2..60 &&
                 policy.evaluate(AgentAction.Tap(it.id), obs) is SafetyDecision.Allow
         }
+        note = "tapped=[${target.id}] ${target.role} \"${target.label}\""
         val tapped = ask("กด ${target.label}")
         assertTrue(tapped, tapped.startsWith("เรียบร้อย") && tapped.contains("หน้าจอเปลี่ยนแล้ว"))
         assertTrue(observe().signature() != obs.signature())
 
+        note += " afterTap=" + observe().let { "${it.packageName} elements=${it.elements.size} sensitive=${it.sensitive}" }
         assertTrue(ask("กลับ").startsWith("เรียบร้อย"))
 
         val home = ask("โฮม")
