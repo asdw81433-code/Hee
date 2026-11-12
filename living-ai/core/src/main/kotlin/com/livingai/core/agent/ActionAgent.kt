@@ -20,7 +20,7 @@ class ActionAgent(
     private val policy: SafetyPolicy,
     private val confirmer: ConfirmationPort,
     private val listener: AgentListener,
-    private val settleMs: Long = 700L,
+    private val settleMs: Long = 600L,
 ) {
     suspend fun execute(action: AgentAction): ActionResult {
         if (action is AgentAction.Wait) {
@@ -51,10 +51,21 @@ class ActionAgent(
             return result
         }
 
-        // Verify: give the UI a moment, look again and compare.
-        delay(if (action is AgentAction.OpenApp) settleMs * 2 else settleMs)
-        val after = vision.look(includeImage = false)
-        val changed = after.signature() != before.signature()
+        // Verify: look again until the screen has visibly reacted (slow devices and animated
+        // transitions can take a couple of seconds), then report what really happened.
+        val attempts = if (action is AgentAction.Scroll) 2 else 5
+        var changed = false
+        for (i in 0 until attempts) {
+            delay(settleMs)
+            val after = vision.look(includeImage = false)
+            changed = after.signature() != before.signature()
+            if (changed) break
+        }
+        if (changed) {
+            // let the new screen finish loading so the ids we hand back are stable
+            delay(settleMs / 2)
+            vision.look(includeImage = false)
+        }
         val note = when {
             changed -> "หน้าจอเปลี่ยนแล้ว"
             action is AgentAction.Scroll -> "หน้าจอไม่เปลี่ยน อาจสุดขอบแล้ว"
