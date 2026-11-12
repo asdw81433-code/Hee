@@ -79,7 +79,22 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: living-ai
-          script: ./gradlew :app:connectedDebugAndroidTest --stacktrace
+          script: ./gradlew :app:connectedDebugAndroidTest
+      - name: Device test summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)
+          print('result files:', len(files))
+          for f in files:
+              for case in ET.parse(f).getroot().iter('testcase'):
+                  bad = [c for c in case if c.tag in ('failure', 'error')]
+                  skipped = any(c.tag == 'skipped' for c in case)
+                  print(('FAIL ' if bad else 'SKIP ' if skipped else 'PASS ') + case.get('name'))
+                  for b in bad:
+                      print('    ' + (b.text or b.get('message') or '').strip()[:1500].replace('\n', '\n    '))
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
