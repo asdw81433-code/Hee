@@ -12,20 +12,32 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk {
-            // arm for phones (Galaxy A07 = Helio G99), x86_64 for the emulator.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+    }
+
+    signingConfigs {
+        // Fixed key for sideload builds, so every new APK installs as an UPDATE over the previous one.
+        // It is committed on purpose and is NOT a secret: use a private key before publishing to a store.
+        create("sideload") {
+            storeFile = file("sideload.keystore")
+            storePassword = "livingai"
+            keyAlias = "livingai"
+            keyPassword = "livingai"
         }
     }
 
     buildTypes {
+        debug {
+            // includes x86_64 so the emulator tests can load ML Kit
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+        }
         release {
+            // The APK people install: not debuggable, phone ABIs only (Galaxy A07 = Helio G99, arm).
             isMinifyEnabled = false
-            // MVP: sideload build signed with the debug key so it installs without a keystore.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("sideload")
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
 

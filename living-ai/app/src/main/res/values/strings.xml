@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LIVING AI</string>
-    <string name="a11y_label">LIVING AI — จิ๋ว</string>
+    <string name="app_name">จิ๋ว AI</string>
+    <string name="a11y_label">จิ๋ว AI (LIVING AI)</string>
     <string name="a11y_summary">ให้หุ่นยนต์จิ๋วอ่านหน้าจอและช่วยกดแทนคุณ</string>
     <string name="a11y_description">เมื่อเปิดใช้ LIVING AI จะอ่านองค์ประกอบบนหน้าจอ (ข้อความ ปุ่ม เมนู) และแตะ พิมพ์ เลื่อน หรือกดย้อนกลับแทนคุณเมื่อคุณสั่ง\n\n• ไม่อ่านช่องรหัสผ่าน และไม่ทำงานบนหน้าจอ PIN/OTP หรือหน้าขอสิทธิ์ของระบบ\n• การส่งข้อความ ซื้อ จ่ายเงิน หรือลบข้อมูล จะถามยืนยันจากคุณก่อนเสมอ\n• แตะหุ่นยนต์ระหว่างทำงานเพื่อหยุดทันที และปิดบริการนี้ได้ทุกเมื่อ\n• ข้อมูลหน้าจอจะถูกส่งไปยังผู้ให้บริการ AI เฉพาะเมื่อคุณใส่ API key และกำลังใช้งานเท่านั้น</string>
 </resources>

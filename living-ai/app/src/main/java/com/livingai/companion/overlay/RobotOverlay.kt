@@ -44,7 +44,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
     private val robotLp = baseParams(focusable = false).apply {
         gravity = Gravity.TOP or Gravity.START
         val size = ScreenMetrics.realSize(service)
-        x = size.x - (76 * dp).toInt()
+        x = size.x - (80 * dp).toInt()
         y = (size.y * 0.55f).toInt()
     }
 
@@ -110,7 +110,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             val below = robotLp.y < size.y / 3
             gravity = (if (below) Gravity.TOP else Gravity.BOTTOM) or Gravity.END
             x = (10 * dp).toInt()
-            y = if (below) robotLp.y + (86 * dp).toInt() else (size.y - robotLp.y + (4 * dp).toInt()).coerceAtLeast(0)
+            y = if (below) robotLp.y + (100 * dp).toInt() else (size.y - robotLp.y + (4 * dp).toInt()).coerceAtLeast(0)
         }
         safe { wm.addView(tv, lp); bubble = tv }
         main.removeCallbacks(hideBubble)
@@ -275,6 +275,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
                 }
                 MotionEvent.ACTION_UP -> if (!dragging) {
                     v.performClick()
+                    robot.poke()
                     if (controller.isBusy) controller.stopCurrent(userInitiated = true) else togglePanel()
                 }
             }

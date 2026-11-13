@@ -34,25 +34,25 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests (agents, safety, redaction)
         run: ./gradlew :core:test || ./gradlew :core:test  # retry once: Maven Central is occasionally flaky
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug || ./gradlew :app:assembleDebug
+      - name: Build APKs (debug for tests, release for installing)
+        run: ./gradlew :app:assembleDebug :app:assembleRelease || ./gradlew :app:assembleDebug :app:assembleRelease
       - name: Lint
         run: ./gradlew :app:lintDebug
         continue-on-error: true
       - uses: actions/upload-artifact@v4
         with:
-          name: living-ai-debug-apk
-          path: living-ai/app/build/outputs/apk/debug/*.apk
+          name: living-ai-apk
+          path: living-ai/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
       - name: Publish APK as a pre-release (direct download)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk living-ai.apk
+          cp app/build/outputs/apk/release/app-release.apk living-ai.apk
           gh release delete living-ai-latest --cleanup-tag --yes || true
           gh release create living-ai-latest living-ai.apk --prerelease --target "$GITHUB_SHA" \
-            --title "LIVING AI (debug build)" \
-            --notes "Debug APK built from $GITHUB_SHA. Install: download living-ai.apk and open it."
+            --title "จิ๋ว AI (LIVING AI) — ล่าสุด" \
+            --notes "ดาวน์โหลด living-ai.apk แล้วแตะเพื่อติดตั้ง (สร้างจาก $GITHUB_SHA)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -122,14 +122,15 @@ class MainActivity : Activity() {
         val titles = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(12.dp, 0, 0, 0)
-            addView(label("LIVING AI", 24f, colorText, bold = true))
-            addView(label("จิ๋ว — หุ่นยนต์จิ๋วที่มองเห็นและช่วยกดหน้าจอ", 13f, colorSub))
+            addView(label("จิ๋ว • LIVING AI", 24f, colorText, bold = true))
+            addView(label("หุ่นยนต์จิ๋วที่มองเห็นและช่วยกดหน้าจอ", 13f, colorSub))
             addView(statusText)
         }
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(robot, LinearLayout.LayoutParams(72.dp, 72.dp))
+            addView(robot, LinearLayout.LayoutParams(81.dp, 90.dp))
+            robot.setOnClickListener { robot.poke() }
             addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         })
         stopButton = button("⏹ หยุดทุกอย่างทันที", 0xFFC62828.toInt()) {
@@ -148,7 +149,7 @@ class MainActivity : Activity() {
         }
         a11yRow = PermissionRow(
             "3. ควบคุมหน้าจอ (Accessibility)",
-            "เปิด \"LIVING AI — จิ๋ว\" ในหน้าการช่วยเหลือพิเศษ ถ้าเมนูเป็นสีเทา: ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่ถูกจำกัด ก่อน",
+            "เปิด \"จิ๋ว AI (LIVING AI)\" ในหน้าการช่วยเหลือพิเศษ ถ้าเมนูเป็นสีเทา: ข้อมูลแอป → ⋮ → อนุญาตการตั้งค่าที่ถูกจำกัด ก่อน",
         ) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         root.addView(notifRow.view); root.addView(captureRow.view); root.addView(a11yRow.view)
         root.addView(button("เปิดหน้าข้อมูลแอป (สำหรับ \"อนุญาตการตั้งค่าที่ถูกจำกัด\")", 0xFF546E7A.toInt()) {
@@ -182,7 +183,7 @@ class MainActivity : Activity() {
         root.addView(section("สมอง AI (Claude API)"))
         root.addView(label("ไม่ใส่ key ก็ทดสอบได้ด้วยคำสั่งโหมดออฟไลน์ (ดูหน้าจอ / กด … / พิมพ์ … / เลื่อนลง / กลับ / เปิด …)", 13f, colorSub))
         val keyInput = EditText(this).apply {
-            hint = if (p.apiKey.isEmpty()) "Anthropic API key (sk-ant-…)" else "บันทึก key แล้ว • พิมพ์เพื่อเปลี่ยน"
+            hint = if (p.apiKey.isEmpty()) "วาง API key ของ Anthropic (sk-ant-…)" else "บันทึก key แล้ว • พิมพ์เพื่อเปลี่ยน"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine()
             textSize = 14f
@@ -198,16 +199,18 @@ class MainActivity : Activity() {
                 toast("บันทึกแล้ว (เข้ารหัสด้วย Android Keystore)")
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
             addView(button("ลบ key", 0xFF546E7A.toInt()) {
-                p.apiKey = ""; keyInput.hint = "Anthropic API key (sk-ant-…)"; toast("ลบ key แล้ว")
+                p.apiKey = ""; keyInput.hint = "วาง API key ของ Anthropic (sk-ant-…)"; toast("ลบ key แล้ว")
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }, matchWrap(top = 4))
 
         root.addView(label("โมเดล", 14f, colorText).apply { setPadding(0, 10.dp, 0, 0) })
         val models = ClaudeLlmClient.MODELS
-        root.addView(spinner(models, models.indexOf(p.model).coerceAtLeast(0)) { p.model = models[it] })
-        root.addView(label("ระดับการคิด (effort) — ต่ำ = ตอบไวและประหยัด", 14f, colorText).apply { setPadding(0, 10.dp, 0, 0) })
+        val modelLabels = listOf("Opus 5.5 — ฉลาดที่สุด (ค่าเริ่มต้น)", "Sonnet 5.5 — สมดุล", "Haiku 5.5 — เร็วและประหยัดที่สุด")
+        root.addView(spinner(modelLabels, models.indexOf(p.model).coerceAtLeast(0)) { p.model = models[it] })
+        root.addView(label("ระดับการคิด", 14f, colorText).apply { setPadding(0, 10.dp, 0, 0) })
         val efforts = ClaudeLlmClient.EFFORTS
-        root.addView(spinner(efforts, efforts.indexOf(p.effort).coerceAtLeast(0)) { p.effort = efforts[it] })
+        val effortLabels = listOf("ต่ำ — ตอบไวและประหยัด", "กลาง", "สูง — คิดละเอียด ช้ากว่า")
+        root.addView(spinner(effortLabels, efforts.indexOf(p.effort).coerceAtLeast(0)) { p.effort = efforts[it] })
     }
 
     private fun buildChat(root: LinearLayout) {
@@ -260,8 +263,8 @@ class MainActivity : Activity() {
                 delay(4000)
                 val raw = graph.controller.screenSource.observe(includeImage = true)
                 val obs = Redactor.sanitize(raw)
-                debugText.text = "source=${obs.source} elements=${obs.elements.size} sensitive=${obs.sensitive} protected=${obs.protectedContent} " +
-                    "image=${obs.imageJpegBase64?.let { "${it.length * 3 / 4 / 1024} KB" } ?: "none"}\n\n" + obs.toPromptText(maxElements = 120)
+                debugText.text = "แหล่งข้อมูล: ${obs.source} • องค์ประกอบ: ${obs.elements.size} • ข้อมูลลับ: ${if (obs.sensitive) "ใช่" else "ไม่"} • ถูกป้องกัน: ${if (obs.protectedContent) "ใช่" else "ไม่"} • " +
+                    "ภาพ: ${obs.imageJpegBase64?.let { "${it.length * 3 / 4 / 1024} KB" } ?: "ไม่มี"}\n\n" + obs.toPromptText(maxElements = 120)
                 val jpeg = obs.imageJpegBase64?.let { Base64.decode(it, Base64.NO_WRAP) }
                 if (jpeg != null) {
                     debugImage.setImageBitmap(BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size))
