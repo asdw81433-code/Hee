@@ -274,6 +274,16 @@ class SettingsActivity : Activity() {
             if (!it) graph.controller.speaker.stop()
         })
         card.addView(toggle(tr("ให้พูดและแนะนำเองได้", "Let it speak up and suggest"), tr("ทักเมื่อเปิดแอปใหม่หรือเจอข้อผิดพลาด", "Speaks when you open an app or hit an error"), p.proactiveEnabled) { p.proactiveEnabled = it })
+        card.addView(toggle(
+            tr("ช่วยแบบเรียลไทม์", "Live help"),
+            tr("ดูจอต่อเนื่องและพูดเองเมื่อจอเปลี่ยน โดยไม่ต้องสั่ง (ใช้โควตา AI มากขึ้น ต้องเชื่อมสมอง AI ก่อน)", "Keeps watching and speaks up as the screen changes, without being asked (uses more AI quota; needs an AI brain)"),
+            p.liveMode,
+        ) { p.liveMode = it })
+        card.addView(label(tr("โหมดเรียลไทม์: ดูจอใหม่ไม่ถี่กว่า", "Live help: look again at most every"), 13f, colorSub).apply { setPadding(0, 6.dp, 0, 0) })
+        val liveOptions = listOf(15 to tr("15 วินาที (เร็วสุด เปลืองโควตา)", "15 seconds (fastest, uses most quota)"), 30 to tr("30 วินาที", "30 seconds"), 60 to tr("1 นาที", "1 minute"), 180 to tr("3 นาที", "3 minutes"))
+        card.addView(spinner(liveOptions.map { it.second }, liveOptions.indexOfFirst { it.first >= p.liveIntervalSec }.coerceAtLeast(0)) {
+            p.liveIntervalSec = liveOptions[it].first
+        })
         card.addView(toggle(tr("ยืนยันทุกการกระทำ", "Confirm every action"), tr("ปกติถามเฉพาะการส่ง ซื้อ จ่าย ลบ และในแอปการเงิน", "Normally it asks only before sending, buying, paying, deleting, and in finance apps"), p.confirmEverything) { p.confirmEverything = it })
         card.addView(toggle(tr("OCR ในเครื่อง", "On-device OCR"), tr("อ่านตัวอักษรละตินจากภาพเมื่อแอปไม่มีข้อมูล UI", "Reads Latin text from pixels when an app exposes no UI data"), p.ocrEnabled) { p.ocrEnabled = it })
 

@@ -61,6 +61,7 @@ class DeviceE2ETest {
         graph.prefs.geminiKey = ""
         graph.prefs.sendScreenshots = true
         graph.prefs.speakReplies = false
+        graph.prefs.liveMode = false
         graph.prefs.proactiveEnabled = false
         graph.controller.resume()
     }

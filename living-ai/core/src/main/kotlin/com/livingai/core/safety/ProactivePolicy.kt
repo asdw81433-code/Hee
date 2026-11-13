@@ -13,6 +13,8 @@ class ProactivePolicy(
     private val cooldownMs: () -> Long = { 120_000L },
     private val gameCooldownMs: Long = 600_000L,
     private val perAppCooldownMs: Long = 300_000L,
+    /** > 0 switches on live help: the screen is re-examined at most this often while it keeps changing. */
+    private val liveIntervalMs: () -> Long = { 0L },
 ) {
     private var lastSpokeMs = Long.MIN_VALUE / 2
     private val lastPerApp = HashMap<String, Long>()
@@ -30,12 +32,16 @@ class ProactivePolicy(
                 if (errorText == lastErrorText || now - lastSpokeMs < 15_000L) false else { lastErrorText = errorText; true }
             }
             ScreenEventKind.APP_OPENED -> {
-                val cd = if (isGame) gameCooldownMs else cooldownMs()
+                val live = liveIntervalMs()
+                val cd = if (live > 0) live else if (isGame) gameCooldownMs else cooldownMs()
                 if (now - lastSpokeMs < cd) return false
                 val last = lastPerApp[pkg]
-                last == null || now - last >= maxOf(perAppCooldownMs, cd)
+                last == null || now - last >= (if (live > 0) live else maxOf(perAppCooldownMs, cd))
             }
-            ScreenEventKind.CONTENT_CHANGED -> !isGame && now - lastSpokeMs >= cooldownMs() * 2
+            ScreenEventKind.CONTENT_CHANGED -> {
+                val live = liveIntervalMs()
+                if (live > 0) now - lastSpokeMs >= live else !isGame && now - lastSpokeMs >= cooldownMs() * 2
+            }
         }
     }
 

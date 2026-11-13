@@ -144,3 +144,49 @@ class GeminiAndPointTest {
         }
     }
 }
+
+class MoodAndLiveTest {
+    @Test fun `mood tag is parsed and hidden`() {
+        assertEquals(com.livingai.core.model.Mood.HAPPY to "เสร็จแล้ว!", com.livingai.core.model.Mood.parse("[mood:happy] เสร็จแล้ว!"))
+        assertEquals(com.livingai.core.model.Mood.WORRIED to "Hmm.", com.livingai.core.model.Mood.parse("[Mood: Worried]\nHmm."))
+        assertEquals(null to "no tag", com.livingai.core.model.Mood.parse("no tag"))
+        assertEquals(null to "x", com.livingai.core.model.Mood.parse("[mood:banana] x")) // unknown mood: tag still hidden
+    }
+
+    @Test fun `the model's mood reaches the listener and never the user`() = runTest {
+        val moods = ArrayList<com.livingai.core.model.Mood>()
+        val said = ArrayList<String>()
+        val listener = object : AgentListener {
+            override fun onMood(mood: com.livingai.core.model.Mood) { moods.add(mood) }
+            override fun onSay(text: String, proactive: Boolean) { said.add(text) }
+        }
+        val screen = FakeScreen(screen("com.android.settings", el(1, "Wi-Fi"), el(2, "Bluetooth"), el(3, "Display"), el(4, "Sound")))
+        val vision = VisionAgent(screen, listener)
+        val actions = ActionAgent(FakePort(screen), vision, SafetyPolicy(), { true }, listener, settleMs = 1)
+        val llm = FakeLlm(mutableListOf(endTurn("[mood:excited] ไปกันเลย!"), endTurn("[mood:neutral] SILENT"), endTurn("[mood:curious] ตั้งค่าอะไรอยู่เหรอ")))
+        val agent = MainAgent(llm, vision, actions, MemoryAgent(FakeMemory()), listener)
+
+        assertEquals("ไปกันเลย!", agent.handleUserMessage("เริ่ม"))
+        assertEquals(com.livingai.core.model.Mood.EXCITED, moods.last())
+        val obs = vision.look(false)
+        assertNull(agent.reactToScreen(com.livingai.core.safety.ScreenEventKind.CONTENT_CHANGED, obs))
+        assertEquals("ตั้งค่าอะไรอยู่เหรอ", agent.reactToScreen(com.livingai.core.safety.ScreenEventKind.CONTENT_CHANGED, obs))
+        assertEquals(com.livingai.core.model.Mood.CURIOUS, moods.last())
+        assertTrue(said.none { it.contains("mood") || it.contains("SILENT") }, said.toString())
+    }
+
+    @Test fun `live help re-examines a changing screen at its own interval`() {
+        var now = 1_000_000L
+        var live = 30_000L
+        val p = com.livingai.core.safety.ProactivePolicy({ now }, cooldownMs = { 120_000L }, liveIntervalMs = { live })
+        val changed = com.livingai.core.safety.ScreenEventKind.CONTENT_CHANGED
+        assertTrue(p.shouldReact(changed, "game", isGame = true)) // live help also works in games
+        p.markHandled("game")
+        now += 10_000
+        assertFalse(p.shouldReact(changed, "game", true))
+        now += 25_000
+        assertTrue(p.shouldReact(changed, "game", true))
+        live = 0L // switched off: back to the quiet behaviour
+        assertFalse(p.shouldReact(changed, "game", true))
+    }
+}

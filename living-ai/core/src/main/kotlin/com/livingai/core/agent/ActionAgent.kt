@@ -23,7 +23,7 @@ class ActionAgent(
     private val policy: SafetyPolicy,
     private val confirmer: ConfirmationPort,
     private val listener: AgentListener,
-    private val settleMs: Long = 600L,
+    private val settleMs: Long = 400L,
 ) {
     suspend fun execute(action: AgentAction): ActionResult {
         if (action is AgentAction.Wait) {

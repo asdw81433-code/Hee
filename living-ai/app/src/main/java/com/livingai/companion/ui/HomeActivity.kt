@@ -49,6 +49,7 @@ class HomeActivity : Activity() {
 
     private lateinit var orb: RobotView
     private lateinit var statusText: TextView
+    private lateinit var moodText: TextView
     private lateinit var banner: LinearLayout
     private lateinit var bannerText: TextView
     private lateinit var chatScroll: ScrollView
@@ -117,6 +118,7 @@ class HomeActivity : Activity() {
     private fun header(): View {
         orb = RobotView(this).apply { showCaption = false; setOnClickListener { poke() } }
         statusText = label("", 13f, colorSub)
+        moodText = label("", 12f, colorSub)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
         showButton = smallButton("", accent) {
             if (graph.prefs.overlayEnabled && graph.floating.isShowing) FloatingUi.hide(graph) else FloatingUi.show(this, graph)
@@ -131,7 +133,7 @@ class HomeActivity : Activity() {
             addView(LinearLayout(this@HomeActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                addView(orb, LinearLayout.LayoutParams(60.dp, 60.dp))
+                addView(orb, LinearLayout.LayoutParams(72.dp, 80.dp))
                 addView(LinearLayout(this@HomeActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(10.dp, 0, 0, 0)
@@ -142,6 +144,7 @@ class HomeActivity : Activity() {
                         addView(label("  v$version", 12f, colorSub))
                     })
                     addView(statusText)
+                    addView(moodText)
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(smallButton("⚙", grey) { startActivity(Intent(this@HomeActivity, SettingsActivity::class.java)) },
                     LinearLayout.LayoutParams(46.dp, 42.dp))
@@ -283,6 +286,7 @@ class HomeActivity : Activity() {
                     stopButton.background = round(if (paused) green else red, 12f)
                 }
             }
+            launch { LivingState.mood.collect { orb.mood = it; moodText.text = moodLabel(it) } }
             launch { LivingState.chat.collect { renderChat(it) } }
             launch { LivingState.accessibilityConnected.collect { refresh() } }
             launch { LivingState.captureActive.collect { refresh() } }
@@ -322,6 +326,16 @@ class HomeActivity : Activity() {
             if (!notif) add(tr("อนุญาตการแจ้งเตือน", "allow notifications"))
         }
         bannerText.text = tr("ตั้งค่าแล้ว $done/${steps.size} • ", "Setup $done/${steps.size} • ") + missing.joinToString(", ")
+    }
+
+    private fun moodLabel(m: com.livingai.core.model.Mood): String = tr("อารมณ์: ", "Mood: ") + when (m) {
+        com.livingai.core.model.Mood.NEUTRAL -> tr("🙂 สบาย ๆ", "🙂 calm")
+        com.livingai.core.model.Mood.HAPPY -> tr("😊 ดีใจ", "😊 happy")
+        com.livingai.core.model.Mood.CURIOUS -> tr("🤔 สงสัย", "🤔 curious")
+        com.livingai.core.model.Mood.FOCUSED -> tr("😤 ตั้งใจ", "😤 focused")
+        com.livingai.core.model.Mood.WORRIED -> tr("😟 กังวล", "😟 worried")
+        com.livingai.core.model.Mood.SLEEPY -> tr("😴 ง่วง", "😴 sleepy")
+        com.livingai.core.model.Mood.EXCITED -> tr("🤩 ตื่นเต้น", "🤩 excited")
     }
 
     // ---------- helpers ----------

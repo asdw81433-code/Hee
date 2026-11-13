@@ -85,6 +85,8 @@ class RobotOverlay(
 
     fun show() {
         controller.overlay = this
+        robot.mood = LivingState.mood.value
+        robot.status = LivingState.status.value
         robot.setOnTouchListener(DragTapListener())
         safe { wm.addView(robot, robotLp); added = true }
     }
@@ -105,6 +107,8 @@ class RobotOverlay(
     // ---------- status & speech ----------
 
     fun setStatus(status: AgentStatus) = main.post { if (!destroyed) robot.status = status }
+
+    fun setMood(mood: com.livingai.core.model.Mood) = main.post { if (!destroyed) robot.mood = mood }
 
     fun say(text: String) = main.post {
         if (destroyed || text.isBlank()) return@post

@@ -24,6 +24,7 @@ import com.livingai.core.llm.SwitchingLlmClient
 import com.livingai.core.llm.ping
 import com.livingai.core.model.AgentStatus
 import com.livingai.core.model.ChatLine
+import com.livingai.core.model.Mood
 import com.livingai.core.safety.ProactivePolicy
 import com.livingai.core.safety.SafetyPolicy
 import com.livingai.core.safety.ScreenEventKind
@@ -83,7 +84,14 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         }
     }
 
-    private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
+    private val proactive = ProactivePolicy(
+        { SystemClock.elapsedRealtime() },
+        cooldownMs = { prefs.proactiveCooldownSec * 1000L },
+        liveIntervalMs = { if (liveActive()) prefs.liveIntervalSec * 1000L else 0L },
+    )
+
+    /** Live help needs an AI brain; without one there is nothing to comment with. */
+    private fun liveActive() = prefs.liveMode && prefs.proactiveEnabled && hasApiKey
 
     val speaker = Speaker(context)
 
@@ -120,7 +128,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
             previous?.cancel()
             previous?.join()
             // Let our own panel close and focus return to the app before looking at the screen.
-            if (fromOverlay) delay(400)
+            if (fromOverlay) delay(300)
             try {
                 // Hard ceiling for one task, so a stuck step can never keep the robot "busy" forever.
                 withTimeout(TASK_TIMEOUT_MS) { mainAgent.handleUserMessage(text) }
@@ -140,7 +148,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     fun stopCurrent(userInitiated: Boolean = false) {
         val wasBusy = isBusy
         speaker.stop()
-        userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel()
+        userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel(); liveJob?.cancel()
         onStatus(if (LivingState.paused.value) AgentStatus.PAUSED else AgentStatus.IDLE)
         if (userInitiated && wasBusy) overlay?.say(tr("หยุดแล้ว", "Stopped"))
     }
@@ -179,8 +187,10 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     }
 
     fun onContentChanged(pkg: String) {
-        // Error watching only; skipped entirely in games and while anything else is running.
-        if (currentIsGame || !canBeProactive() || isBusy) return
+        if (!canBeProactive() || isBusy) return
+        if (liveActive()) { scheduleLiveLook(pkg); return }
+        // Without live help: error watching only, and never in games.
+        if (currentIsGame) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastContentCheck < 6000 || contentJob?.isActive == true) return
         contentJob = scope.launch {
@@ -191,6 +201,31 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
             val text = snap.elements.asSequence().filter { !it.password && it.text.isNotBlank() }.take(60).joinToString("\n") { it.text }
             val error = ProactivePolicy.findError(text) ?: return@launch
             if (proactive.shouldReact(ScreenEventKind.ERROR_DETECTED, pkg, false, error)) react(ScreenEventKind.ERROR_DETECTED, pkg, error)
+        }
+    }
+
+    private var liveJob: Job? = null
+    private var lastLiveSignature = 0
+
+    /**
+     * Live help: once the screen has been quiet for a moment, look at it again and let the model
+     * decide whether anything is worth saying. Rate limited by the policy (liveIntervalSec), and a
+     * screen that still looks the same as last time costs no model call at all.
+     */
+    private fun scheduleLiveLook(pkg: String) {
+        if (liveJob?.isActive == true) return
+        liveJob = scope.launch {
+            delay(2500)
+            if (isBusy || !liveActive()) return@launch
+            if (!proactive.shouldReact(ScreenEventKind.CONTENT_CHANGED, pkg, currentIsGame)) return@launch
+            val snap = LivingAccessibilityService.instance?.snapshot() ?: return@launch
+            val text = snap.elements.asSequence().filter { !it.password }.take(80).joinToString("|") { it.text + it.description }
+            val sig = text.hashCode()
+            // in games the node tree is empty, so the picture has to be looked at every time
+            if (sig == lastLiveSignature && !currentIsGame) return@launch
+            lastLiveSignature = sig
+            val error = ProactivePolicy.findError(snap.elements.joinToString("\n") { it.text })
+            if (error != null) react(ScreenEventKind.ERROR_DETECTED, pkg, error) else react(ScreenEventKind.CONTENT_CHANGED, pkg)
         }
     }
 
@@ -235,6 +270,23 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         LivingState.status.value = s
         LivingState.statusDetail.value = detail
         overlay?.setStatus(s)
+    }
+
+    private var moodJob: Job? = null
+
+    override fun onMood(mood: Mood) {
+        LivingState.mood.value = mood
+        overlay?.setMood(mood)
+        // Feelings fade: back to neutral after a while (sleepy late at night).
+        moodJob?.cancel()
+        if (mood == Mood.NEUTRAL) return
+        moodJob = scope.launch {
+            delay(75_000)
+            val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            val rest = if (hour >= 23 || hour < 5) Mood.SLEEPY else Mood.NEUTRAL
+            LivingState.mood.value = rest
+            overlay?.setMood(rest)
+        }
     }
 
     override fun onSay(text: String, proactive: Boolean) {

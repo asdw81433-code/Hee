@@ -33,6 +33,7 @@ interface MemoryStore {
 interface AgentListener {
     fun onStatus(status: AgentStatus, detail: String = "") {}
     fun onSay(text: String, proactive: Boolean = false) {}
+    fun onMood(mood: Mood) {}
 }
 
 fun interface Clock { fun nowMs(): Long }

@@ -17,6 +17,11 @@ class Prefs(context: Context) {
     var interactionEnabled: Boolean get() = bool("interaction", true); set(v) = put("interaction", v)
     /** The robot may start talking by itself on interesting events. */
     var proactiveEnabled: Boolean get() = bool("proactive", true); set(v) = put("proactive", v)
+    /** Live help: keep watching the screen and speak up while it changes, not only on app switches. */
+    var liveMode: Boolean get() = bool("live", true); set(v) = put("live", v)
+    var liveIntervalSec: Int
+        get() = sp.getInt("live_interval", 30).coerceIn(15, 600)
+        set(v) = sp.edit().putInt("live_interval", v.coerceIn(15, 600)).apply()
     var confirmEverything: Boolean get() = bool("confirm_all", false); set(v) = put("confirm_all", v)
     /** Allow down-scaled screenshots to be sent to the vision model. */
     var sendScreenshots: Boolean get() = bool("send_shots2", false); set(v) = put("send_shots2", v)

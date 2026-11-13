@@ -41,6 +41,22 @@ sealed interface AgentAction {
 
 data class ActionResult(val success: Boolean, val message: String, val screenChanged: Boolean = false)
 
+/** Kivo's own feeling, shown on its face. It drifts back to NEUTRAL after a while. */
+enum class Mood {
+    NEUTRAL, HAPPY, CURIOUS, FOCUSED, WORRIED, SLEEPY, EXCITED;
+
+    companion object {
+        private val tag = Regex("\\[mood\\s*:\\s*([a-zA-Z]+)\\s*]", RegexOption.IGNORE_CASE)
+
+        /** Splits "[mood:happy] text" into the mood (or null) and the text without any mood tags. */
+        fun parse(reply: String): Pair<Mood?, String> {
+            val m = tag.find(reply)
+            val mood = m?.groupValues?.get(1)?.uppercase()?.let { name -> entries.firstOrNull { it.name == name } }
+            return mood to tag.replace(reply, "").trim()
+        }
+    }
+}
+
 enum class AgentStatus { IDLE, LOOKING, THINKING, ACTING, WAITING_CONFIRM, TALKING, PAUSED }
 
 data class MemoryFact(val key: String, val value: String, val updatedAtMs: Long)

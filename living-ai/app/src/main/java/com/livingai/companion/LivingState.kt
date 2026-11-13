@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 object LivingState {
     val status = MutableStateFlow(AgentStatus.IDLE)
     val statusDetail = MutableStateFlow("")
+    val mood = MutableStateFlow(com.livingai.core.model.Mood.NEUTRAL)
     val accessibilityConnected = MutableStateFlow(false)
     val captureActive = MutableStateFlow(false)
     /** Emergency stop: nothing looks at or touches the screen until the user resumes. */
