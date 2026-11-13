@@ -34,6 +34,8 @@ interface AgentListener {
     fun onStatus(status: AgentStatus, detail: String = "") {}
     fun onSay(text: String, proactive: Boolean = false) {}
     fun onMood(mood: Mood) {}
+    /** The agent is about to act at this point of the real screen (pixels). */
+    fun onTarget(x: Int, y: Int) {}
 }
 
 fun interface Clock { fun nowMs(): Long }

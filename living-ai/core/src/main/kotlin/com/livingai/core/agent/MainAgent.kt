@@ -32,19 +32,24 @@ class MainAgent(
     private val maxSteps: Int = 25,
     /** When true (screen sharing is on), every user turn starts with a real screenshot. */
     private val alwaysImage: () -> Boolean = { false },
+    /** Clock, battery and so on for the built-in mind. */
+    private val localContext: () -> LocalMind.Context = { LocalMind.Context() },
 ) {
     /** Handles one user message end-to-end and returns the robot's reply. */
     suspend fun handleUserMessage(text: String): String {
         memory.logChat(fromUser = true, text = text)
         anyActionFailed = false
         val raw = try {
-            if (llm.isConfigured) runWithModel(text) else runLocally(text)
+            if (llm.isConfigured) runWithModel(text) else runLocally(text)!!
         } catch (e: CancellationException) {
             listener.onStatus(AgentStatus.IDLE)
             throw e
         } catch (e: LlmException) {
-            anyActionFailed = true
-            tr("ขอโทษนะ ${e.message}", "Sorry — ${e.message}")
+            // The cloud model is down, out of quota or misconfigured: the built-in mind takes over,
+            // and the reason is shown once so the user knows why answers got simpler.
+            val local = runLocally(text, strict = true)
+            if (local != null) local + "\n" + tr("(ใช้สมองในเครื่อง เพราะ AI ออนไลน์ใช้ไม่ได้: ${e.message})", "(answered offline — the online AI failed: ${e.message})")
+            else { anyActionFailed = true; tr("ขอโทษนะ ${e.message}", "Sorry — ${e.message}") }
         }
         // The model chooses its own mood with a hidden tag; otherwise the outcome decides.
         val (tagged, reply) = Mood.parse(raw)
@@ -60,20 +65,76 @@ class MainAgent(
     private var anyActionFailed = false
     private var localMood: Mood? = null
 
-    private suspend fun runLocally(text: String): String {
-        val obs = vision.lookAuto()
-        return when (val plan = LocalBrain.plan(text, obs)) {
+    private suspend fun context(): LocalMind.Context {
+        val base = localContext()
+        if (base.userName != null) return base
+        val name = memory.userName()
+        return if (name == null) base else base.copy(userName = name)
+    }
+
+    /**
+     * The built-in mind: small talk first (no look at the screen, so it answers at once), then
+     * commands, which may be chained with "แล้ว" / "then".
+     * @param strict return null instead of an "I don't understand" hint.
+     */
+    private suspend fun runLocally(text: String, strict: Boolean = false): String? {
+        LocalMind.chat(text, context())?.let { reply ->
+            localMood = reply.mood
+            reply.rememberName?.let { memory.remember(MemoryAgent.NAME_KEY, it) }
+            return reply.text
+        }
+        val steps = LocalMind.steps(text)
+        val out = ArrayList<String>()
+        for ((index, step) in steps.withIndex()) {
+            val line = runLocalStep(step) ?: return if (strict && index == 0) null else (out + lastHint).joinToString("\n")
+            out.add(line)
+            if (anyActionFailed) break
+        }
+        return out.joinToString("\n")
+    }
+
+    private var lastHint = ""
+
+    /** One command. Returns null (and sets [lastHint]) when it was not understood. */
+    private suspend fun runLocalStep(step: String): String? {
+        // Searching is two actions: open the search field, then type into it.
+        LocalMind.searchQuery(step)?.let { query ->
+            var obs = vision.look(includeImage = false)
+            var field = obs.elements.firstOrNull { it.editable && !it.password }
+            if (field == null) {
+                val opener = LocalMind.searchLabels.firstNotNullOfOrNull { LocalBrain.findElement(it, obs, clickableOnly = true) }
+                    ?: LocalMind.searchLabels.firstNotNullOfOrNull { LocalBrain.findElement(it, obs) }
+                    ?: run { lastHint = tr("ไม่เห็นปุ่มค้นหาบนจอนี้", "I can't see a search button on this screen."); localMood = Mood.CURIOUS; return null }
+                val opened = actions.execute(AgentAction.Tap(opener.id))
+                if (!opened.success) { anyActionFailed = true; return tr("เปิดช่องค้นหาไม่สำเร็จ: ${opened.message}", "Could not open search: ${opened.message}") }
+                obs = vision.last ?: vision.look(includeImage = false)
+                field = obs.elements.firstOrNull { it.editable && !it.password }
+                    ?: run { anyActionFailed = true; return tr("กดค้นหาแล้ว แต่ยังไม่เห็นช่องพิมพ์", "I tapped search but no text field appeared.") }
+            }
+            val typed = actions.execute(AgentAction.TypeText(field.id, query))
+            if (!typed.success) anyActionFailed = true
+            return if (typed.success) tr("พิมพ์ \"$query\" ในช่องค้นหาแล้ว กดปุ่มค้นหาบนคีย์บอร์ดได้เลย", "Typed \"$query\" into search. Press the search key to go.")
+            else tr("พิมพ์ไม่สำเร็จ: ${typed.message}", "Typing failed: ${typed.message}")
+        }
+        val lower = step.lowercase()
+        if (listOf("อ่านหน้าจอ", "อ่านให้ฟัง", "อ่านจอ", "read the screen", "read screen", "read it").any { lower.contains(it) }) {
+            localMood = Mood.FOCUSED
+            return LocalMind.readOut(vision.lookAuto())
+        }
+        // Commands need the element list only; pixels are fetched just for "look".
+        val obs = vision.look(includeImage = false)
+        return when (val plan = LocalBrain.plan(step, obs)) {
             is LocalBrain.Plan.Act -> {
                 val r = actions.execute(plan.action)
                 if (!r.success) anyActionFailed = true
                 if (r.success) tr("เรียบร้อย! ${plan.action.describe(obs)} (${r.message})", "Done! ${plan.action.describe(obs)} (${r.message})")
                 else tr("ทำไม่สำเร็จ: ${r.message}", "That did not work: ${r.message}")
             }
-            LocalBrain.Plan.Describe -> { localMood = Mood.CURIOUS; LocalBrain.describe(obs) }
+            LocalBrain.Plan.Describe -> { localMood = Mood.CURIOUS; LocalBrain.describe(if (VisionAgent.isSparse(obs)) vision.lookAuto() else obs) }
             is LocalBrain.Plan.Remember -> memory.remember(plan.key, plan.value)
             is LocalBrain.Plan.Recall -> memory.recall(plan.query)
             LocalBrain.Plan.Help -> LocalBrain.HELP
-            is LocalBrain.Plan.Unknown -> { localMood = Mood.CURIOUS; plan.hint }
+            is LocalBrain.Plan.Unknown -> { localMood = Mood.CURIOUS; lastHint = plan.hint; null }
         }
     }
 
@@ -161,7 +222,7 @@ class MainAgent(
         if (obs.sensitive) return null
         val remark: String? = try {
             if (!llm.isConfigured) {
-                if (kind == ScreenEventKind.ERROR_DETECTED) tr("เห็นข้อความผิดพลาดใน $app: \"${detail.take(120)}\" เชื่อมสมอง AI แล้วจะช่วยวิเคราะห์ให้ได้", "I noticed an error in $app: \"${detail.take(120)}\". Connect an AI brain and I can help work it out.") else null
+                localRemark(kind, obs, detail)
             } else {
                 listener.onStatus(AgentStatus.THINKING)
                 val session = llm.newSession(systemPrompt(), emptyList(), maxTokens = 2000)
@@ -187,7 +248,7 @@ class MainAgent(
             listener.onStatus(AgentStatus.IDLE)
             throw e
         } catch (e: LlmException) {
-            null // never nag the user about background failures
+            localRemark(kind, obs, detail) // the built-in mind still has something to say
         }
         memory.logEvent(obs.packageName, if (kind == ScreenEventKind.ERROR_DETECTED) "Error seen in $app: ${detail.take(80)}" else "User opened $app")
         val (mood, said) = if (remark != null) Mood.parse(remark) else null to ""
@@ -201,6 +262,10 @@ class MainAgent(
         listener.onStatus(AgentStatus.IDLE)
         return spoken
     }
+
+    /** A remark from the built-in mind, carrying its mood as the usual hidden tag. */
+    private suspend fun localRemark(kind: ScreenEventKind, obs: ScreenObservation, detail: String): String? =
+        LocalMind.remark(kind, obs, detail, context())?.let { "[mood:${it.mood.name.lowercase()}] ${it.text}" }
 
     companion object {
         fun systemPrompt(): String = """

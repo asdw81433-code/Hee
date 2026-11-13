@@ -9,6 +9,10 @@ import com.livingai.core.safety.Redactor
 /** Memory AI: what the user told us, what happened recently, and the running conversation. */
 class MemoryAgent(private val store: MemoryStore) {
 
+    companion object {
+        const val NAME_KEY = "ชื่อผู้ใช้"
+    }
+
     private fun clean(s: String): String = Redactor.redactText(s.trim(), Redactor.hasSecretContext(s)).take(500)
 
     suspend fun remember(key: String, value: String): String {
@@ -16,6 +20,9 @@ class MemoryAgent(private val store: MemoryStore) {
         store.putFact(clean(key).take(80), clean(value))
         return tr("จำแล้ว: ${key.trim()}", "Remembered: ${key.trim()}")
     }
+
+    /** What the user asked to be called, if they ever said. */
+    suspend fun userName(): String? = store.searchFacts(NAME_KEY, 3).firstOrNull { it.key == NAME_KEY }?.value
 
     suspend fun recall(query: String): String {
         val facts = if (query.isBlank()) store.recentFacts(12) else store.searchFacts(query.trim(), 12)

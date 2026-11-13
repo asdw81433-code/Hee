@@ -12,6 +12,7 @@ import com.livingai.companion.vision.ScreenCaptureService
 import com.livingai.core.AgentListener
 import com.livingai.core.MemoryStore
 import com.livingai.core.agent.ActionAgent
+import com.livingai.core.agent.LocalMind
 import com.livingai.core.agent.MainAgent
 import com.livingai.core.agent.MemoryAgent
 import com.livingai.core.agent.VisionAgent
@@ -47,7 +48,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     val screenSource = AndroidScreenSource(context, prefs)
     private val claude = ClaudeLlmClient(apiKey = { prefs.apiKey }, model = { prefs.model }, effort = { prefs.effort })
-    private val gemini = GeminiLlmClient(apiKey = { prefs.geminiKey }, model = { prefs.geminiModel })
+    private val gemini = GeminiLlmClient(apiKey = { prefs.geminiKey }, model = { prefs.geminiModel }, onModelReplaced = { prefs.geminiModel = it })
     private val llm = SwitchingLlmClient { if (prefs.provider == "claude") claude else gemini }
     val vision = VisionAgent(screenSource, this)
     private val memory = MemoryAgent(memoryStore)
@@ -57,11 +58,29 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         policy = SafetyPolicy { prefs.confirmEverything },
         confirmer = { question -> overlay?.confirm(question) ?: false },
         listener = this,
+        targetLeadMs = 230L,
     )
     private val mainAgent = MainAgent(
         llm, vision, actions, memory, this,
         alwaysImage = { prefs.sendScreenshots && LivingState.captureActive.value },
+        localContext = ::deviceContext,
     )
+
+    /** Clock and battery for the built-in mind. */
+    private fun deviceContext(): LocalMind.Context {
+        val cal = java.util.Calendar.getInstance()
+        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val level = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
+        val date = java.text.DateFormat.getDateInstance(java.text.DateFormat.FULL).format(cal.time)
+        return LocalMind.Context(
+            hour = cal.get(java.util.Calendar.HOUR_OF_DAY),
+            minute = cal.get(java.util.Calendar.MINUTE),
+            dateText = date,
+            batteryPercent = level,
+            charging = bm?.isCharging == true,
+            mood = LivingState.mood.value,
+        )
+    }
 
     /**
      * Checks the selected provider's key with one tiny request and returns a message for the user.
@@ -270,6 +289,10 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         LivingState.status.value = s
         LivingState.statusDetail.value = detail
         overlay?.setStatus(s)
+    }
+
+    override fun onTarget(x: Int, y: Int) {
+        overlay?.pointAt(x, y)
     }
 
     private var moodJob: Job? = null

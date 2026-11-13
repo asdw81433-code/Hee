@@ -28,6 +28,8 @@ class Prefs(context: Context) {
     var ocrEnabled: Boolean get() = bool("ocr", true); set(v) = put("ocr", v)
     /** Read replies aloud with the phone's text-to-speech. */
     var speakReplies: Boolean get() = bool("speak", true); set(v) = put("speak", v)
+    /** The robot strolls along the screen edge by itself while idle. */
+    var roamEnabled: Boolean get() = bool("roam", true); set(v) = put("roam", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

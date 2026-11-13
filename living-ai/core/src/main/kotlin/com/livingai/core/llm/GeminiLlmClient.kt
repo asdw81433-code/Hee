@@ -47,6 +47,8 @@ class GeminiLlmClient(
     private val apiKey: () -> String,
     private val model: () -> String = { DEFAULT_MODEL },
     private val http: HttpTransport = HttpTransport.DEFAULT,
+    /** Called with a working model name when the configured one no longer exists. */
+    private val onModelReplaced: (String) -> Unit = {},
 ) : LlmClient {
 
     private val json = ObjectMapper()
@@ -137,13 +139,24 @@ class GeminiLlmClient(
 
         private suspend fun call(): LlmTurn {
             if (apiKey().isBlank()) throw LlmException(tr("ยังไม่ได้ใส่ API key", "No API key yet"))
-            val name = model().ifBlank { DEFAULT_MODEL }
+            var name = model().ifBlank { DEFAULT_MODEL }
             val body = requestBody()
-            val (code, text) = try {
+            suspend fun post(): Pair<Int, String> = try {
                 runInterruptible(Dispatchers.IO) { http.send("POST", "$BASE/models/$name:generateContent", headers(), body) }
             } catch (e: IOException) {
                 currentCoroutineContext().ensureActive()
                 throw LlmException(tr("เชื่อมต่อ AI ไม่ได้ ตรวจสอบอินเทอร์เน็ต", "Cannot reach the AI. Check the internet connection."), retryable = true, cause = e)
+            }
+            var (code, text) = post()
+            if (code == 404) {
+                // Model names change over time: ask which ones this key can use and carry on with one of them.
+                val replacement = findWorkingModel()
+                if (replacement != null && replacement != name) {
+                    name = replacement
+                    onModelReplaced(replacement)
+                    val retry = post()
+                    code = retry.first; text = retry.second
+                }
             }
             if (code !in 200..299) {
                 val msg = try { json.readTree(text).path("error").path("message").asText("") } catch (e: Exception) { "" }.take(220)

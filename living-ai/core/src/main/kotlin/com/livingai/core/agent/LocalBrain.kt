@@ -92,7 +92,7 @@ object LocalBrain {
                 return Plan.Act(AgentAction.OpenApp(name))
             }
         }
-        return Plan.Unknown(tr("ยังไม่ได้เชื่อมสมอง AI จึงเข้าใจเฉพาะคำสั่งง่าย ๆ (พิมพ์ \"คำสั่ง\" เพื่อดูรายการ) ใส่ key ฟรีในแอปเพื่อคุยได้เต็มรูปแบบ", "No AI brain connected yet, so I only understand simple commands (type \"help\"). Add a free key in the app to chat freely."))
+        return Plan.Unknown(tr("อันนี้เรายังไม่เข้าใจ ลองพิมพ์ \"ทำอะไรได้บ้าง\" หรือ \"คำสั่ง\" เพื่อดูสิ่งที่เราทำได้", "I didn't get that one. Try \"what can you do\" or \"help\" to see what I understand."))
     }
 
     private fun matches(lower: String, vararg options: String) = options.any { lower == it }

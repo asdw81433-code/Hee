@@ -65,6 +65,82 @@ class RobotOverlay(
 
     private val hideBubble = Runnable { removeBubble() }
 
+    // ---------- moving around the screen ----------
+
+    private var mover: android.animation.ValueAnimator? = null
+    private var lastUserMove = 0L
+    private var homeX = robotLp.x
+    private var homeY = robotLp.y
+
+    private fun robotW() = if (robot.width > 0) robot.width else (65 * dp).toInt()
+    private fun robotH() = if (robot.height > 0) robot.height else (90 * dp).toInt()
+
+    /** Walks the robot's window to (x, y). Main thread only. */
+    private fun walkTo(x: Int, y: Int, durationMs: Long) {
+        val size = ScreenMetrics.realSize(ctx)
+        val tx = x.coerceIn(0, (size.x - robotW()).coerceAtLeast(0))
+        val ty = y.coerceIn(0, (size.y - robotH()).coerceAtLeast(0))
+        val sx = robotLp.x; val sy = robotLp.y
+        if (sx == tx && sy == ty) return
+        mover?.cancel()
+        robot.facing = if (tx > sx) 1f else if (tx < sx) -1f else 0f
+        robot.walking = true
+        mover = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = durationMs
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                robotLp.x = (sx + (tx - sx) * t).toInt()
+                robotLp.y = (sy + (ty - sy) * t).toInt()
+                safe { wm.updateViewLayout(robot, robotLp) }
+                placeBubble()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) { robot.walking = false; robot.facing = 0f }
+                override fun onAnimationCancel(animation: android.animation.Animator) { robot.walking = false; robot.facing = 0f }
+            })
+            start()
+        }
+    }
+
+    private val goHome = Runnable { if (!destroyed && !controller.isBusy) walkTo(homeX, homeY, 450) }
+
+    /**
+     * The agent is about to touch (x, y): the robot hurries over and stands right beside that point,
+     * never on top of it, so the touch reaches the app and not the robot.
+     */
+    fun pointAt(x: Int, y: Int) = main.post {
+        if (destroyed) return@post
+        val size = ScreenMetrics.realSize(ctx)
+        val w = robotW(); val h = robotH(); val gap = (10 * dp).toInt()
+        var rx = x + gap
+        var ry = y + gap
+        if (rx + w > size.x) rx = x - w - gap
+        if (ry + h > size.y) ry = y - h - gap
+        walkTo(rx, ry, 200)
+        main.removeCallbacks(goHome)
+        main.postDelayed(goHome, 3500)
+    }
+
+    /** Idle life: every so often it strolls along the screen edge, sometimes crossing to the other side. */
+    private val roam = object : Runnable {
+        override fun run() {
+            if (destroyed) return
+            val quiet = panel == null && confirmView == null && bubble == null && !controller.isBusy &&
+                android.os.SystemClock.uptimeMillis() - lastUserMove > 40_000 && LivingState.status.value == AgentStatus.IDLE
+            if (quiet && controller.prefs.roamEnabled) {
+                val size = ScreenMetrics.realSize(ctx)
+                val onRight = robotLp.x > size.x / 2
+                val right = if (Math.random() < 0.2) !onRight else onRight
+                homeX = if (right) size.x - robotW() - (4 * dp).toInt() else (4 * dp).toInt()
+                homeY = (size.y * (0.12 + Math.random() * 0.66)).toInt()
+                val dist = abs(homeX - robotLp.x) + abs(homeY - robotLp.y)
+                walkTo(homeX, homeY, (dist / dp * 4.5f).toLong().coerceIn(500, 3500))
+            }
+            main.postDelayed(this, 9000L + (Math.random() * 9000).toLong())
+        }
+    }
+
     private fun baseParams(focusable: Boolean) = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
         windowType,
@@ -89,12 +165,14 @@ class RobotOverlay(
         robot.status = LivingState.status.value
         robot.setOnTouchListener(DragTapListener())
         safe { wm.addView(robot, robotLp); added = true }
+        main.postDelayed(roam, 12_000)
     }
 
     fun destroy() {
         destroyed = true
         if (controller.overlay === this) controller.overlay = null
         main.removeCallbacksAndMessages(null)
+        mover?.cancel()
         pendingConfirm?.complete(false)
         removeBubble(); hidePanel(); removeConfirm()
         safe { wm.removeView(robot) }
@@ -110,6 +188,9 @@ class RobotOverlay(
 
     fun setMood(mood: com.livingai.core.model.Mood) = main.post { if (!destroyed) robot.mood = mood }
 
+    private val bubbleLp = baseParams(focusable = false).apply { gravity = Gravity.TOP or Gravity.START }
+
+    /** Speech bubble: sits right above the robot's head (below it near the top edge) and follows it. */
     fun say(text: String) = main.post {
         if (destroyed || text.isBlank()) return@post
         removeBubble()
@@ -117,27 +198,43 @@ class RobotOverlay(
         val tv = TextView(ctx).apply {
             this.text = text
             textSize = 14f
-            setTextColor(0xFFFFFFFF.toInt())
-            background = card(0xF0263238.toInt())
-            setPadding((12 * dp).toInt(), (9 * dp).toInt(), (12 * dp).toInt(), (9 * dp).toInt())
-            maxWidth = (size.x * 0.72f).toInt()
-            maxLines = 9
+            setTextColor(0xFF10171C.toInt())
+            background = GradientDrawable().apply { setColor(0xFAFFFFFF.toInt()); cornerRadius = 16 * dp; setStroke((1.2f * dp).toInt(), 0xFF5AB8FF.toInt()) }
+            setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
+            maxWidth = (size.x * 0.66f).toInt()
+            maxLines = 8
+            elevation = 6 * dp
             // tap the speech bubble to answer
             setOnClickListener { removeBubble(); if (panel == null) togglePanel() }
         }
-        val lp = baseParams(focusable = false).apply {
-            // above the robot when it sits in the lower half, below it otherwise
-            val below = robotLp.y < size.y / 3
-            gravity = (if (below) Gravity.TOP else Gravity.BOTTOM) or Gravity.END
-            x = (10 * dp).toInt()
-            y = if (below) robotLp.y + (100 * dp).toInt() else (size.y - robotLp.y + (4 * dp).toInt()).coerceAtLeast(0)
-        }
-        safe { wm.addView(tv, lp); bubble = tv }
+        tv.measure(
+            View.MeasureSpec.makeMeasureSpec((size.x * 0.66f).toInt(), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        bubble = tv
+        placeBubble()
+        safe { wm.addView(tv, bubbleLp) }
+        if (!tv.isAttachedToWindow && tv.parent == null && bubble !== tv) return@post
+        robot.talking = true
         main.removeCallbacks(hideBubble)
-        main.postDelayed(hideBubble, (3500L + text.length * 70L).coerceAtMost(15000L))
+        main.postDelayed(hideBubble, (2500L + text.length * 65L).coerceAtMost(14000L))
+    }
+
+    /** Keeps the bubble centred over the head while the robot moves. */
+    private fun placeBubble() {
+        val tv = bubble ?: return
+        val size = ScreenMetrics.realSize(ctx)
+        val bw = if (tv.width > 0) tv.width else tv.measuredWidth
+        val bh = if (tv.height > 0) tv.height else tv.measuredHeight
+        val margin = (6 * dp).toInt()
+        bubbleLp.x = (robotLp.x + robotW() / 2 - bw / 2).coerceIn(margin, (size.x - bw - margin).coerceAtLeast(margin))
+        val above = robotLp.y - bh - (2 * dp).toInt()
+        bubbleLp.y = if (above >= (28 * dp).toInt()) above else robotLp.y + robotH() + (2 * dp).toInt()
+        if (tv.isAttachedToWindow) safe { wm.updateViewLayout(tv, bubbleLp) }
     }
 
     private fun removeBubble() {
+        robot.talking = false
         main.removeCallbacks(hideBubble)
         bubble?.let { v -> safe { wm.removeView(v) } }
         bubble = null
@@ -295,10 +392,16 @@ class RobotOverlay(
                     val dx = e.rawX - downX; val dy = e.rawY - downY
                     if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
                     if (dragging) {
+                        mover?.cancel()
+                        main.removeCallbacks(goHome)
                         val size = ScreenMetrics.realSize(ctx)
                         robotLp.x = (startX + dx.toInt()).coerceIn(0, (size.x - v.width).coerceAtLeast(0))
                         robotLp.y = (startY + dy.toInt()).coerceIn(0, (size.y - v.height).coerceAtLeast(0))
                         safe { wm.updateViewLayout(robot, robotLp) }
+                        placeBubble()
+                        // where the user puts it is its new home; it stays put for a while
+                        homeX = robotLp.x; homeY = robotLp.y
+                        lastUserMove = android.os.SystemClock.uptimeMillis()
                     }
                 }
                 MotionEvent.ACTION_UP -> if (!dragging) {

@@ -47,6 +47,15 @@ class RobotView(context: Context) : View(context) {
             invalidate()
         }
 
+    /** Mouth moves while this is true (the speech bubble is showing or the voice is speaking). */
+    var talking = false
+        set(value) { if (field != value) { field = value; wake(); invalidate() } }
+
+    /** Legs step and the body faces [facing] (-1 left … 1 right) while it walks across the screen. */
+    var walking = false
+        set(value) { if (field != value) { field = value; wake(); invalidate() } }
+    var facing = 0f
+
     /** Draw the short status caption under the robot (used by the floating overlay). */
     var showCaption = true
 
@@ -201,7 +210,7 @@ class RobotView(context: Context) : View(context) {
         val asleep = status == AgentStatus.PAUSED || (status == AgentStatus.IDLE && now - lastActive > SLEEP_AFTER_MS)
         val color = statusColor()
         // while working, the face shows the job; otherwise it shows the feeling
-        val face = if (asleep) Mood.SLEEPY else if (busy && status != AgentStatus.TALKING) Mood.FOCUSED else mood
+        val face = if (asleep && !talking && !walking) Mood.SLEEPY else if (busy && status != AgentStatus.TALKING) Mood.FOCUSED else mood
 
         // ---- motion ----
         var lift = 0f
@@ -225,6 +234,13 @@ class RobotView(context: Context) : View(context) {
             Act.WAVE -> { armUp = sin(a * PI).toFloat().coerceAtMost(0.6f) / 0.6f; armWave = sin(now / 95.0).toFloat() }
             Act.NONE -> Unit
         }
+        if (walking) {
+            look = facing.coerceIn(-1f, 1f) * 0.8f
+            lift = abs(sin(now / 90.0)).toFloat() * 1.6f
+            tilt = sin(now / 180.0).toFloat() * 2.5f
+        }
+        val speaking = talking || status == AgentStatus.TALKING
+        if (speaking && !walking) tilt = sin(now / 260.0).toFloat() * 3f
         when (status) {
             AgentStatus.LOOKING -> look = sin(now / 330.0).toFloat()
             AgentStatus.THINKING -> tilt = 7f + sin(now / 400.0).toFloat() * 2f
@@ -250,10 +266,13 @@ class RobotView(context: Context) : View(context) {
 
         // ---- legs and feet ----
         p.shader = limbShader
-        r.set(27 * u, 66 * u, 32 * u, 73 * u); canvas.drawRect(r, p)
-        r.set(40 * u, 66 * u, 45 * u, 73 * u); canvas.drawRect(r, p)
-        r.set(23 * u, 71 * u, 34 * u, 76 * u); canvas.drawRoundRect(r, 2.5f * u, 2.5f * u, p)
-        r.set(38 * u, 71 * u, 49 * u, 76 * u); canvas.drawRoundRect(r, 2.5f * u, 2.5f * u, p)
+        // while walking the feet lift in turn
+        val stepL = if (walking) maxOf(0f, sin(now / 90.0).toFloat()) * 3.2f * u else 0f
+        val stepR = if (walking) maxOf(0f, -sin(now / 90.0).toFloat()) * 3.2f * u else 0f
+        r.set(27 * u, 66 * u, 32 * u, 73 * u - stepL); canvas.drawRect(r, p)
+        r.set(40 * u, 66 * u, 45 * u, 73 * u - stepR); canvas.drawRect(r, p)
+        r.set(23 * u, 71 * u - stepL, 34 * u, 76 * u - stepL); canvas.drawRoundRect(r, 2.5f * u, 2.5f * u, p)
+        r.set(38 * u, 71 * u - stepR, 49 * u, 76 * u - stepR); canvas.drawRoundRect(r, 2.5f * u, 2.5f * u, p)
 
         // ---- arms ----
         canvas.save()
@@ -388,8 +407,9 @@ class RobotView(context: Context) : View(context) {
         // mouth
         val mx = 36 * u + eyeDx
         p.color = 0xFFCFD8DC.toInt()
-        if (status == AgentStatus.TALKING) {
-            val o = ((sin(now / 85.0) * 0.5 + 0.5).toFloat() * 3.2f + 1.2f) * u
+        if (speaking && !asleep) {
+            // lips: two overlapping rhythms so it reads as speech, not a metronome
+            val o = ((sin(now / 70.0) * 0.5 + 0.5).toFloat() * 2.6f + (sin(now / 173.0) * 0.5 + 0.5).toFloat() * 1.6f + 0.8f) * u
             canvas.drawOval(mx - 2.6f * u, 40.5f * u - o / 2, mx + 2.6f * u, 40.5f * u + o / 2, p)
         } else if (!asleep) {
             p.style = Paint.Style.STROKE; p.strokeWidth = 1.5f * u
@@ -448,7 +468,7 @@ class RobotView(context: Context) : View(context) {
             canvas.drawText(text, width / 2f, ty + 2.5f * dp, p)
         }
 
-        if (busy || acting || now < blinkStart + BLINK_MS) postInvalidateOnAnimation()
+        if (busy || acting || walking || speaking || now < blinkStart + BLINK_MS) postInvalidateOnAnimation()
         else if (!asleep) postInvalidateDelayed(50) // idle life at ~20 fps keeps the cost low
     }
 

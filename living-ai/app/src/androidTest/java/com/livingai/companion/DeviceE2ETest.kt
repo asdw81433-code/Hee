@@ -233,6 +233,16 @@ class DeviceE2ETest {
         waitUntil("the orb is back on screen as an app overlay", 10_000) { onMain { graph.floating.isShowing } }
         assertNotNull(graph.controller.overlay)
 
+        // It walks to a point, talks with a bubble over its head, and stays on screen through both.
+        val robot = graph.controller.overlay!!
+        robot.pointAt(300, 600)
+        robot.say("สวัสดี ทดสอบกล่องคำพูด")
+        SystemClock.sleep(1200)
+        assertTrue(onMain { graph.floating.isShowing })
+        // Small talk is answered by the built-in mind at once, with no AI key at all.
+        val hello = ask("สวัสดี")
+        assertTrue(hello, hello.isNotBlank() && !hello.contains("Accessibility"))
+
         // Hide and show again through the same switch the big button uses.
         graph.prefs.overlayEnabled = false
         instr.runOnMainSync { graph.floating.apply() }

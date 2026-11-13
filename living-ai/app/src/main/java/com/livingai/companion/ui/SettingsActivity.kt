@@ -264,11 +264,12 @@ class SettingsActivity : Activity() {
         val card = card(root, tr("การทำงาน", "Behaviour"))
         card.addView(toggle(tr("มองเห็นหน้าจอ", "See the screen"), tr("อ่านองค์ประกอบ UI จับภาพ และ OCR", "Read UI elements, capture and OCR"), p.visionEnabled) { p.visionEnabled = it })
         card.addView(toggle(tr("ใช้หน้าจอแทนคุณ", "Use the screen for you"), tr("แตะ พิมพ์ เลื่อน เปิดแอป เล่นเกม", "Tap, type, scroll, open apps, play games"), p.interactionEnabled) { p.interactionEnabled = it })
-        card.addView(toggle(tr("ลูกกลมลอยบนจอ", "Floating orb"), tr("แตะเพื่อคุย แตะระหว่างทำงานเพื่อหยุด ลากเพื่อย้าย", "Tap to talk, tap while it works to stop, drag to move"), p.overlayEnabled) {
+        card.addView(toggle(tr("หุ่นยนต์บนจอ", "Robot on screen"), tr("แตะเพื่อคุย แตะระหว่างทำงานเพื่อหยุด ลากเพื่อย้าย", "Tap to talk, tap while it works to stop, drag to move"), p.overlayEnabled) {
             p.overlayEnabled = it
             if (it) FloatingUi.show(this, graph) else FloatingUi.hide(graph)
             refreshSteps()
         })
+        card.addView(toggle(tr("เดินเล่นบนจอ", "Stroll around the screen"), tr("เดินไปมาตามขอบจอเองตอนว่าง และวิ่งไปหาจุดที่กำลังกด", "Walks along the screen edge when idle and runs to whatever it is tapping"), p.roamEnabled) { p.roamEnabled = it })
         card.addView(toggle(tr("พูดตอบออกเสียง", "Speak replies aloud"), tr("อ่านคำตอบด้วยเสียงสังเคราะห์ของเครื่อง", "Reads replies with the phone's text-to-speech voice"), p.speakReplies) {
             p.speakReplies = it
             if (!it) graph.controller.speaker.stop()

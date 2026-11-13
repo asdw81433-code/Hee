@@ -24,7 +24,24 @@ class ActionAgent(
     private val confirmer: ConfirmationPort,
     private val listener: AgentListener,
     private val settleMs: Long = 400L,
+    /** Time given to the robot to walk to the target before it is touched. */
+    private val targetLeadMs: Long = 0L,
 ) {
+    /** Where on the real screen this action lands, if it has a place. */
+    private fun targetOf(action: AgentAction, obs: com.livingai.core.model.ScreenObservation?): Pair<Int, Int>? {
+        obs ?: return null
+        fun scaled(x: Int, y: Int): Pair<Int, Int>? =
+            if (obs.imageWidth > 0 && obs.imageHeight > 0 && obs.screenWidth > 0) (x * obs.screenWidth / obs.imageWidth) to (y * obs.screenHeight / obs.imageHeight) else null
+        return when (action) {
+            is AgentAction.Tap -> obs.element(action.elementId)?.bounds?.let { it.centerX to it.centerY }
+            is AgentAction.TypeText -> obs.element(action.elementId)?.bounds?.let { it.centerX to it.centerY }
+            is AgentAction.Scroll -> action.elementId?.let { id -> obs.element(id)?.bounds?.let { it.centerX to it.centerY } }
+            is AgentAction.TapPoint -> scaled(action.x, action.y)
+            is AgentAction.SwipePoints -> scaled(action.x1, action.y1)
+            else -> null
+        }
+    }
+
     suspend fun execute(action: AgentAction): ActionResult {
         if (action is AgentAction.Wait) {
             delay(action.millis.coerceIn(100L, 5_000L))
@@ -48,6 +65,10 @@ class ActionAgent(
         }
 
         listener.onStatus(AgentStatus.ACTING, action.describe(before))
+        targetOf(action, before)?.let { (x, y) ->
+            listener.onTarget(x, y)
+            if (targetLeadMs > 0) delay(targetLeadMs)
+        }
         val result = port.perform(action, before)
         if (!result.success) {
             vision.look(includeImage = false)
