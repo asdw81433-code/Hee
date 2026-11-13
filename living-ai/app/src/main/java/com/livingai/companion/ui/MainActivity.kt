@@ -68,6 +68,8 @@ class MainActivity : Activity() {
     private lateinit var orb: RobotView
     private lateinit var statusText: TextView
     private lateinit var stopButton: Button
+    private lateinit var showButton: Button
+    private var waitingForOverlayPermission = false
     private lateinit var notifRow: StepRow
     private lateinit var a11yRow: StepRow
     private lateinit var captureRow: StepRow
@@ -145,11 +147,41 @@ class MainActivity : Activity() {
                 addView(statusText)
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         })
+        showButton = button("", accent) { toggleFloating() }
+        card.addView(showButton, matchWrap(top = 12))
         stopButton = button("", red) {
             if (LivingState.paused.value) graph.controller.resume() else graph.controller.emergencyStop()
         }
-        card.addView(stopButton, matchWrap(top = 12))
+        card.addView(stopButton, matchWrap(top = 8))
     }
+
+    /** The big "show Kivo on my screen" button. */
+    private fun toggleFloating() {
+        val p = graph.prefs
+        if (p.overlayEnabled && graph.floating.isShowing) {
+            p.overlayEnabled = false
+            graph.floating.apply()
+            refreshSteps()
+            return
+        }
+        p.overlayEnabled = true
+        if (LivingAccessibilityService.instance == null && !graph.floating.canDrawOverlays()) {
+            waitingForOverlayPermission = true
+            toast(tr("เปิด \"อนุญาตให้แสดงทับแอปอื่น\" ให้ ${Persona.NAME} แล้วกดย้อนกลับ", "Turn on \"Allow display over other apps\" for ${Persona.NAME}, then go back"))
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            } catch (e: Exception) {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
+            return
+        }
+        graph.floating.apply()
+        refreshSteps()
+        if (graph.floating.isShowing) toast(onScreenMessage())
+    }
+
+    private fun onScreenMessage() =
+        tr("${Persona.NAME} อยู่บนจอแล้ว แตะเพื่อคุย ลากเพื่อย้าย", "${Persona.NAME} is on your screen. Tap to talk, drag to move.")
 
     private fun buildSetup(root: LinearLayout) {
         val card = card(root, tr("เริ่มใช้งาน 4 ขั้น", "Get started in 4 steps"))
@@ -158,7 +190,7 @@ class MainActivity : Activity() {
         }
         a11yRow = StepRow(
             "2", tr("ให้ ${Persona.NAME} ใช้หน้าจอ", "Let ${Persona.NAME} use the screen"),
-            tr("เปิด \"${Persona.NAME}\" ในหน้าการช่วยเหลือพิเศษ → แอปที่ติดตั้ง", "Turn on \"${Persona.NAME}\" under Accessibility → Installed apps"),
+            tr("จำเป็นเฉพาะตอนให้กดแทน: เปิด \"${Persona.NAME}\" ในการช่วยเหลือพิเศษ → แอปที่ติดตั้ง", "Needed only for tapping for you: turn on \"${Persona.NAME}\" under Accessibility → Installed apps"),
         ) { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         captureRow = StepRow(
             "3", tr("แชร์หน้าจอ", "Share the screen"),
@@ -331,7 +363,8 @@ class MainActivity : Activity() {
         card.addView(toggle(tr("ใช้หน้าจอแทนคุณ", "Use the screen for you"), tr("แตะ พิมพ์ เลื่อน เปิดแอป เล่นเกม", "Tap, type, scroll, open apps, play games"), p.interactionEnabled) { p.interactionEnabled = it })
         card.addView(toggle(tr("ลูกกลมลอยบนจอ", "Floating orb"), tr("แตะเพื่อคุย แตะระหว่างทำงานเพื่อหยุด ลากเพื่อย้าย", "Tap to talk, tap while it works to stop, drag to move"), p.overlayEnabled) {
             p.overlayEnabled = it
-            LivingAccessibilityService.instance?.setOverlayEnabled(it)
+            graph.floating.apply()
+            refreshSteps()
         })
         card.addView(toggle(tr("ให้พูดและแนะนำเองได้", "Let it speak up and suggest"), tr("ทักเมื่อเปิดแอปใหม่หรือเจอข้อผิดพลาด", "Speaks when you open an app or hit an error"), p.proactiveEnabled) { p.proactiveEnabled = it })
         card.addView(toggle(tr("ยืนยันทุกการกระทำ", "Confirm every action"), tr("ปกติถามเฉพาะการส่ง ซื้อ จ่าย ลบ และในแอปการเงิน", "Normally it asks only before sending, buying, paying, deleting, and in finance apps"), p.confirmEverything) { p.confirmEverything = it })
@@ -431,6 +464,11 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        graph.floating.apply()
+        if (waitingForOverlayPermission && graph.floating.canDrawOverlays()) {
+            waitingForOverlayPermission = false
+            if (graph.floating.isShowing) toast(onScreenMessage())
+        }
         refreshSteps()
     }
 
@@ -445,6 +483,9 @@ class MainActivity : Activity() {
     }
 
     private fun refreshSteps() {
+        val showing = graph.prefs.overlayEnabled && graph.floating.isShowing
+        showButton.text = if (showing) tr("ซ่อน ${Persona.NAME} จากหน้าจอ", "Hide ${Persona.NAME} from the screen") else tr("✨ แสดง ${Persona.NAME} บนจอ", "✨ Show ${Persona.NAME} on my screen")
+        showButton.background = round(if (showing) grey else accent, 12f)
         val notifOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         notifRow.set(notifOk, if (notifOk) tr("เรียบร้อย", "Done") else tr("อนุญาต", "Allow"), enabled = !notifOk)

@@ -12,6 +12,7 @@ class AppGraph(context: Context) {
     val prefs = Prefs(context)
     val memoryStore = RoomMemoryStore(context)
     val controller = AgentController(context, prefs, memoryStore)
+    val floating = com.livingai.companion.overlay.FloatingOrbManager(context, prefs, controller)
 }
 
 class LivingApp : Application() {
@@ -20,6 +21,8 @@ class LivingApp : Application() {
     override fun onCreate() {
         super.onCreate()
         applyLanguage()
+        // Put the orb back after the process restarts (the accessibility service takes over if it connects).
+        android.os.Handler(mainLooper).post { graph.floating.apply() }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

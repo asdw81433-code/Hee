@@ -1,6 +1,5 @@
 package com.livingai.companion.overlay
 
-import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -29,24 +28,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 
 /**
- * The floating robot. Uses TYPE_ACCESSIBILITY_OVERLAY windows owned by the accessibility service,
- * so no "draw over other apps" permission is needed and it disappears with the service.
+ * The floating orb. Two ways to put it on screen:
+ *  - TYPE_ACCESSIBILITY_OVERLAY, owned by the accessibility service (no extra permission; can also control the screen);
+ *  - TYPE_APPLICATION_OVERLAY, owned by the app, needs "display over other apps". Used while the
+ *    accessibility service is off, so the orb can live on screen and chat even before it is allowed.
  *
  *  - tap while idle  → open the command panel
  *  - tap while busy  → STOP immediately
  *  - drag            → move
  * All methods must be called on the main thread except [say], [setStatus] and [confirm].
  */
-class RobotOverlay(private val service: AccessibilityService, private val controller: AgentController) {
+class RobotOverlay(
+    private val ctx: Context,
+    private val controller: AgentController,
+    private val windowType: Int = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+) {
 
-    private val wm = service.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val main = Handler(Looper.getMainLooper())
-    private val dp = service.resources.displayMetrics.density
+    private val dp = ctx.resources.displayMetrics.density
 
-    private val robot = RobotView(service)
+    private val robot = RobotView(ctx)
     private val robotLp = baseParams(focusable = false).apply {
         gravity = Gravity.TOP or Gravity.START
-        val size = ScreenMetrics.realSize(service)
+        val size = ScreenMetrics.realSize(ctx)
         x = size.x - (80 * dp).toInt()
         y = (size.y * 0.55f).toInt()
     }
@@ -61,7 +66,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
 
     private fun baseParams(focusable: Boolean) = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-        WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        windowType,
         (if (focusable) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         PixelFormat.TRANSLUCENT,
@@ -70,6 +75,9 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
     private fun card(color: Int, radiusDp: Float = 16f) = GradientDrawable().apply {
         setColor(color); cornerRadius = radiusDp * dp; setStroke((1 * dp).toInt(), 0x33FFFFFF)
     }
+
+    /** True while the orb is really attached to a window on screen. */
+    val isOnScreen: Boolean get() = robot.isAttachedToWindow
 
     fun show() {
         controller.overlay = this
@@ -97,8 +105,8 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
     fun say(text: String) = main.post {
         if (destroyed || text.isBlank()) return@post
         removeBubble()
-        val size = ScreenMetrics.realSize(service)
-        val tv = TextView(service).apply {
+        val size = ScreenMetrics.realSize(ctx)
+        val tv = TextView(ctx).apply {
             this.text = text
             textSize = 14f
             setTextColor(0xFFFFFFFF.toInt())
@@ -132,9 +140,9 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
     private fun togglePanel() {
         if (panel != null) { hidePanel(); return }
         removeBubble()
-        val size = ScreenMetrics.realSize(service)
+        val size = ScreenMetrics.realSize(ctx)
         val pad = (12 * dp).toInt()
-        val input = EditText(service).apply {
+        val input = EditText(ctx).apply {
             hint = tr("พิมพ์คุยหรือสั่งงานได้เลย", "Chat or tell me what to do")
             setHintTextColor(0x99FFFFFF.toInt())
             setTextColor(0xFFFFFFFF.toInt())
@@ -150,7 +158,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
         }
         input.setOnEditorActionListener { _, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_SEND) { submit(); true } else false }
 
-        fun btn(label: String, color: Int, onClick: () -> Unit) = Button(service).apply {
+        fun btn(label: String, color: Int, onClick: () -> Unit) = Button(ctx).apply {
             text = label; isAllCaps = false; textSize = 13f
             setTextColor(0xFFFFFFFF.toInt())
             background = card(color, 12f)
@@ -158,7 +166,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             setPadding(pad, (8 * dp).toInt(), pad, (8 * dp).toInt())
             setOnClickListener { onClick() }
         }
-        val row = LinearLayout(service).apply {
+        val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (6 * dp).toInt() }
             addView(btn(tr("ส่ง", "Send"), 0xFF1565C0.toInt()) { submit() }, lp)
@@ -166,12 +174,12 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             addView(btn(tr("⏹ หยุด", "⏹ Stop"), 0xFFC62828.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
             addView(btn(tr("ปิด", "Close"), 0xFF455A64.toInt()) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
         }
-        val root = LinearLayout(service).apply {
+        val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             background = card(0xF5263238.toInt(), 18f)
             setPadding(pad, pad, pad, pad)
             val recent = LivingState.chat.value.takeLast(5)
-            if (recent.isNotEmpty()) addView(TextView(service).apply {
+            if (recent.isNotEmpty()) addView(TextView(ctx).apply {
                 text = recent.joinToString("\n") { (if (it.fromUser) tr("คุณ: ", "You: ") else "${Persona.NAME}: ") + it.text.take(220) }
                 textSize = 13f; setTextColor(0xFFCFD8DC.toInt())
                 maxLines = 9
@@ -192,7 +200,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             wm.addView(root, lp); panel = root
             input.requestFocus()
             main.postDelayed({
-                (service.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
+                (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
             }, 150)
         }
     }
@@ -212,28 +220,28 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             pendingConfirm?.complete(false)
             removeConfirm(); hidePanel(); removeBubble()
             pendingConfirm = result
-            val size = ScreenMetrics.realSize(service)
+            val size = ScreenMetrics.realSize(ctx)
             val pad = (14 * dp).toInt()
-            fun btn(label: String, color: Int, value: Boolean) = Button(service).apply {
+            fun btn(label: String, color: Int, value: Boolean) = Button(ctx).apply {
                 text = label; isAllCaps = false; textSize = 15f
                 setTextColor(0xFFFFFFFF.toInt())
                 background = card(color, 12f)
                 setOnClickListener { result.complete(value) }
             }
-            val root = LinearLayout(service).apply {
+            val root = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
                 background = card(0xFA1B2A30.toInt(), 18f)
                 setPadding(pad, pad, pad, pad)
-                addView(TextView(service).apply {
+                addView(TextView(ctx).apply {
                     text = tr("${Persona.NAME} ขออนุญาต", "${Persona.NAME} asks permission")
                     textSize = 13f; setTextColor(0xFFB388FF.toInt())
                 })
-                addView(TextView(service).apply {
+                addView(TextView(ctx).apply {
                     text = question
                     textSize = 16f; setTextColor(0xFFFFFFFF.toInt())
                     setPadding(0, (6 * dp).toInt(), 0, (12 * dp).toInt())
                 })
-                addView(LinearLayout(service).apply {
+                addView(LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
                     addView(btn(tr("ไม่อนุญาต", "Deny"), 0xFF546E7A.toInt(), false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (8 * dp).toInt() })
                     addView(btn(tr("อนุญาต", "Allow"), 0xFF2E7D32.toInt(), true), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -262,7 +270,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
     // ---------- touch ----------
 
     private inner class DragTapListener : View.OnTouchListener {
-        private val slop = ViewConfiguration.get(service).scaledTouchSlop
+        private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
         private var downX = 0f
         private var downY = 0f
         private var startX = 0
@@ -278,7 +286,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
                     val dx = e.rawX - downX; val dy = e.rawY - downY
                     if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
                     if (dragging) {
-                        val size = ScreenMetrics.realSize(service)
+                        val size = ScreenMetrics.realSize(ctx)
                         robotLp.x = (startX + dx.toInt()).coerceIn(0, (size.x - v.width).coerceAtLeast(0))
                         robotLp.y = (startY + dy.toInt()).coerceIn(0, (size.y - v.height).coerceAtLeast(0))
                         safe { wm.updateViewLayout(robot, robotLp) }

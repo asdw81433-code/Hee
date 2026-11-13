@@ -216,4 +216,38 @@ class DeviceE2ETest {
         bmp.recycle()
         assertTrue("OCR returned: \"$text\"", text.uppercase().contains("LIVING"))
     }
+
+    @Test
+    fun h_orb_floatsOnScreenWithoutAccessibility() {
+        // Grant "display over other apps" the way the user does in Settings, then switch accessibility off.
+        shell("appops set ${ctx.packageName} SYSTEM_ALERT_WINDOW allow")
+        graph.prefs.overlayEnabled = true
+        instr.runOnMainSync { graph.floating.apply() }
+        waitUntil("the accessibility orb is on screen", 10_000) { onMain { graph.floating.isShowing } }
+
+        shell("settings put secure enabled_accessibility_services \"\"")
+        waitUntil("the accessibility service disconnects", 20_000) { !LivingState.accessibilityConnected.value }
+        // The service hands the orb over to an app overlay window.
+        waitUntil("the orb is back on screen as an app overlay", 10_000) { onMain { graph.floating.isShowing } }
+        assertNotNull(graph.controller.overlay)
+
+        // Hide and show again through the same switch the big button uses.
+        graph.prefs.overlayEnabled = false
+        instr.runOnMainSync { graph.floating.apply() }
+        assertFalse(onMain { graph.floating.isShowing })
+        graph.prefs.overlayEnabled = true
+        instr.runOnMainSync { graph.floating.apply() }
+        assertTrue(onMain { graph.floating.isShowing })
+
+        // Without accessibility it can still look and chat; actions report honestly that control is off.
+        val reply = ask("กลับ")
+        assertTrue(reply, reply.contains("Accessibility"))
+    }
+
+    private fun <T> onMain(block: () -> T): T {
+        var out: T? = null
+        instr.runOnMainSync { out = block() }
+        @Suppress("UNCHECKED_CAST")
+        return out as T
+    }
 }

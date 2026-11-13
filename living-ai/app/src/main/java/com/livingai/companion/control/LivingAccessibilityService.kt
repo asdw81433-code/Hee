@@ -40,6 +40,7 @@ class LivingAccessibilityService : AccessibilityService() {
         LivingState.accessibilityConnected.value = true
         imePackage = Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)?.substringBefore('/').orEmpty()
         val graph = LivingApp.graph(this)
+        graph.floating.hideAppOverlay()
         if (graph.prefs.overlayEnabled) {
             overlay = RobotOverlay(this, graph.controller).also { it.show() }
         }
@@ -76,9 +77,12 @@ class LivingAccessibilityService : AccessibilityService() {
     private fun shutdown() {
         if (instance === this) instance = null
         LivingState.accessibilityConnected.value = false
+        val hadOverlay = overlay != null
         overlay?.destroy()
         overlay = null
         lastSnapshot = NodeSnapshot.EMPTY
+        // Keep the orb on screen as an app overlay when the service goes away.
+        if (hadOverlay) android.os.Handler(mainLooper).post { LivingApp.graph(this).floating.apply() }
     }
 
     fun setOverlayEnabled(enabled: Boolean) {
