@@ -1,16 +1,17 @@
-package com.livingai.core.agent
+package com.livingai.core.tools
 
+import com.livingai.core.perception.VisionAgent
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 
-import com.livingai.core.ActionPort
+import com.livingai.core.tools.ActionPort
 import com.livingai.core.AgentListener
-import com.livingai.core.ConfirmationPort
-import com.livingai.core.model.ActionResult
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.safety.SafetyDecision
-import com.livingai.core.safety.SafetyPolicy
+import com.livingai.core.tools.ConfirmationPort
+import com.livingai.core.tools.ActionResult
+import com.livingai.core.tools.AgentAction
+import com.livingai.core.AgentStatus
+import com.livingai.core.tools.SafetyDecision
+import com.livingai.core.tools.SafetyPolicy
 import kotlinx.coroutines.delay
 
 /**
@@ -28,7 +29,7 @@ class ActionAgent(
     private val targetLeadMs: Long = 0L,
 ) {
     /** Where on the real screen this action lands, if it has a place. */
-    private fun targetOf(action: AgentAction, obs: com.livingai.core.model.ScreenObservation?): Pair<Int, Int>? {
+    private fun targetOf(action: AgentAction, obs: com.livingai.core.perception.ScreenObservation?): Pair<Int, Int>? {
         obs ?: return null
         fun scaled(x: Int, y: Int): Pair<Int, Int>? =
             if (obs.imageWidth > 0 && obs.imageHeight > 0 && obs.screenWidth > 0) (x * obs.screenWidth / obs.imageWidth) to (y * obs.screenHeight / obs.imageHeight) else null

@@ -2,20 +2,19 @@ package com.livingai.companion.control
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
-import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
 import com.livingai.companion.LivingState
 import com.livingai.companion.settings.Prefs
 import com.livingai.companion.vision.ScreenMetrics
-import com.livingai.core.ActionPort
+import com.livingai.core.tools.ActionPort
 import com.livingai.core.Lang.tr
-import com.livingai.core.model.ActionResult
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.model.ScrollDirection
-import com.livingai.core.model.SystemKey
+import com.livingai.core.tools.ActionResult
+import com.livingai.core.tools.AgentAction
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.tools.ScrollDirection
+import com.livingai.core.tools.SystemKey
 import kotlinx.coroutines.delay
 
 /** Performs agent actions through the AccessibilityService, always on nodes from the last snapshot. */
@@ -33,7 +32,6 @@ class A11yActionPort(private val context: Context, private val prefs: Prefs) : A
             is AgentAction.TypeText -> withNode(svc, action.elementId, observation) { type(it, action.text) }
             is AgentAction.Scroll -> scroll(svc, action, observation)
             is AgentAction.Press -> press(svc, action.key)
-            is AgentAction.OpenApp -> openApp(svc, action.name)
             is AgentAction.Wait -> ActionResult(true, tr("รอแล้ว", "waited"))
             is AgentAction.TapPoint -> {
                 val (x, y) = toScreen(action.x, action.y, observation) ?: return fail(tr("ไม่มีภาพอ้างอิงสำหรับพิกัด", "No screenshot to map the coordinates to"))
@@ -150,30 +148,5 @@ class A11yActionPort(private val context: Context, private val prefs: Prefs) : A
             SystemKey.NOTIFICATIONS -> AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
         }
         return if (svc.performGlobalAction(id)) ActionResult(true, tr("กด ${key.name} แล้ว", "pressed ${key.name}")) else fail(tr("กด ${key.name} ไม่สำเร็จ", "could not press ${key.name}"))
-    }
-
-    private fun openApp(svc: LivingAccessibilityService, name: String): ActionResult {
-        val pm = context.packageManager
-        val q = name.trim().lowercase()
-        val launchers = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        val scored = launchers.mapNotNull { ri ->
-            val label = ri.loadLabel(pm).toString().lowercase()
-            val pkg = ri.activityInfo.packageName
-            val score = when {
-                label == q || pkg.equals(q, true) -> 3
-                label.startsWith(q) -> 2
-                label.contains(q) || pkg.lowercase().contains(q) -> 1
-                else -> 0
-            }
-            if (score > 0) Triple(score, ri.loadLabel(pm).toString(), pkg) else null
-        }.sortedWith(compareByDescending<Triple<Int, String, String>> { it.first }.thenBy { it.second.length })
-        val best = scored.firstOrNull() ?: return fail(tr("ไม่พบแอปชื่อ \"$name\" ในเครื่อง", "No app called \"$name\" is installed"))
-        val intent = pm.getLaunchIntentForPackage(best.third) ?: return fail(tr("เปิดแอป ${best.second} ไม่ได้", "Cannot open ${best.second}"))
-        return try {
-            svc.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            ActionResult(true, tr("เปิด ${best.second} แล้ว", "opened ${best.second}"))
-        } catch (e: Exception) {
-            fail(tr("เปิดแอป ${best.second} ไม่สำเร็จ", "Could not open ${best.second}") + ": ${e.message}")
-        }
     }
 }

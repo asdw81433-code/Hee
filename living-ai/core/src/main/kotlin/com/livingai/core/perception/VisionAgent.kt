@@ -1,10 +1,10 @@
-package com.livingai.core.agent
+package com.livingai.core.perception
 
 import com.livingai.core.AgentListener
-import com.livingai.core.ScreenSource
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.safety.Redactor
+import com.livingai.core.perception.ScreenSource
+import com.livingai.core.AgentStatus
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.privacy.Redactor
 
 /**
  * Vision AI: turns raw perception into a sanitized [ScreenObservation].

@@ -1,14 +1,14 @@
 package com.livingai.companion
 
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.model.ChatLine
+import com.livingai.core.AgentStatus
+import com.livingai.core.memory.ChatLine
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Process-wide observable state shared by the services, the overlay and the settings screen. */
 object LivingState {
     val status = MutableStateFlow(AgentStatus.IDLE)
     val statusDetail = MutableStateFlow("")
-    val mood = MutableStateFlow(com.livingai.core.model.Mood.NEUTRAL)
+    val mood = MutableStateFlow(com.livingai.core.emotion.Mood.CALM)
     val accessibilityConnected = MutableStateFlow(false)
     val captureActive = MutableStateFlow(false)
     /** Emergency stop: nothing looks at or touches the screen until the user resumes. */

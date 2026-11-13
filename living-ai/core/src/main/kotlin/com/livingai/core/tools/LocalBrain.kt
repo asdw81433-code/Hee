@@ -1,13 +1,13 @@
-package com.livingai.core.agent
+package com.livingai.core.tools
 
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.model.ScrollDirection
-import com.livingai.core.model.SystemKey
-import com.livingai.core.model.UiElement
+import com.livingai.core.tools.AgentAction
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.tools.ScrollDirection
+import com.livingai.core.tools.SystemKey
+import com.livingai.core.perception.UiElement
 
 /**
  * Offline command understanding (no API key needed). Deliberately small and predictable:
@@ -17,6 +17,7 @@ object LocalBrain {
 
     sealed interface Plan {
         data class Act(val action: AgentAction) : Plan
+        data class Device(val command: DeviceCommand) : Plan
         data object Describe : Plan
         data class Remember(val key: String, val value: String) : Plan
         data class Recall(val query: String) : Plan
@@ -89,7 +90,7 @@ object LocalBrain {
                 if (name.isEmpty()) return Plan.Unknown(tr("บอกชื่อแอปด้วย เช่น \"เปิด YouTube\"", "Tell me which app, e.g. \"open YouTube\""))
                 // "เปิดเมนู" on screen wins over launching an app called "เมนู".
                 findElement(name, obs, clickableOnly = true)?.let { return Plan.Act(AgentAction.Tap(it.id)) }
-                return Plan.Act(AgentAction.OpenApp(name))
+                return Plan.Device(DeviceCommand.OpenApp(name))
             }
         }
         return Plan.Unknown(tr("อันนี้เรายังไม่เข้าใจ ลองพิมพ์ \"ทำอะไรได้บ้าง\" หรือ \"คำสั่ง\" เพื่อดูสิ่งที่เราทำได้", "I didn't get that one. Try \"what can you do\" or \"help\" to see what I understand."))

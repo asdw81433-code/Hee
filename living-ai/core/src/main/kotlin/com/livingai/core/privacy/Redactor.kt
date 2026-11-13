@@ -1,7 +1,7 @@
-package com.livingai.core.safety
+package com.livingai.core.privacy
 
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.model.UiElement
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.perception.UiElement
 
 /**
  * Removes secrets before anything leaves the device or is stored:

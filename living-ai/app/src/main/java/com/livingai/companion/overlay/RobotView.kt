@@ -11,8 +11,8 @@ import android.graphics.Shader
 import android.os.SystemClock
 import android.view.View
 import com.livingai.core.Lang.tr
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.model.Mood
+import com.livingai.core.AgentStatus
+import com.livingai.core.emotion.Mood
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -38,7 +38,7 @@ class RobotView(context: Context) : View(context) {
             invalidate()
         }
 
-    var mood: Mood = Mood.NEUTRAL
+    var mood: Mood = Mood.CALM
         set(value) {
             if (field == value) return
             field = value
@@ -89,8 +89,8 @@ class RobotView(context: Context) : View(context) {
                 roll < 0.40 -> blinkStart = now
                 roll < 0.62 -> start(Act.LOOK, 1400)
                 roll < 0.78 -> start(Act.TILT, 1100)
-                roll < 0.90 -> if (mood != Mood.WORRIED && mood != Mood.SLEEPY) start(Act.HOP, 750) else blinkStart = now
-                else -> if (mood != Mood.WORRIED && mood != Mood.SLEEPY) start(Act.WAVE, 1500) else blinkStart = now
+                roll < 0.90 -> if (mood != Mood.SAD && mood != Mood.SLEEPY) start(Act.HOP, 750) else blinkStart = now
+                else -> if (mood != Mood.SAD && mood != Mood.SLEEPY) start(Act.WAVE, 1500) else blinkStart = now
             }
             invalidate()
             // an excited robot fidgets more, a sleepy one less
@@ -138,12 +138,12 @@ class RobotView(context: Context) : View(context) {
 
     private fun statusColor(): Int = when (status) {
         AgentStatus.IDLE, AgentStatus.TALKING -> when (mood) {
-            Mood.WORRIED -> 0xFFFFA24D.toInt()
+            Mood.SAD -> 0xFFFFA24D.toInt()
             Mood.EXCITED -> 0xFF7CF0FF.toInt()
             Mood.SLEEPY -> 0xFF8FA8C8.toInt()
             else -> 0xFF5AB8FF.toInt()
         }
-        AgentStatus.LOOKING -> 0xFF5EE6A8.toInt()
+        AgentStatus.LOOKING, AgentStatus.LISTENING -> 0xFF5EE6A8.toInt()
         AgentStatus.THINKING -> 0xFFFFC857.toInt()
         AgentStatus.ACTING -> 0xFFFF8A5B.toInt()
         AgentStatus.WAITING_CONFIRM -> 0xFFB79CFF.toInt()
@@ -153,6 +153,7 @@ class RobotView(context: Context) : View(context) {
     private fun caption(): String = when (status) {
         AgentStatus.IDLE, AgentStatus.TALKING -> ""
         AgentStatus.LOOKING -> tr("👁 กำลังมอง", "👁 Looking")
+        AgentStatus.LISTENING -> tr("👂 กำลังฟัง", "👂 Listening")
         AgentStatus.THINKING -> tr("💭 กำลังคิด", "💭 Thinking")
         AgentStatus.ACTING -> tr("✋ กำลังควบคุม", "✋ Controlling")
         AgentStatus.WAITING_CONFIRM -> tr("❓ รอยืนยัน", "❓ Confirm?")
@@ -218,14 +219,14 @@ class RobotView(context: Context) : View(context) {
         var tilt = 0f
         var armUp = 0f
         var armWave = 0f
-        val energy = when (face) { Mood.EXCITED -> 1.8f; Mood.HAPPY -> 1.2f; Mood.SLEEPY -> 0.4f; Mood.WORRIED -> 0.7f; else -> 1f }
+        val energy = when (face) { Mood.EXCITED -> 1.8f; Mood.HAPPY -> 1.2f; Mood.SLEEPY -> 0.4f; Mood.SAD -> 0.7f; else -> 1f }
         if (busy) lift = 1.5f + sin(now / 240.0).toFloat() * 1.5f
         else if (!asleep) {
             lift = (1f + sin(now / 520.0 * energy).toFloat()) * energy
             tilt = sin(now / 900.0).toFloat() * 3f
             look = sin(now / 1700.0).toFloat() * 0.25f
             if (face == Mood.CURIOUS) tilt += 7f
-            if (face == Mood.WORRIED) tilt = sin(now / 300.0).toFloat() * 1.5f // small nervous shake
+            if (face == Mood.SAD) tilt = sin(now / 300.0).toFloat() * 1.5f // small nervous shake
         }
         if (acting) when (act) {
             Act.HOP -> lift = abs(sin(a * PI * 2)).toFloat() * 6f * (1f - a * 0.5f)
@@ -370,7 +371,7 @@ class RobotView(context: Context) : View(context) {
                 Mood.SLEEPY -> { h = 5f; open = if (asleep) 0.12f else 0.4f + sin(now / 900.0).toFloat() * 0.08f }
                 Mood.EXCITED -> { w = 5f; h = 6.2f }
                 Mood.CURIOUS -> { wl = 0.82f; wr = 1.22f }
-                Mood.WORRIED -> { w = 3.8f; h = 4.6f }
+                Mood.SAD -> { w = 3.8f; h = 4.6f }
                 else -> Unit
             }
             if (status == AgentStatus.LOOKING) { w *= 1.1f; h *= 1.1f }
@@ -390,7 +391,7 @@ class RobotView(context: Context) : View(context) {
             // brows
             p.style = Paint.Style.STROKE; p.strokeWidth = 1.5f * u; p.color = color
             when (face) {
-                Mood.WORRIED -> { // raised in the middle
+                Mood.SAD -> { // raised in the middle
                     canvas.drawLine(lx - 4 * u, eyeY - 6.2f * u, lx + 3 * u, eyeY - 8.4f * u, p)
                     canvas.drawLine(rx + 4 * u, eyeY - 6.2f * u, rx - 3 * u, eyeY - 8.4f * u, p)
                 }
@@ -416,10 +417,10 @@ class RobotView(context: Context) : View(context) {
             when (face) {
                 Mood.HAPPY -> { r.set(mx - 4 * u, 36.5f * u, mx + 4 * u, 42.5f * u); canvas.drawArc(r, 20f, 140f, false, p) }
                 Mood.EXCITED -> { p.style = Paint.Style.FILL; r.set(mx - 3.4f * u, 38.5f * u, mx + 3.4f * u, 43 * u); canvas.drawArc(r, 0f, 180f, true, p) }
-                Mood.WORRIED -> { r.set(mx - 3.2f * u, 40 * u, mx + 3.2f * u, 44 * u); canvas.drawArc(r, 205f, 130f, false, p) }
+                Mood.SAD -> { r.set(mx - 3.2f * u, 40 * u, mx + 3.2f * u, 44 * u); canvas.drawArc(r, 205f, 130f, false, p) }
                 Mood.CURIOUS -> { p.style = Paint.Style.FILL; canvas.drawCircle(mx, 40.5f * u, 1.5f * u, p) }
-                Mood.FOCUSED, Mood.SLEEPY -> canvas.drawLine(mx - 2.6f * u, 40.5f * u, mx + 2.6f * u, 40.5f * u, p)
-                Mood.NEUTRAL -> { r.set(mx - 3.2f * u, 37.5f * u, mx + 3.2f * u, 42 * u); canvas.drawArc(r, 25f, 130f, false, p) }
+                Mood.FOCUSED, Mood.SLEEPY, Mood.CONFUSED, Mood.FRUSTRATED -> canvas.drawLine(mx - 2.6f * u, 40.5f * u, mx + 2.6f * u, 40.5f * u, p)
+                Mood.CALM -> { r.set(mx - 3.2f * u, 37.5f * u, mx + 3.2f * u, 42 * u); canvas.drawArc(r, 25f, 130f, false, p) }
             }
             p.style = Paint.Style.FILL
         }
@@ -445,7 +446,7 @@ class RobotView(context: Context) : View(context) {
             p.color = color; p.textSize = 11 * u; p.isFakeBoldText = true
             canvas.drawText("!", 60 * u, 13 * u + sin(now / 150.0).toFloat() * u, p)
             p.isFakeBoldText = false
-        } else if (face == Mood.WORRIED && !busy) {
+        } else if (face == Mood.SAD && !busy) {
             // sweat drop
             p.color = 0xFF8FD3FF.toInt()
             canvas.drawCircle(59 * u, 17 * u, 1.8f * u, p)

@@ -1,4 +1,4 @@
-package com.livingai.core.safety
+package com.livingai.core.perception
 
 /**
  * Tiny perceptual signature of a frame (grid of average luminance), so we only run

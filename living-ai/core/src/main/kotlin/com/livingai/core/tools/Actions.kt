@@ -1,21 +1,21 @@
-package com.livingai.core.model
+package com.livingai.core.tools
 
 import com.livingai.core.Lang.tr
+import com.livingai.core.perception.ScreenObservation
 
 enum class ScrollDirection { UP, DOWN, LEFT, RIGHT }
 enum class SystemKey { BACK, HOME, RECENTS, NOTIFICATIONS }
 
 /**
- * Things the Action agent may do. Targets are element ids whenever the screen has UI elements.
- * The two "point" actions exist for screens without any (games, canvases): their coordinates are
- * pixels of the screenshot the vision model just looked at, never blind guesses.
+ * Things done ON the screen through the accessibility service. Targets are element ids whenever
+ * the screen has UI elements. The two "point" actions exist for screens without any (games,
+ * canvases): their coordinates are pixels of a screenshot that was just taken, never blind guesses.
  */
 sealed interface AgentAction {
     data class Tap(val elementId: Int) : AgentAction
     data class TypeText(val elementId: Int, val text: String) : AgentAction
     data class Scroll(val direction: ScrollDirection, val elementId: Int? = null) : AgentAction
     data class Press(val key: SystemKey) : AgentAction
-    data class OpenApp(val name: String) : AgentAction
     data class Wait(val millis: Long) : AgentAction
     data class TapPoint(val x: Int, val y: Int) : AgentAction
     data class SwipePoints(val x1: Int, val y1: Int, val x2: Int, val y2: Int) : AgentAction
@@ -32,7 +32,6 @@ sealed interface AgentAction {
             ScrollDirection.RIGHT -> tr("เลื่อนหน้าจอไปขวา", "Scroll right")
         }
         is Press -> tr("กดปุ่ม", "Press") + " ${key.name}"
-        is OpenApp -> tr("เปิดแอป", "Open") + " \"$name\""
         is Wait -> tr("รอ", "Wait") + " $millis ms"
         is TapPoint -> tr("แตะที่จุด", "Tap at") + " ($x, $y)"
         is SwipePoints -> tr("ปัดจาก", "Swipe from") + " ($x1, $y1) → ($x2, $y2)"
@@ -41,24 +40,13 @@ sealed interface AgentAction {
 
 data class ActionResult(val success: Boolean, val message: String, val screenChanged: Boolean = false)
 
-/** Kivo's own feeling, shown on its face. It drifts back to NEUTRAL after a while. */
-enum class Mood {
-    NEUTRAL, HAPPY, CURIOUS, FOCUSED, WORRIED, SLEEPY, EXCITED;
-
-    companion object {
-        private val tag = Regex("\\[mood\\s*:\\s*([a-zA-Z]+)\\s*]", RegexOption.IGNORE_CASE)
-
-        /** Splits "[mood:happy] text" into the mood (or null) and the text without any mood tags. */
-        fun parse(reply: String): Pair<Mood?, String> {
-            val m = tag.find(reply)
-            val mood = m?.groupValues?.get(1)?.uppercase()?.let { name -> entries.firstOrNull { it.name == name } }
-            return mood to tag.replace(reply, "").trim()
-        }
-    }
+/** Raw screen actuation, implemented on Android by the AccessibilityService. */
+interface ActionPort {
+    val isAvailable: Boolean
+    suspend fun perform(action: AgentAction, observation: ScreenObservation?): ActionResult
 }
 
-enum class AgentStatus { IDLE, LOOKING, THINKING, ACTING, WAITING_CONFIRM, TALKING, PAUSED }
-
-data class MemoryFact(val key: String, val value: String, val updatedAtMs: Long)
-data class MemoryEvent(val timestampMs: Long, val packageName: String, val summary: String)
-data class ChatLine(val timestampMs: Long, val fromUser: Boolean, val text: String)
+/** Asks the human. Must return false when dismissed or timed out. */
+fun interface ConfirmationPort {
+    suspend fun confirm(question: String): Boolean
+}

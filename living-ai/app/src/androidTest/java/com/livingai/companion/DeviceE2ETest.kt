@@ -11,13 +11,12 @@ import android.os.SystemClock
 import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.livingai.companion.settings.SecretStore
 import com.livingai.companion.vision.OcrEngine
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.safety.Redactor
-import com.livingai.core.safety.SafetyDecision
-import com.livingai.core.safety.SafetyPolicy
+import com.livingai.core.tools.AgentAction
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.privacy.Redactor
+import com.livingai.core.tools.SafetyDecision
+import com.livingai.core.tools.SafetyPolicy
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,12 +55,8 @@ class DeviceE2ETest {
         waitUntil("accessibility service connects", 30_000) { LivingState.accessibilityConnected.value }
         // The assertions below match the Thai texts; the emulator itself runs in English.
         com.livingai.core.Lang.thai = true
-        graph.prefs.provider = "gemini"
-        graph.prefs.apiKey = ""
-        graph.prefs.geminiKey = ""
         graph.prefs.sendScreenshots = true
         graph.prefs.speakReplies = false
-        graph.prefs.liveMode = false
         graph.prefs.proactiveEnabled = false
         graph.controller.resume()
     }
@@ -173,7 +168,7 @@ class DeviceE2ETest {
             assertTrue(observe().elements.isEmpty())
             val reply = runBlocking {
                 com.livingai.companion.control.A11yActionPort(ctx, graph.prefs)
-                    .perform(AgentAction.Press(com.livingai.core.model.SystemKey.BACK), null)
+                    .perform(AgentAction.Press(com.livingai.core.tools.SystemKey.BACK), null)
             }
             assertFalse(reply.success)
             assertTrue(observeRaw().packageName.isEmpty())
@@ -186,7 +181,7 @@ class DeviceE2ETest {
     private fun observeRaw() = runBlocking { graph.controller.screenSource.observe(false) }
 
     @Test
-    fun f_memory_roomStoreAndKeystoreWork() = runBlocking {
+    fun f_memory_storeWorks() = runBlocking {
         val store = graph.memoryStore
         store.clearAll()
         store.putFact("ชื่อผู้ใช้", "ต้น")
@@ -198,11 +193,6 @@ class DeviceE2ETest {
         assertEquals("สวัสดี", store.recentChat(5).single().text)
         store.clearAll()
         assertTrue(store.recentFacts(5).isEmpty())
-
-        val secret = "sk-ant-test-1234567890"
-        val enc = SecretStore.encrypt(secret)
-        assertFalse(enc.contains("1234567890"))
-        assertEquals(secret, SecretStore.decrypt(enc))
     }
 
     @Test
@@ -270,7 +260,7 @@ class DeviceE2ETest {
         assertTrue(reply, reply.contains("Kivo"))
 
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("Gemini") } }
+        waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("สิทธิ์ที่ใช้") } }
         shell("input keyevent KEYCODE_BACK")
     }
 

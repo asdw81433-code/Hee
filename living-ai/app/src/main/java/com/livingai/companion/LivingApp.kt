@@ -37,18 +37,16 @@ class LivingApp : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // The system is running low on memory (or we are a candidate for being killed).
         @Suppress("DEPRECATION")
-        if (level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
-            level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND
-        ) {
-            graph.controller.onLowMemory()
+        when {
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL || level >= ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> graph.controller.onLowMemory(critical = true)
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW || level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> graph.controller.onLowMemory(critical = false)
         }
     }
 
     override fun onLowMemory() {
         super.onLowMemory()
-        graph.controller.onLowMemory()
+        graph.controller.onLowMemory(critical = true)
     }
 
     companion object {

@@ -1,10 +1,10 @@
-package com.livingai.core.agent
+package com.livingai.core.memory
 
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 
-import com.livingai.core.MemoryStore
-import com.livingai.core.safety.Redactor
+import com.livingai.core.memory.MemoryStore
+import com.livingai.core.privacy.Redactor
 
 /** Memory AI: what the user told us, what happened recently, and the running conversation. */
 class MemoryAgent(private val store: MemoryStore) {

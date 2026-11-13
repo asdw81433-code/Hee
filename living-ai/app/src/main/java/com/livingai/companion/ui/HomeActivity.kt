@@ -27,8 +27,8 @@ import com.livingai.companion.LivingState
 import com.livingai.companion.overlay.RobotView
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.model.ChatLine
+import com.livingai.core.AgentStatus
+import com.livingai.core.memory.ChatLine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -274,12 +274,13 @@ class HomeActivity : Activity() {
                 combine(LivingState.status, LivingState.statusDetail, LivingState.paused) { s, d, p -> Triple(s, d, p) }.collect { (s, d, paused) ->
                     orb.status = s
                     statusText.text = when (s) {
-                        AgentStatus.IDLE -> tr("ออนไลน์ • พร้อมคุย", "Online • ready to chat") + if (graph.controller.hasApiKey) "" else tr(" (โหมดพื้นฐาน)", " (basic mode)")
+                        AgentStatus.IDLE -> tr("พร้อมคุย • ทำงานในเครื่อง", "Ready • running on this phone")
                         AgentStatus.LOOKING -> tr("👁 กำลังมองหน้าจอ…", "👁 Looking at the screen…")
                         AgentStatus.THINKING -> tr("💭 กำลังพิมพ์…", "💭 Typing…")
                         AgentStatus.ACTING -> tr("✋ กำลังใช้หน้าจอ: ", "✋ Using the screen: ") + d
                         AgentStatus.WAITING_CONFIRM -> tr("❓ รอคุณยืนยันบนจอ", "❓ Waiting for you to confirm on screen")
                         AgentStatus.TALKING -> tr("💬 กำลังพูด", "💬 Talking")
+                        AgentStatus.LISTENING -> tr("👂 กำลังฟัง…", "👂 Listening…")
                         AgentStatus.PAUSED -> tr("⏸ หยุดอยู่", "⏸ Paused")
                     }
                     stopButton.text = if (paused) tr("▶ ทำงานต่อ", "▶ Resume") else tr("⏹ หยุด", "⏹ Stop")
@@ -316,11 +317,10 @@ class HomeActivity : Activity() {
 
         val notif = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        val steps = listOf(notif, LivingState.accessibilityConnected.value, LivingState.captureActive.value, graph.controller.hasApiKey)
+        val steps = listOf(notif, LivingState.accessibilityConnected.value, LivingState.captureActive.value)
         val done = steps.count { it }
         banner.visibility = if (done == steps.size) View.GONE else View.VISIBLE
         val missing = buildList {
-            if (!graph.controller.hasApiKey) add(tr("ใส่ key ฟรีเพื่อคุยได้อิสระ", "add a free key to chat freely"))
             if (!LivingState.accessibilityConnected.value) add(tr("เปิดสิทธิ์ให้กดแทน", "allow it to tap for you"))
             if (!LivingState.captureActive.value) add(tr("แชร์หน้าจอ", "share the screen"))
             if (!notif) add(tr("อนุญาตการแจ้งเตือน", "allow notifications"))
@@ -328,14 +328,16 @@ class HomeActivity : Activity() {
         bannerText.text = tr("ตั้งค่าแล้ว $done/${steps.size} • ", "Setup $done/${steps.size} • ") + missing.joinToString(", ")
     }
 
-    private fun moodLabel(m: com.livingai.core.model.Mood): String = tr("อารมณ์: ", "Mood: ") + when (m) {
-        com.livingai.core.model.Mood.NEUTRAL -> tr("🙂 สบาย ๆ", "🙂 calm")
-        com.livingai.core.model.Mood.HAPPY -> tr("😊 ดีใจ", "😊 happy")
-        com.livingai.core.model.Mood.CURIOUS -> tr("🤔 สงสัย", "🤔 curious")
-        com.livingai.core.model.Mood.FOCUSED -> tr("😤 ตั้งใจ", "😤 focused")
-        com.livingai.core.model.Mood.WORRIED -> tr("😟 กังวล", "😟 worried")
-        com.livingai.core.model.Mood.SLEEPY -> tr("😴 ง่วง", "😴 sleepy")
-        com.livingai.core.model.Mood.EXCITED -> tr("🤩 ตื่นเต้น", "🤩 excited")
+    private fun moodLabel(m: com.livingai.core.emotion.Mood): String = tr("อารมณ์: ", "Mood: ") + when (m) {
+        com.livingai.core.emotion.Mood.CALM -> tr("🙂 สบาย ๆ", "🙂 calm")
+        com.livingai.core.emotion.Mood.HAPPY -> tr("😊 ดีใจ", "😊 happy")
+        com.livingai.core.emotion.Mood.SAD -> tr("😢 หงอย", "😢 sad")
+        com.livingai.core.emotion.Mood.CURIOUS -> tr("🤔 สงสัย", "🤔 curious")
+        com.livingai.core.emotion.Mood.EXCITED -> tr("🤩 ตื่นเต้น", "🤩 excited")
+        com.livingai.core.emotion.Mood.SLEEPY -> tr("😴 ง่วง", "😴 sleepy")
+        com.livingai.core.emotion.Mood.CONFUSED -> tr("😵 งง", "😵 confused")
+        com.livingai.core.emotion.Mood.FRUSTRATED -> tr("😤 หงุดหงิด", "😤 frustrated")
+        com.livingai.core.emotion.Mood.FOCUSED -> tr("🧐 ตั้งใจ", "🧐 focused")
     }
 
     // ---------- helpers ----------

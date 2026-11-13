@@ -2,7 +2,6 @@ package com.livingai.companion.settings
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.livingai.core.llm.ClaudeLlmClient
 
 /** User settings. Everything defaults to the safest useful value. */
 class Prefs(context: Context) {
@@ -17,11 +16,6 @@ class Prefs(context: Context) {
     var interactionEnabled: Boolean get() = bool("interaction", true); set(v) = put("interaction", v)
     /** The robot may start talking by itself on interesting events. */
     var proactiveEnabled: Boolean get() = bool("proactive", true); set(v) = put("proactive", v)
-    /** Live help: keep watching the screen and speak up while it changes, not only on app switches. */
-    var liveMode: Boolean get() = bool("live", true); set(v) = put("live", v)
-    var liveIntervalSec: Int
-        get() = sp.getInt("live_interval", 30).coerceIn(15, 600)
-        set(v) = sp.edit().putInt("live_interval", v.coerceIn(15, 600)).apply()
     var confirmEverything: Boolean get() = bool("confirm_all", false); set(v) = put("confirm_all", v)
     /** Allow down-scaled screenshots to be sent to the vision model. */
     var sendScreenshots: Boolean get() = bool("send_shots2", false); set(v) = put("send_shots2", v)
@@ -35,39 +29,4 @@ class Prefs(context: Context) {
     var proactiveCooldownSec: Int
         get() = sp.getInt("cooldown", 120).coerceIn(30, 3600)
         set(v) = sp.edit().putInt("cooldown", v.coerceIn(30, 3600)).apply()
-
-    var model: String
-        get() = sp.getString("model", null) ?: ClaudeLlmClient.DEFAULT_MODEL
-        set(v) = sp.edit().putString("model", v).apply()
-
-    var effort: String
-        get() = sp.getString("effort", null) ?: "low"
-        set(v) = sp.edit().putString("effort", v).apply()
-
-    /** "gemini" (free tier, default) or "claude". */
-    var provider: String
-        get() = sp.getString("provider", null) ?: "gemini"
-        set(v) = sp.edit().putString("provider", v).apply()
-
-    var geminiModel: String
-        get() = sp.getString("gemini_model", null) ?: com.livingai.core.llm.GeminiLlmClient.DEFAULT_MODEL
-        set(v) = sp.edit().putString("gemini_model", v).apply()
-
-    @Volatile private var geminiKeyCache: String? = null
-
-    var geminiKey: String
-        get() = geminiKeyCache ?: SecretStore.decrypt(sp.getString("gemini_key_enc", "") ?: "").also { geminiKeyCache = it }
-        set(v) {
-            geminiKeyCache = v.trim()
-            sp.edit().putString("gemini_key_enc", SecretStore.encrypt(v.trim())).apply()
-        }
-
-    @Volatile private var keyCache: String? = null
-
-    var apiKey: String
-        get() = keyCache ?: SecretStore.decrypt(sp.getString("api_key_enc", "") ?: "").also { keyCache = it }
-        set(v) {
-            keyCache = v.trim()
-            sp.edit().putString("api_key_enc", SecretStore.encrypt(v.trim())).apply()
-        }
 }

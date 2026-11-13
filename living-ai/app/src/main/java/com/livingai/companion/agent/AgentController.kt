@@ -9,26 +9,27 @@ import com.livingai.companion.overlay.RobotOverlay
 import com.livingai.companion.settings.Prefs
 import com.livingai.companion.vision.AndroidScreenSource
 import com.livingai.companion.vision.ScreenCaptureService
+import com.livingai.companion.resource.AndroidMemoryProbe
+import com.livingai.companion.tools.AndroidDevicePort
 import com.livingai.core.AgentListener
-import com.livingai.core.MemoryStore
-import com.livingai.core.agent.ActionAgent
-import com.livingai.core.agent.LocalMind
-import com.livingai.core.agent.MainAgent
-import com.livingai.core.agent.MemoryAgent
-import com.livingai.core.agent.VisionAgent
+import com.livingai.core.KivoCore
+import com.livingai.core.resource.ManagedResource
+import com.livingai.core.resource.Pressure
+import com.livingai.core.resource.ResourceManager
+import com.livingai.core.resource.ResourceMode
+import com.livingai.core.memory.MemoryStore
+import com.livingai.core.tools.ActionAgent
+import com.livingai.core.companion.LocalMind
+import com.livingai.core.memory.MemoryAgent
+import com.livingai.core.perception.VisionAgent
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
-import com.livingai.core.llm.ClaudeLlmClient
-import com.livingai.core.llm.GeminiLlmClient
-import com.livingai.core.llm.LlmException
-import com.livingai.core.llm.SwitchingLlmClient
-import com.livingai.core.llm.ping
-import com.livingai.core.model.AgentStatus
-import com.livingai.core.model.ChatLine
-import com.livingai.core.model.Mood
-import com.livingai.core.safety.ProactivePolicy
-import com.livingai.core.safety.SafetyPolicy
-import com.livingai.core.safety.ScreenEventKind
+import com.livingai.core.AgentStatus
+import com.livingai.core.memory.ChatLine
+import com.livingai.core.emotion.Mood
+import com.livingai.core.companion.ProactivePolicy
+import com.livingai.core.tools.SafetyPolicy
+import com.livingai.core.companion.ScreenEventKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,9 +48,6 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val screenSource = AndroidScreenSource(context, prefs)
-    private val claude = ClaudeLlmClient(apiKey = { prefs.apiKey }, model = { prefs.model }, effort = { prefs.effort })
-    private val gemini = GeminiLlmClient(apiKey = { prefs.geminiKey }, model = { prefs.geminiModel }, onModelReplaced = { prefs.geminiModel = it })
-    private val llm = SwitchingLlmClient { if (prefs.provider == "claude") claude else gemini }
     val vision = VisionAgent(screenSource, this)
     private val memory = MemoryAgent(memoryStore)
     private val actions = ActionAgent(
@@ -60,11 +58,22 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         listener = this,
         targetLeadMs = 230L,
     )
-    private val mainAgent = MainAgent(
-        llm, vision, actions, memory, this,
-        alwaysImage = { prefs.sendScreenshots && LivingState.captureActive.value },
-        localContext = ::deviceContext,
-    )
+    val devicePort = AndroidDevicePort(context)
+    private val mainAgent = KivoCore(vision, actions, devicePort, memory, this, localContext = ::deviceContext)
+
+    /** Decides what may be in memory at the same time; see core.resource.ResourceManager. */
+    val resources = ResourceManager(AndroidMemoryProbe(context), { SystemClock.elapsedRealtime() })
+
+    private val ocrResource = object : ManagedResource {
+        override val name = "OCR"
+        override val estimatedBytes = 60L shl 20
+        override val isLoaded get() = screenSource.ocrLoaded
+        override fun unload() = screenSource.trimMemory()
+    }
+
+    init {
+        resources.register(ocrResource, ResourceMode.VISION)
+    }
 
     /** Clock and battery for the built-in mind. */
     private fun deviceContext(): LocalMind.Context {
@@ -82,35 +91,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         )
     }
 
-    /**
-     * Checks the selected provider's key with one tiny request and returns a message for the user.
-     * For Gemini, a model name that no longer exists is replaced by one the key can actually use.
-     */
-    suspend fun testApiKey(): String {
-        val isGemini = prefs.provider != "claude"
-        return try {
-            val answer = try {
-                llm.ping()
-            } catch (e: LlmException) {
-                val replacement = if (isGemini && e.modelNotFound) gemini.findWorkingModel() else null
-                if (replacement == null) throw e
-                prefs.geminiModel = replacement
-                llm.ping()
-            }
-            tr("ใช้งานได้ ✓", "It works ✓") + " (${if (isGemini) prefs.geminiModel else prefs.model}) → ${answer.take(40)}"
-        } catch (e: LlmException) {
-            tr("ใช้ไม่ได้: ", "Not working: ") + e.message
-        }
-    }
-
-    private val proactive = ProactivePolicy(
-        { SystemClock.elapsedRealtime() },
-        cooldownMs = { prefs.proactiveCooldownSec * 1000L },
-        liveIntervalMs = { if (liveActive()) prefs.liveIntervalSec * 1000L else 0L },
-    )
-
-    /** Live help needs an AI brain; without one there is nothing to comment with. */
-    private fun liveActive() = prefs.liveMode && prefs.proactiveEnabled && hasApiKey
+    private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
     val speaker = Speaker(context)
 
@@ -127,7 +108,6 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     private var lastContentCheck = 0L
 
     val isBusy: Boolean get() = userJob?.isActive == true || proactiveJob?.isActive == true
-    val hasApiKey: Boolean get() = llm.isConfigured
 
     // ---------- user commands ----------
 
@@ -167,7 +147,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     fun stopCurrent(userInitiated: Boolean = false) {
         val wasBusy = isBusy
         speaker.stop()
-        userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel(); liveJob?.cancel()
+        userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel()
         onStatus(if (LivingState.paused.value) AgentStatus.PAUSED else AgentStatus.IDLE)
         if (userInitiated && wasBusy) overlay?.say(tr("หยุดแล้ว", "Stopped"))
     }
@@ -206,10 +186,8 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     }
 
     fun onContentChanged(pkg: String) {
-        if (!canBeProactive() || isBusy) return
-        if (liveActive()) { scheduleLiveLook(pkg); return }
-        // Without live help: error watching only, and never in games.
-        if (currentIsGame) return
+        // Error watching only; skipped entirely in games and while anything else is running.
+        if (currentIsGame || !canBeProactive() || isBusy) return
         val now = SystemClock.elapsedRealtime()
         if (now - lastContentCheck < 6000 || contentJob?.isActive == true) return
         contentJob = scope.launch {
@@ -223,38 +201,13 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         }
     }
 
-    private var liveJob: Job? = null
-    private var lastLiveSignature = 0
-
-    /**
-     * Live help: once the screen has been quiet for a moment, look at it again and let the model
-     * decide whether anything is worth saying. Rate limited by the policy (liveIntervalSec), and a
-     * screen that still looks the same as last time costs no model call at all.
-     */
-    private fun scheduleLiveLook(pkg: String) {
-        if (liveJob?.isActive == true) return
-        liveJob = scope.launch {
-            delay(2500)
-            if (isBusy || !liveActive()) return@launch
-            if (!proactive.shouldReact(ScreenEventKind.CONTENT_CHANGED, pkg, currentIsGame)) return@launch
-            val snap = LivingAccessibilityService.instance?.snapshot() ?: return@launch
-            val text = snap.elements.asSequence().filter { !it.password }.take(80).joinToString("|") { it.text + it.description }
-            val sig = text.hashCode()
-            // in games the node tree is empty, so the picture has to be looked at every time
-            if (sig == lastLiveSignature && !currentIsGame) return@launch
-            lastLiveSignature = sig
-            val error = ProactivePolicy.findError(snap.elements.joinToString("\n") { it.text })
-            if (error != null) react(ScreenEventKind.ERROR_DETECTED, pkg, error) else react(ScreenEventKind.CONTENT_CHANGED, pkg)
-        }
-    }
-
     private fun canBeProactive() = prefs.proactiveEnabled && prefs.visionEnabled && !LivingState.paused.value
 
     private fun react(kind: ScreenEventKind, pkg: String, detail: String = "") {
         proactiveJob?.cancel()
         proactiveJob = scope.launch {
             try {
-                val obs = if (hasApiKey) vision.lookAuto(announce = false) else vision.look(includeImage = false, announce = false)
+                val obs = vision.look(includeImage = false, announce = false)
                 proactive.markHandled(pkg)
                 mainAgent.reactToScreen(kind, obs, detail)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -267,11 +220,11 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     // ---------- memory pressure ----------
 
-    fun onLowMemory() {
+    /** The OS wants memory back: release everything that is not in use right now. */
+    fun onLowMemory(critical: Boolean = true) {
         proactive.lowMemory = true
         screenSource.lowMemory = true
-        screenSource.trimMemory()
-        if (!isBusy) claude.release()
+        resources.onMemoryPressure(if (critical) Pressure.CRITICAL else Pressure.MODERATE)
         speaker.release()
         vision.forget()
         lowMemoryJob?.cancel()
@@ -302,11 +255,11 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         overlay?.setMood(mood)
         // Feelings fade: back to neutral after a while (sleepy late at night).
         moodJob?.cancel()
-        if (mood == Mood.NEUTRAL) return
+        if (mood == Mood.CALM) return
         moodJob = scope.launch {
             delay(75_000)
             val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-            val rest = if (hour >= 23 || hour < 5) Mood.SLEEPY else Mood.NEUTRAL
+            val rest = if (hour >= 23 || hour < 5) Mood.SLEEPY else Mood.CALM
             LivingState.mood.value = rest
             overlay?.setMood(rest)
         }

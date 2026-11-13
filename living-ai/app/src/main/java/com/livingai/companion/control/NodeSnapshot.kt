@@ -2,8 +2,8 @@ package com.livingai.companion.control
 
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
-import com.livingai.core.model.Bounds
-import com.livingai.core.model.UiElement
+import com.livingai.core.perception.Bounds
+import com.livingai.core.perception.UiElement
 
 /**
  * A frozen view of the accessibility node tree: the elements handed to the agents plus the

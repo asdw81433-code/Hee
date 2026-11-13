@@ -1,7 +1,10 @@
 package com.livingai.core
 
-import com.livingai.core.llm.*
-import com.livingai.core.model.*
+import com.livingai.core.emotion.Mood
+import com.livingai.core.memory.*
+import com.livingai.core.perception.*
+import com.livingai.core.resource.MemoryProbe
+import com.livingai.core.tools.*
 
 fun el(id: Int, text: String, role: String = "Button", clickable: Boolean = true, editable: Boolean = false,
        password: Boolean = false, focused: Boolean = false, enabled: Boolean = true, viewId: String = "") =
@@ -32,6 +35,14 @@ class FakePort(private val screen: FakeScreen, var available: Boolean = true) : 
     }
 }
 
+class FakeDevice(var succeed: Boolean = true) : DevicePort {
+    val ran = ArrayList<DeviceCommand>()
+    override suspend fun run(command: DeviceCommand): ActionResult {
+        ran.add(command)
+        return ActionResult(succeed, if (succeed) "ok" else "failed")
+    }
+}
+
 class FakeMemory : MemoryStore {
     val facts = LinkedHashMap<String, String>()
     val events = ArrayList<MemoryEvent>()
@@ -50,28 +61,17 @@ class FakeMemory : MemoryStore {
 class RecordingListener : AgentListener {
     val said = ArrayList<String>()
     val statuses = ArrayList<AgentStatus>()
+    val moods = ArrayList<Mood>()
+    val targets = ArrayList<Pair<Int, Int>>()
     override fun onStatus(status: AgentStatus, detail: String) { statuses.add(status) }
     override fun onSay(text: String, proactive: Boolean) { said.add(text) }
+    override fun onMood(mood: Mood) { moods.add(mood) }
+    override fun onTarget(x: Int, y: Int) { targets.add(x to y) }
 }
 
-/** Scripted model: returns the queued turns in order and records everything it was sent. */
-class FakeLlm(private val script: MutableList<LlmTurn>, override val isConfigured: Boolean = true) : LlmClient {
-    val userMessages = ArrayList<String>()
-    val userImages = ArrayList<String?>()
-    val toolResults = ArrayList<List<ToolOutput>>()
-    var sessions = 0
-    override fun newSession(system: String, tools: List<ToolSpec>, maxTokens: Long): LlmSession {
-        sessions++
-        return object : LlmSession {
-            override suspend fun sendUser(text: String, imageJpegBase64: String?): LlmTurn {
-                userMessages.add(text); userImages.add(imageJpegBase64); return script.removeAt(0)
-            }
-            override suspend fun sendToolResults(results: List<ToolOutput>): LlmTurn {
-                toolResults.add(results); return script.removeAt(0)
-            }
-        }
-    }
+class FakeProbe(var available: Long = 2000L shl 20, var total: Long = 4000L shl 20, var low: Boolean = false) : MemoryProbe {
+    override fun availableBytes() = available
+    override fun totalBytes() = total
+    override fun isLowMemory() = low
+    override fun appUsedBytes() = 100L shl 20
 }
-
-fun toolTurn(vararg calls: ToolCall) = LlmTurn("", calls.toList(), StopKind.TOOL_USE)
-fun endTurn(text: String) = LlmTurn(text, emptyList(), StopKind.END)

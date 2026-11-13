@@ -1,10 +1,10 @@
-package com.livingai.core.agent
+package com.livingai.core.companion
 
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
-import com.livingai.core.model.Mood
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.safety.ScreenEventKind
+import com.livingai.core.emotion.Mood
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.companion.ScreenEventKind
 import kotlin.random.Random
 
 /**
@@ -25,7 +25,7 @@ object LocalMind {
         val batteryPercent: Int? = null,
         val charging: Boolean = false,
         val userName: String? = null,
-        val mood: Mood = Mood.NEUTRAL,
+        val mood: Mood = Mood.CALM,
     )
 
     data class Reply(val text: String, val mood: Mood, val rememberName: String? = null)
@@ -76,7 +76,7 @@ object LocalMind {
             has(lower, "สบายดีไหม", "สบายดีมั้ย", "เป็นไงบ้าง", "เป็นยังไงบ้าง", "เป็นไง", "how are you", "how r u", "what's up", "whats up") ->
                 when (ctx.mood) {
                     Mood.SLEEPY -> Reply(tr("ง่วงนิดหน่อย แต่ยังไหว มีอะไรให้ช่วยไหม", "A bit sleepy, but still going. Need anything?"), Mood.SLEEPY)
-                    Mood.WORRIED -> Reply(tr("ยังกังวลเรื่องเมื่อกี้อยู่นิดหน่อย แต่โอเคแล้ว", "Still a little worried about before, but I'm okay."), Mood.NEUTRAL)
+                    Mood.SAD -> Reply(tr("ยังหงอย ๆ เรื่องเมื่อกี้อยู่นิดหน่อย แต่โอเคแล้ว", "Still a little down about before, but I'm okay."), Mood.CALM)
                     else -> Reply(pick(
                         tr("สบายดี! ได้อยู่บนจอ${name}ก็แฮปปี้แล้ว", "Doing great! Hanging out on your screen is fun."),
                         tr("ดีมากเลย แล้ว${ctx.userName ?: "เธอ"}ล่ะ วันนี้เป็นไง", "Really good. How about you?"),
@@ -102,17 +102,17 @@ object LocalMind {
 
             has(lower, "กี่โมง", "เวลาเท่าไ", "ตอนนี้เวลา", "what time", "the time") ->
                 Reply(tr("ตอนนี้ %d:%02d น.".format(ctx.hour, ctx.minute), "It's %d:%02d.".format(ctx.hour, ctx.minute)) +
-                    if (ctx.hour >= 23 || ctx.hour < 5) tr(" ดึกแล้ว อย่าลืมพักนะ", " It's late — get some rest.") else "", Mood.NEUTRAL)
+                    if (ctx.hour >= 23 || ctx.hour < 5) tr(" ดึกแล้ว อย่าลืมพักนะ", " It's late — get some rest.") else "", Mood.CALM)
 
             has(lower, "วันนี้วัน", "วันที่เท่าไ", "วันอะไร", "what day", "the date", "today's date") && ctx.dateText.isNotBlank() ->
-                Reply(tr("วันนี้ ${ctx.dateText}", "Today is ${ctx.dateText}."), Mood.NEUTRAL)
+                Reply(tr("วันนี้ ${ctx.dateText}", "Today is ${ctx.dateText}."), Mood.CALM)
 
             has(lower, "แบต", "battery") && ctx.batteryPercent != null -> {
                 val b = ctx.batteryPercent
                 when {
                     ctx.charging -> Reply(tr("แบต $b% กำลังชาร์จอยู่ สบายใจได้", "Battery is $b% and charging."), Mood.HAPPY)
-                    b <= 15 -> Reply(tr("แบตเหลือ $b% แล้ว! รีบชาร์จเถอะ", "Battery is down to $b%! Please plug in."), Mood.WORRIED)
-                    else -> Reply(tr("แบตเหลือ $b%", "Battery is at $b%."), Mood.NEUTRAL)
+                    b <= 15 -> Reply(tr("แบตเหลือ $b% แล้ว! รีบชาร์จเถอะ", "Battery is down to $b%! Please plug in."), Mood.SAD)
+                    else -> Reply(tr("แบตเหลือ $b%", "Battery is at $b%."), Mood.CALM)
                 }
             }
 
@@ -127,19 +127,19 @@ object LocalMind {
                 Reply(pick(tr("เขินเลย ขอบคุณนะ$name 😊", "Aw, thanks$name 😊"), tr("เย้! ได้ยินแบบนี้มีแรงเลย", "Yay! That gives me energy.")), Mood.EXCITED)
 
             has(lower, "โง่", "ห่วย", "แย่มาก", "ไม่ได้เรื่อง", "กาก", "stupid", "dumb", "useless", "you suck") ->
-                Reply(tr("ขอโทษนะ เรายังทำได้ไม่ดีพอ บอกได้เลยว่าอยากให้ทำแบบไหน จะพยายามใหม่", "Sorry — I didn't do well there. Tell me what you wanted and I'll try again."), Mood.WORRIED)
+                Reply(tr("ขอโทษนะ เรายังทำได้ไม่ดีพอ บอกได้เลยว่าอยากให้ทำแบบไหน จะพยายามใหม่", "Sorry — I didn't do well there. Tell me what you wanted and I'll try again."), Mood.SAD)
 
             has(lower, "ฝันดี", "ราตรีสวัสดิ์", "ไปนอน", "นอนละ", "good night", "goodnight", "gn") ->
                 Reply(tr("ฝันดีนะ$name 🌙 เราจะเฝ้าจอให้เอง", "Good night$name 🌙 I'll keep watch."), Mood.SLEEPY)
 
             has(lower, "บาย", "ไปก่อน", "ไปละ", "เจอกัน", "bye", "see you", "see ya") ->
-                Reply(tr("ไว้เจอกันนะ$name เราอยู่ตรงนี้แหละ", "See you$name. I'll be right here."), Mood.NEUTRAL)
+                Reply(tr("ไว้เจอกันนะ$name เราอยู่ตรงนี้แหละ", "See you$name. I'll be right here."), Mood.CALM)
 
             has(lower, "เบื่อ", "เซ็ง", "ไม่มีอะไรทำ", "bored", "boring") ->
                 Reply(tr("เบื่อเหรอ ลองให้เรา \"เปิด YouTube\" หรือ \"เล่ามุก\" ดูไหม", "Bored? Try \"open YouTube\", or ask me for a joke."), Mood.CURIOUS)
 
             has(lower, "เหนื่อย", "เศร้า", "เครียด", "ท้อ", "ร้องไห้", "tired", "sad", "stressed", "depressed") ->
-                Reply(tr("เหนื่อยมาเยอะเลยสินะ$name พักสักหน่อยนะ เราอยู่เป็นเพื่อนตรงนี้", "That sounds heavy$name. Take a breath — I'm right here with you."), Mood.WORRIED)
+                Reply(tr("เหนื่อยมาเยอะเลยสินะ$name พักสักหน่อยนะ เราอยู่เป็นเพื่อนตรงนี้", "That sounds heavy$name. Take a breath — I'm right here with you."), Mood.SAD)
 
             has(lower, "หิว", "hungry") ->
                 Reply(tr("หิวแล้วเหรอ ให้เปิดแอปสั่งอาหารให้ไหม บอกชื่อแอปมาได้เลย", "Hungry? I can open a food app for you — just name it."), Mood.CURIOUS)
@@ -148,11 +148,13 @@ object LocalMind {
                 Reply(when (ctx.mood) {
                     Mood.HAPPY -> tr("ตอนนี้อารมณ์ดีมากเลย", "I'm feeling happy right now.")
                     Mood.EXCITED -> tr("ตื่นเต้นสุด ๆ!", "I'm excited!")
-                    Mood.WORRIED -> tr("กังวลนิดหน่อย", "A little worried.")
+                    Mood.SAD -> tr("หงอย ๆ นิดหน่อย", "A little down.")
+                    Mood.CONFUSED -> tr("งง ๆ อยู่นิดหน่อย", "A bit confused.")
+                    Mood.FRUSTRATED -> tr("หงุดหงิดตัวเองนิดหน่อยที่ทำพลาด", "A little frustrated with myself.")
                     Mood.SLEEPY -> tr("ง่วงแล้ว…", "Sleepy…")
                     Mood.CURIOUS -> tr("กำลังสงสัยอยู่ว่าเธอทำอะไร", "Curious about what you're up to.")
                     Mood.FOCUSED -> tr("กำลังตั้งใจอยู่", "Focused.")
-                    Mood.NEUTRAL -> tr("สบาย ๆ ชิล ๆ", "Calm and easy.")
+                    Mood.CALM -> tr("สบาย ๆ ชิล ๆ", "Calm and easy.")
                 }, ctx.mood)
 
             else -> null
@@ -220,11 +222,11 @@ object LocalMind {
                 has(d, "password", "รหัสผ่าน", "login", "sign in") -> tr("ลองตรวจรหัสผ่านอีกครั้งนะ ส่วนนี้ต้องพิมพ์เอง", "Double-check the password — that part is yours to type.")
                 else -> tr("ลองทำซ้ำอีกครั้ง ถ้ายังไม่ได้ลองปิดแล้วเปิดแอปใหม่", "Try once more; if it persists, restart the app.")
             }
-            return Reply(tr("อุ๊ย เจอข้อผิดพลาดใน $app: \"${detail.take(90)}\" $tip", "Uh-oh, an error in $app: \"${detail.take(90)}\". $tip"), Mood.WORRIED)
+            return Reply(tr("อุ๊ย เจอข้อผิดพลาดใน $app: \"${detail.take(90)}\" $tip", "Uh-oh, an error in $app: \"${detail.take(90)}\". $tip"), Mood.CONFUSED)
         }
         if (kind != ScreenEventKind.APP_OPENED) return null
         if (ctx.batteryPercent != null && ctx.batteryPercent <= 15 && !ctx.charging)
-            return Reply(tr("แบตเหลือ ${ctx.batteryPercent}% แล้วนะ$name หาที่ชาร์จหน่อยไหม", "Battery is at ${ctx.batteryPercent}%$name — time to plug in?"), Mood.WORRIED)
+            return Reply(tr("แบตเหลือ ${ctx.batteryPercent}% แล้วนะ$name หาที่ชาร์จหน่อยไหม", "Battery is at ${ctx.batteryPercent}%$name — time to plug in?"), Mood.SAD)
         val late = ctx.hour >= 0 && ctx.hour < 5
         return when (kind(obs)) {
             "game" -> Reply(pick(tr("เล่น $app เหรอ สู้ ๆ นะ$name!", "Playing $app? Good luck$name!"), tr("โอ้ เกม! เราเชียร์อยู่ตรงนี้นะ", "Ooh, a game! I'm cheering from here.")), Mood.EXCITED)
@@ -238,7 +240,7 @@ object LocalMind {
             "maps" -> Reply(tr("จะไปไหนเหรอ เดินทางปลอดภัยนะ$name", "Going somewhere? Travel safe$name."), Mood.CURIOUS)
             "shop" -> Reply(tr("ช้อปปิ้งเหรอ ถ้าจะกดซื้อ เราจะถามยืนยันก่อนทุกครั้งนะ", "Shopping? I'll always ask before any buy button."), Mood.CURIOUS)
             "home" -> null
-            else -> if (Random.nextInt(3) == 0) Reply(tr("เปิด $app แล้ว มีอะไรให้ช่วยก็แตะเราได้เลย", "$app is open. Tap me if you need a hand."), Mood.NEUTRAL) else null
+            else -> if (Random.nextInt(3) == 0) Reply(tr("เปิด $app แล้ว มีอะไรให้ช่วยก็แตะเราได้เลย", "$app is open. Tap me if you need a hand."), Mood.CALM) else null
         }
     }
 }

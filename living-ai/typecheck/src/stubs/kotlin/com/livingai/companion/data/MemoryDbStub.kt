@@ -1,10 +1,10 @@
 package com.livingai.companion.data
 
 import android.content.Context
-import com.livingai.core.MemoryStore
-import com.livingai.core.model.ChatLine
-import com.livingai.core.model.MemoryEvent
-import com.livingai.core.model.MemoryFact
+import com.livingai.core.memory.MemoryStore
+import com.livingai.core.memory.ChatLine
+import com.livingai.core.memory.MemoryEvent
+import com.livingai.core.memory.MemoryFact
 
 /** Typecheck stub with the same API as the real Room implementation in :app. */
 class RoomMemoryStore(context: Context) : MemoryStore {

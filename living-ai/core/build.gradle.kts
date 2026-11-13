@@ -14,10 +14,6 @@ kotlin {
 
 dependencies {
     implementation(libs.coroutines.core)
-    // Official Anthropic SDK (Kotlin uses the Java SDK).
-    implementation(libs.anthropic.java)
-    // JSON for the Gemini REST client (the Anthropic SDK already brings Jackson in).
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit.bom))

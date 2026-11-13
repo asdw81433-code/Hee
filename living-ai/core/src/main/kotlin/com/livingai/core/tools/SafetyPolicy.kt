@@ -1,10 +1,11 @@
-package com.livingai.core.safety
+package com.livingai.core.tools
 
+import com.livingai.core.privacy.Redactor
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.ScreenObservation
+import com.livingai.core.tools.AgentAction
+import com.livingai.core.perception.ScreenObservation
 
 sealed interface SafetyDecision {
     data object Allow : SafetyDecision
@@ -29,7 +30,7 @@ class SafetyPolicy(private val confirmEverything: () -> Boolean = { false }) {
     fun evaluate(action: AgentAction, obs: ScreenObservation?): SafetyDecision {
         if (action is AgentAction.Wait) return SafetyDecision.Allow
         if (obs != null && (obs.sensitive || Redactor.isProtectedPackage(obs.packageName))) {
-            if (action is AgentAction.Press || action is AgentAction.OpenApp) return SafetyDecision.Allow
+            if (action is AgentAction.Press) return SafetyDecision.Allow
             return SafetyDecision.Block(tr("หน้าจอนี้มีข้อมูลลับหรือเป็นหน้าจอระบบที่ป้องกัน จึงไม่ควบคุมให้", "This screen holds secrets or is a protected system screen, so I will not control it"))
         }
         when (action) {
@@ -70,7 +71,7 @@ class SafetyPolicy(private val confirmEverything: () -> Boolean = { false }) {
                     return SafetyDecision.Block(tr("พิกัดอยู่นอกภาพ ${obs.imageWidth}x${obs.imageHeight}", "Coordinates are outside the ${obs.imageWidth}x${obs.imageHeight} image"))
                 if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation(tr("กำลังอยู่ในแอปการเงิน/ซื้อขาย", "This is a finance / shopping app"))
             }
-            is AgentAction.Press, is AgentAction.OpenApp, is AgentAction.Wait -> Unit
+            is AgentAction.Press, is AgentAction.Wait -> Unit
         }
         return if (confirmEverything()) SafetyDecision.NeedsConfirmation(tr("ตั้งค่าให้ยืนยันทุกการกระทำ", "You asked me to confirm every action")) else SafetyDecision.Allow
     }

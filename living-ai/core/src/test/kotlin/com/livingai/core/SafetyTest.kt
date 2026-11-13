@@ -1,9 +1,10 @@
 package com.livingai.core
 
-import com.livingai.core.model.AgentAction
-import com.livingai.core.model.ScrollDirection
-import com.livingai.core.model.SystemKey
-import com.livingai.core.safety.*
+import com.livingai.core.companion.ProactivePolicy
+import com.livingai.core.companion.ScreenEventKind
+import com.livingai.core.perception.FrameDiff
+import com.livingai.core.privacy.Redactor
+import com.livingai.core.tools.*
 import kotlin.test.*
 
 class SafetyTest {

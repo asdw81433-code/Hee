@@ -40,8 +40,7 @@ import com.livingai.companion.control.LivingAccessibilityService
 import com.livingai.companion.vision.ScreenCaptureService
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
-import com.livingai.core.llm.ClaudeLlmClient
-import com.livingai.core.safety.Redactor
+import com.livingai.core.privacy.Redactor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,7 +63,6 @@ class SettingsActivity : Activity() {
     private lateinit var notifRow: StepRow
     private lateinit var a11yRow: StepRow
     private lateinit var captureRow: StepRow
-    private lateinit var brainRow: StepRow
     private lateinit var a11yHelp: View
     private lateinit var debugText: TextView
     private lateinit var debugImage: ImageView
@@ -112,7 +110,6 @@ class SettingsActivity : Activity() {
 
         buildTitle(content)
         buildSetup(content)
-        buildBrain(content)
         buildSwitches(content)
         buildVisionTest(content)
         buildPrivacy(content)
@@ -130,7 +127,7 @@ class SettingsActivity : Activity() {
     }
 
     private fun buildSetup(root: LinearLayout) {
-        val card = card(root, tr("เริ่มใช้งาน 4 ขั้น", "Get started in 4 steps"))
+        val card = card(root, tr("สิทธิ์ที่ใช้", "Permissions"))
         notifRow = StepRow("1", tr("การแจ้งเตือน", "Notifications"), tr("แสดงสถานะและปุ่มหยุด", "Shows status and the stop button")) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
         }
@@ -142,10 +139,6 @@ class SettingsActivity : Activity() {
             "3", tr("แชร์หน้าจอ", "Share the screen"),
             tr("ให้เห็นภาพจริง (เกม วิดีโอ) Android ถามทุกครั้งและหยุดเองเมื่อล็อกจอ", "Lets it see real pixels (games, video). Android asks every time and stops when you lock the phone."),
         ) { if (LivingState.captureActive.value) ScreenCaptureService.stop(this) else requestCapture() }
-        brainRow = StepRow(
-            "4", tr("เชื่อมสมอง AI (ฟรี)", "Connect an AI brain (free)"),
-            tr("ใส่ key ในการ์ดถัดไป เพื่อคุยและสั่งงานได้อิสระ", "Add a key in the next card to chat and give free-form tasks"),
-        ) { toast(tr("เลื่อนลงไปที่ \"สมอง AI\"", "Scroll down to \"AI brain\"")) }
         card.addView(notifRow.view); card.addView(a11yRow.view)
 
         // Shown only while step 2 is not done: Android blocks this permission for sideloaded apps at first.
@@ -176,87 +169,7 @@ class SettingsActivity : Activity() {
             }, matchWrap(top = 8))
         }
         card.addView(a11yHelp, matchWrap(top = 2))
-        card.addView(captureRow.view); card.addView(brainRow.view)
-    }
-
-    private fun buildBrain(root: LinearLayout) {
-        val p = graph.prefs
-        val card = card(root, tr("สมอง AI", "AI brain"))
-        val gemini = p.provider != "claude"
-
-        card.addView(label(tr("ผู้ให้บริการ", "Provider"), 13f, colorSub))
-        val providers = listOf(tr("Google Gemini — ฟรี ไม่ต้องใช้บัตร", "Google Gemini — free, no card needed"), tr("Anthropic Claude — เสียเงินตามการใช้", "Anthropic Claude — paid per use"))
-        card.addView(spinner(providers, if (gemini) 0 else 1) {
-            val chosen = if (it == 0) "gemini" else "claude"
-            if (chosen != p.provider) { p.provider = chosen; recreate() }
-        })
-
-        val hasKey = if (gemini) p.geminiKey.isNotEmpty() else p.apiKey.isNotEmpty()
-        val emptyHint = if (gemini) tr("วาง Gemini API key ที่นี่", "Paste your Gemini API key here") else tr("วาง Anthropic API key (sk-ant-…)", "Paste your Anthropic API key (sk-ant-…)")
-        val savedHint = tr("บันทึก key แล้ว • พิมพ์เพื่อเปลี่ยน", "Key saved • type to replace")
-        val keyInput = EditText(this).apply {
-            hint = if (hasKey) savedHint else emptyHint
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setSingleLine(); textSize = 14f
-            setTextColor(colorText); setHintTextColor(colorSub)
-        }
-        card.addView(keyInput, matchWrap(top = 4))
-        val testResult = label("", 13f, colorSub)
-
-        fun row(vararg buttons: Button) = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            buttons.forEachIndexed { i, b ->
-                addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { if (i < buttons.size - 1) marginEnd = 8.dp })
-            }
-        }
-        card.addView(row(
-            button(tr("วิธีขอ key ฟรี", "Get a key"), grey) {
-                val url = if (gemini) "https://aistudio.google.com/apikey" else "https://console.anthropic.com/settings/keys"
-                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { toast(tr("เปิดเบราว์เซอร์ไม่ได้", "Cannot open a browser")) }
-            },
-            button(tr("บันทึกและทดสอบ", "Save and test"), accent) {
-                val k = keyInput.text.toString().trim()
-                if (k.isNotEmpty()) {
-                    if (gemini) p.geminiKey = k else p.apiKey = k
-                    keyInput.setText(""); keyInput.hint = savedHint
-                }
-                if ((if (gemini) p.geminiKey else p.apiKey).isEmpty()) { toast(tr("ยังไม่ได้ใส่ key", "No key entered yet")); return@button }
-                testResult.text = tr("กำลังทดสอบ…", "Testing…")
-                ui.launch {
-                    testResult.text = graph.controller.testApiKey()
-                    refreshSteps()
-                }
-            },
-        ), matchWrap(top = 6))
-        card.addView(testResult, matchWrap(top = 6))
-
-        if (gemini) {
-            card.addView(label(
-                tr(
-                    "วิธีขอ: กด \"วิธีขอ key ฟรี\" → ล็อกอินด้วยบัญชี Google → Create API key → คัดลอกมาวางที่นี่\n" +
-                        "โมเดลที่ใช้: ${p.geminiModel} (เลือกให้อัตโนมัติถ้าชื่อนี้ใช้ไม่ได้)\n" +
-                        "ข้อควรรู้: ในแบบฟรี Google อาจนำข้อมูลที่ส่งไปใช้ปรับปรุงบริการและอาจมีคนตรวจดูได้ จึงปิดการส่งภาพหน้าจอไว้เป็นค่าเริ่มต้น เปิดได้ที่สวิตช์ด้านล่าง",
-                    "How: press \"Get a key\" → sign in with a Google account → Create API key → paste it here.\n" +
-                        "Model: ${p.geminiModel} (replaced automatically if that name stops working)\n" +
-                        "Good to know: on the free tier Google may use what you send to improve its services, and people may review it. Sending screenshots is therefore off by default; turn it on with the switch below.",
-                ),
-                12f, colorSub,
-            ), matchWrap(top = 6))
-        } else {
-            card.addView(label(tr("โมเดล", "Model"), 13f, colorSub).apply { setPadding(0, 10.dp, 0, 0) })
-            val models = ClaudeLlmClient.MODELS
-            val modelLabels = listOf(tr("Opus 5.5 — ฉลาดที่สุด", "Opus 5.5 — most capable"), tr("Sonnet 5.5 — สมดุล", "Sonnet 5.5 — balanced"), tr("Haiku 5.5 — เร็วและประหยัดที่สุด", "Haiku 5.5 — fastest and cheapest"))
-            card.addView(spinner(modelLabels, models.indexOf(p.model).coerceAtLeast(0)) { p.model = models[it] })
-            card.addView(label(tr("ระดับการคิด", "Thinking effort"), 13f, colorSub).apply { setPadding(0, 10.dp, 0, 0) })
-            val efforts = ClaudeLlmClient.EFFORTS
-            val effortLabels = listOf(tr("ต่ำ — ตอบไวและประหยัด", "Low — fast and cheap"), tr("กลาง", "Medium"), tr("สูง — คิดละเอียด ช้ากว่า", "High — more careful, slower"))
-            card.addView(spinner(effortLabels, efforts.indexOf(p.effort).coerceAtLeast(0)) { p.effort = efforts[it] })
-        }
-        card.addView(toggle(
-            tr("ส่งภาพหน้าจอให้ AI", "Send screenshots to the AI"),
-            tr("จำเป็นสำหรับเกม วิดีโอ และรูปภาพ ถ้าปิดจะส่งเฉพาะข้อความบนจอ", "Needed for games, video and pictures. When off, only on-screen text is sent."),
-            p.sendScreenshots,
-        ) { p.sendScreenshots = it })
+        card.addView(captureRow.view)
     }
 
     private fun buildSwitches(root: LinearLayout) {
@@ -275,16 +188,6 @@ class SettingsActivity : Activity() {
             if (!it) graph.controller.speaker.stop()
         })
         card.addView(toggle(tr("ให้พูดและแนะนำเองได้", "Let it speak up and suggest"), tr("ทักเมื่อเปิดแอปใหม่หรือเจอข้อผิดพลาด", "Speaks when you open an app or hit an error"), p.proactiveEnabled) { p.proactiveEnabled = it })
-        card.addView(toggle(
-            tr("ช่วยแบบเรียลไทม์", "Live help"),
-            tr("ดูจอต่อเนื่องและพูดเองเมื่อจอเปลี่ยน โดยไม่ต้องสั่ง (ใช้โควตา AI มากขึ้น ต้องเชื่อมสมอง AI ก่อน)", "Keeps watching and speaks up as the screen changes, without being asked (uses more AI quota; needs an AI brain)"),
-            p.liveMode,
-        ) { p.liveMode = it })
-        card.addView(label(tr("โหมดเรียลไทม์: ดูจอใหม่ไม่ถี่กว่า", "Live help: look again at most every"), 13f, colorSub).apply { setPadding(0, 6.dp, 0, 0) })
-        val liveOptions = listOf(15 to tr("15 วินาที (เร็วสุด เปลืองโควตา)", "15 seconds (fastest, uses most quota)"), 30 to tr("30 วินาที", "30 seconds"), 60 to tr("1 นาที", "1 minute"), 180 to tr("3 นาที", "3 minutes"))
-        card.addView(spinner(liveOptions.map { it.second }, liveOptions.indexOfFirst { it.first >= p.liveIntervalSec }.coerceAtLeast(0)) {
-            p.liveIntervalSec = liveOptions[it].first
-        })
         card.addView(toggle(tr("ยืนยันทุกการกระทำ", "Confirm every action"), tr("ปกติถามเฉพาะการส่ง ซื้อ จ่าย ลบ และในแอปการเงิน", "Normally it asks only before sending, buying, paying, deleting, and in finance apps"), p.confirmEverything) { p.confirmEverything = it })
         card.addView(toggle(tr("OCR ในเครื่อง", "On-device OCR"), tr("อ่านตัวอักษรละตินจากภาพเมื่อแอปไม่มีข้อมูล UI", "Reads Latin text from pixels when an app exposes no UI data"), p.ocrEnabled) { p.ocrEnabled = it })
 
@@ -334,13 +237,13 @@ class SettingsActivity : Activity() {
                     "• เลข OTP และเลขบัตรถูกปิดบังก่อนส่งหรือบันทึก\n" +
                     "• หน้าจอที่แอปป้องกันไว้จะเห็นเป็นภาพดำ และไม่พยายามหลบเลี่ยง\n" +
                     "• การส่ง ซื้อ จ่าย โอน ลบ ต้องได้รับการยืนยันจากคุณทุกครั้ง\n" +
-                    "• ข้อมูลหน้าจอถูกส่งไปยังผู้ให้บริการ AI ที่คุณเลือกเฉพาะตอนที่กำลังทำงาน ความจำเก็บในเครื่องเท่านั้น\n" +
+                    "• ทุกอย่างประมวลผลในเครื่อง ไม่มีการส่งหน้าจอหรือบทสนทนาไปยัง AI บนคลาวด์ ความจำเก็บในเครื่องเท่านั้น\n" +
                     "• หยุดได้ทันที: แตะลูกกลมขณะทำงาน ปุ่มแดงด้านบน หรือปุ่มในแถบแจ้งเตือน",
                 "• Never reads password fields, and neither sends nor controls screens with a PIN / OTP / password or system permission dialogs\n" +
                     "• OTP codes and card numbers are masked before anything is sent or stored\n" +
                     "• Screens an app protects appear black, and no attempt is made to get around that\n" +
                     "• Sending, buying, paying, transferring and deleting always need your confirmation\n" +
-                    "• Screen data goes to the AI provider you chose only while it is working. Memory stays on this device.\n" +
+                    "• Everything is processed on this phone. No screen content or conversation is sent to a cloud AI. Memory stays on this device.\n" +
                     "• Stop at any time: tap the orb while it works, the red button above, or the buttons in the notification",
             ),
             13f, colorSub,
@@ -383,8 +286,6 @@ class SettingsActivity : Activity() {
         a11yHelp.visibility = if (a11y) View.GONE else View.VISIBLE
         val cap = LivingState.captureActive.value
         captureRow.set(cap, if (cap) tr("หยุดแชร์", "Stop") else tr("เริ่ม", "Start"), enabled = true)
-        val brain = graph.controller.hasApiKey
-        brainRow.set(brain, if (brain) tr("เรียบร้อย", "Done") else tr("ใส่ key", "Add key"), enabled = !brain)
     }
 
     // ---------- screen capture consent ----------

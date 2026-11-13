@@ -8,10 +8,10 @@ import android.util.Base64
 import com.livingai.companion.LivingState
 import com.livingai.companion.control.LivingAccessibilityService
 import com.livingai.companion.settings.Prefs
-import com.livingai.core.ScreenSource
-import com.livingai.core.model.ScreenObservation
-import com.livingai.core.safety.FrameDiff
-import com.livingai.core.safety.Redactor
+import com.livingai.core.perception.ScreenSource
+import com.livingai.core.perception.ScreenObservation
+import com.livingai.core.perception.FrameDiff
+import com.livingai.core.privacy.Redactor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -27,6 +27,9 @@ import java.io.ByteArrayOutputStream
 class AndroidScreenSource(private val context: Context, private val prefs: Prefs) : ScreenSource {
 
     val ocr = OcrEngine()
+    /** True once the OCR recogniser has been created and until it is released. */
+    @Volatile var ocrLoaded = false
+        private set
     @Volatile var lowMemory = false
 
     private var lastSig: IntArray? = null
@@ -66,7 +69,7 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
                         if (!protectedContent) {
                             if (sparse && prefs.ocrEnabled && !lowMemory) {
                                 // Re-run OCR only when the picture really changed.
-                                ocrText = if (FrameDiff.distance(sig, lastSig) < 0.04) lastOcr else (withTimeoutOrNull(6000L) { ocr.recognize(frame) } ?: "").also { lastOcr = it }
+                                ocrText = if (FrameDiff.distance(sig, lastSig) < 0.04) lastOcr else (withTimeoutOrNull(6000L) { ocrLoaded = true; ocr.recognize(frame) } ?: "").also { lastOcr = it }
                                 lastSig = sig
                                 if (ocrText.isNotBlank()) source = if (snap != null) "nodes+ocr" else "ocr"
                             }
@@ -146,6 +149,7 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
 
     fun trimMemory() {
         ocr.close()
+        ocrLoaded = false
         lastSig = null
         lastOcr = ""
         ScreenCaptureService.instance?.trimMemory()

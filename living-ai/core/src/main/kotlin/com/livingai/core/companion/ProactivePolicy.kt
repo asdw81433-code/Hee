@@ -1,4 +1,4 @@
-package com.livingai.core.safety
+package com.livingai.core.companion
 
 import com.livingai.core.Clock
 

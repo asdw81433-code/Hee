@@ -22,7 +22,7 @@ import com.livingai.companion.agent.AgentController
 import com.livingai.companion.vision.ScreenMetrics
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
-import com.livingai.core.model.AgentStatus
+import com.livingai.core.AgentStatus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
@@ -186,7 +186,7 @@ class RobotOverlay(
 
     fun setStatus(status: AgentStatus) = main.post { if (!destroyed) robot.status = status }
 
-    fun setMood(mood: com.livingai.core.model.Mood) = main.post { if (!destroyed) robot.mood = mood }
+    fun setMood(mood: com.livingai.core.emotion.Mood) = main.post { if (!destroyed) robot.mood = mood }
 
     private val bubbleLp = baseParams(focusable = false).apply { gravity = Gravity.TOP or Gravity.START }
 

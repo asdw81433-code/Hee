@@ -11,10 +11,10 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.livingai.core.MemoryStore
-import com.livingai.core.model.ChatLine
-import com.livingai.core.model.MemoryEvent
-import com.livingai.core.model.MemoryFact
+import com.livingai.core.memory.MemoryStore
+import com.livingai.core.memory.ChatLine
+import com.livingai.core.memory.MemoryEvent
+import com.livingai.core.memory.MemoryFact
 
 @Entity(tableName = "facts")
 data class FactEntity(

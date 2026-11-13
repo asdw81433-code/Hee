@@ -1,4 +1,4 @@
-package com.livingai.core.model
+package com.livingai.core.perception
 
 /** Screen-space rectangle in real display pixels. */
 data class Bounds(val left: Int, val top: Int, val right: Int, val bottom: Int) {
