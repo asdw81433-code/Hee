@@ -21,6 +21,8 @@ class Prefs(context: Context) {
     /** Allow down-scaled screenshots to be sent to the vision model. */
     var sendScreenshots: Boolean get() = bool("send_shots2", false); set(v) = put("send_shots2", v)
     var ocrEnabled: Boolean get() = bool("ocr", true); set(v) = put("ocr", v)
+    /** Read replies aloud with the phone's text-to-speech. */
+    var speakReplies: Boolean get() = bool("speak", true); set(v) = put("speak", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

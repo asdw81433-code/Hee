@@ -9,5 +9,5 @@
     android:description="@string/a11y_description"
     android:isAccessibilityTool="false"
     android:notificationTimeout="300"
-    android:settingsActivity="com.livingai.companion.ui.MainActivity"
+    android:settingsActivity="com.livingai.companion.ui.SettingsActivity"
     android:summary="@string/a11y_summary" />

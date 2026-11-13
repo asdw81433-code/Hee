@@ -22,7 +22,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.view.inputmethod.EditorInfo
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -38,12 +37,10 @@ import com.livingai.companion.AppGraph
 import com.livingai.companion.LivingApp
 import com.livingai.companion.LivingState
 import com.livingai.companion.control.LivingAccessibilityService
-import com.livingai.companion.overlay.RobotView
 import com.livingai.companion.vision.ScreenCaptureService
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 import com.livingai.core.llm.ClaudeLlmClient
-import com.livingai.core.model.AgentStatus
 import com.livingai.core.safety.Redactor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,31 +48,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * The whole app UI on one scrolling page of cards: status, a 4-step setup checklist, the AI brain,
- * chat, switches and a vision test. Plain framework views (no AndroidX / Compose) keep it small.
+ * Settings on one scrolling page of cards: the 4-step setup checklist, the AI brain, switches,
+ * a vision test and the safety notes. The chat lives in [HomeActivity]. Plain framework views (no AndroidX / Compose) keep it small.
  * Thai on Thai devices, English everywhere else.
  */
-class MainActivity : Activity() {
+class SettingsActivity : Activity() {
 
     private lateinit var graph: AppGraph
     private val ui = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var watchJob: Job? = null
 
-    private lateinit var orb: RobotView
-    private lateinit var statusText: TextView
-    private lateinit var stopButton: Button
-    private lateinit var showButton: Button
-    private var waitingForOverlayPermission = false
     private lateinit var notifRow: StepRow
     private lateinit var a11yRow: StepRow
     private lateinit var captureRow: StepRow
     private lateinit var brainRow: StepRow
     private lateinit var a11yHelp: View
-    private lateinit var chatText: TextView
     private lateinit var debugText: TextView
     private lateinit var debugImage: ImageView
 
@@ -120,10 +110,9 @@ class MainActivity : Activity() {
         }
         setContentView(scroll)
 
-        buildHero(content)
+        buildTitle(content)
         buildSetup(content)
         buildBrain(content)
-        buildChat(content)
         buildSwitches(content)
         buildVisionTest(content)
         buildPrivacy(content)
@@ -131,57 +120,14 @@ class MainActivity : Activity() {
 
     // ---------- cards ----------
 
-    private fun buildHero(root: LinearLayout) {
-        orb = RobotView(this).apply { showCaption = false; setOnClickListener { poke() } }
-        statusText = label("", 14f, colorSub)
-        val card = card(root)
-        card.addView(LinearLayout(this).apply {
+    private fun buildTitle(root: LinearLayout) {
+        root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(orb, LinearLayout.LayoutParams(76.dp, 76.dp))
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(12.dp, 0, 0, 0)
-                addView(label(Persona.NAME, 28f, colorText, bold = true))
-                addView(label(tr("เพื่อน AI ที่มองเห็นและใช้หน้าจอแทนคุณได้", "An AI friend that sees and uses your screen for you"), 13f, colorSub))
-                addView(statusText)
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        })
-        showButton = button("", accent) { toggleFloating() }
-        card.addView(showButton, matchWrap(top = 12))
-        stopButton = button("", red) {
-            if (LivingState.paused.value) graph.controller.resume() else graph.controller.emergencyStop()
-        }
-        card.addView(stopButton, matchWrap(top = 8))
+            addView(button("←", grey) { finish() }, LinearLayout.LayoutParams(48.dp, 44.dp).apply { marginEnd = 12.dp })
+            addView(label(tr("ตั้งค่า", "Settings"), 24f, colorText, bold = true))
+        }, matchWrap(top = 4))
     }
-
-    /** The big "show Kivo on my screen" button. */
-    private fun toggleFloating() {
-        val p = graph.prefs
-        if (p.overlayEnabled && graph.floating.isShowing) {
-            p.overlayEnabled = false
-            graph.floating.apply()
-            refreshSteps()
-            return
-        }
-        p.overlayEnabled = true
-        if (LivingAccessibilityService.instance == null && !graph.floating.canDrawOverlays()) {
-            waitingForOverlayPermission = true
-            toast(tr("เปิด \"อนุญาตให้แสดงทับแอปอื่น\" ให้ ${Persona.NAME} แล้วกดย้อนกลับ", "Turn on \"Allow display over other apps\" for ${Persona.NAME}, then go back"))
-            try {
-                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            } catch (e: Exception) {
-                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
-            }
-            return
-        }
-        graph.floating.apply()
-        refreshSteps()
-        if (graph.floating.isShowing) toast(onScreenMessage())
-    }
-
-    private fun onScreenMessage() =
-        tr("${Persona.NAME} อยู่บนจอแล้ว แตะเพื่อคุย ลากเพื่อย้าย", "${Persona.NAME} is on your screen. Tap to talk, drag to move.")
 
     private fun buildSetup(root: LinearLayout) {
         val card = card(root, tr("เริ่มใช้งาน 4 ขั้น", "Get started in 4 steps"))
@@ -313,49 +259,6 @@ class MainActivity : Activity() {
         ) { p.sendScreenshots = it })
     }
 
-    private fun buildChat(root: LinearLayout) {
-        val card = card(root, tr("คุยกับ ${Persona.NAME}", "Talk to ${Persona.NAME}"))
-        chatText = label("", 14f, colorText).apply {
-            background = round(if (dark) 0xFF141B22.toInt() else 0xFFF3F6F9.toInt(), 12f)
-            setPadding(12.dp, 10.dp, 12.dp, 10.dp)
-            setTextIsSelectable(true)
-        }
-        card.addView(chatText, matchWrap())
-        val input = EditText(this).apply {
-            hint = tr("พิมพ์ข้อความหรือคำสั่ง", "Type a message or a task")
-            setSingleLine(); textSize = 15f
-            setTextColor(colorText); setHintTextColor(colorSub)
-            imeOptions = EditorInfo.IME_ACTION_SEND
-        }
-        fun send() {
-            val t = input.text.toString().trim()
-            if (t.isEmpty()) return
-            input.setText("")
-            graph.controller.submit(t)
-        }
-        input.setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(); true } else false }
-        card.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(button(tr("ส่ง", "Send"), accent) { send() })
-        }, matchWrap(top = 4))
-        card.addView(label(
-            tr(
-                "ที่นี่ ${Persona.NAME} เห็นแค่หน้าจอของแอปนี้ ถ้าจะให้ช่วยในแอปอื่นหรือในเกม ให้แตะลูกกลมที่ลอยอยู่บนจอแล้วพิมพ์ที่นั่น",
-                "Here ${Persona.NAME} only sees this app. To get help inside another app or a game, tap the floating orb and type there.",
-            ),
-            12f, colorSub,
-        ), matchWrap(top = 4))
-        card.addView(button(tr("ล้างความจำและประวัติแชต", "Clear memory and chat history"), grey) {
-            ui.launch {
-                graph.memoryStore.clearAll()
-                LivingState.chat.value = emptyList()
-                toast(tr("ล้างแล้ว", "Cleared"))
-            }
-        }, matchWrap(top = 8))
-    }
-
     private fun buildSwitches(root: LinearLayout) {
         val p = graph.prefs
         val card = card(root, tr("การทำงาน", "Behaviour"))
@@ -363,8 +266,12 @@ class MainActivity : Activity() {
         card.addView(toggle(tr("ใช้หน้าจอแทนคุณ", "Use the screen for you"), tr("แตะ พิมพ์ เลื่อน เปิดแอป เล่นเกม", "Tap, type, scroll, open apps, play games"), p.interactionEnabled) { p.interactionEnabled = it })
         card.addView(toggle(tr("ลูกกลมลอยบนจอ", "Floating orb"), tr("แตะเพื่อคุย แตะระหว่างทำงานเพื่อหยุด ลากเพื่อย้าย", "Tap to talk, tap while it works to stop, drag to move"), p.overlayEnabled) {
             p.overlayEnabled = it
-            graph.floating.apply()
+            if (it) FloatingUi.show(this, graph) else FloatingUi.hide(graph)
             refreshSteps()
+        })
+        card.addView(toggle(tr("พูดตอบออกเสียง", "Speak replies aloud"), tr("อ่านคำตอบด้วยเสียงสังเคราะห์ของเครื่อง", "Reads replies with the phone's text-to-speech voice"), p.speakReplies) {
+            p.speakReplies = it
+            if (!it) graph.controller.speaker.stop()
         })
         card.addView(toggle(tr("ให้พูดและแนะนำเองได้", "Let it speak up and suggest"), tr("ทักเมื่อเปิดแอปใหม่หรือเจอข้อผิดพลาด", "Speaks when you open an app or hit an error"), p.proactiveEnabled) { p.proactiveEnabled = it })
         card.addView(toggle(tr("ยืนยันทุกการกระทำ", "Confirm every action"), tr("ปกติถามเฉพาะการส่ง ซื้อ จ่าย ลบ และในแอปการเงิน", "Normally it asks only before sending, buying, paying, deleting, and in finance apps"), p.confirmEverything) { p.confirmEverything = it })
@@ -435,40 +342,14 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         watchJob = ui.launch {
-            launch {
-                combine(LivingState.status, LivingState.statusDetail, LivingState.paused) { s, d, p -> Triple(s, d, p) }.collect { (s, d, paused) ->
-                    orb.status = s
-                    statusText.text = when (s) {
-                        AgentStatus.IDLE -> tr("พร้อม", "Ready") + if (graph.controller.hasApiKey) "" else tr(" • ยังไม่ได้เชื่อมสมอง AI", " • no AI brain connected yet")
-                        AgentStatus.LOOKING -> tr("👁 กำลังมองหน้าจอ", "👁 Looking at the screen")
-                        AgentStatus.THINKING -> tr("💭 กำลังคิด", "💭 Thinking")
-                        AgentStatus.ACTING -> tr("✋ กำลังใช้หน้าจอ: ", "✋ Using the screen: ") + d
-                        AgentStatus.WAITING_CONFIRM -> tr("❓ รอคุณยืนยัน: ", "❓ Waiting for you to confirm: ") + d
-                        AgentStatus.TALKING -> tr("💬 กำลังพูด", "💬 Talking")
-                        AgentStatus.PAUSED -> tr("⏸ หยุดทุกอย่างอยู่", "⏸ Everything is paused")
-                    }
-                    stopButton.text = if (paused) tr("▶ ทำงานต่อ", "▶ Resume") else tr("⏹ หยุดทุกอย่างทันที", "⏹ Stop everything now")
-                    stopButton.background = round(if (paused) green else red, 12f)
-                }
-            }
             launch { LivingState.captureActive.collect { refreshSteps() } }
             launch { LivingState.accessibilityConnected.collect { refreshSteps() } }
-            launch {
-                LivingState.chat.collect { lines ->
-                    chatText.text = if (lines.isEmpty()) tr("ยังไม่มีบทสนทนา ลองพิมพ์ \"ดูหน้าจอ\" หรือ \"คำสั่ง\"", "No conversation yet. Try \"look\" or \"help\".")
-                    else lines.takeLast(12).joinToString("\n") { (if (it.fromUser) tr("คุณ: ", "You: ") else "${Persona.NAME}: ") + it.text }
-                }
-            }
         }
     }
 
     override fun onResume() {
         super.onResume()
         graph.floating.apply()
-        if (waitingForOverlayPermission && graph.floating.canDrawOverlays()) {
-            waitingForOverlayPermission = false
-            if (graph.floating.isShowing) toast(onScreenMessage())
-        }
         refreshSteps()
     }
 
@@ -483,9 +364,6 @@ class MainActivity : Activity() {
     }
 
     private fun refreshSteps() {
-        val showing = graph.prefs.overlayEnabled && graph.floating.isShowing
-        showButton.text = if (showing) tr("ซ่อน ${Persona.NAME} จากหน้าจอ", "Hide ${Persona.NAME} from the screen") else tr("✨ แสดง ${Persona.NAME} บนจอ", "✨ Show ${Persona.NAME} on my screen")
-        showButton.background = round(if (showing) grey else accent, 12f)
         val notifOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         notifRow.set(notifOk, if (notifOk) tr("เรียบร้อย", "Done") else tr("อนุญาต", "Allow"), enabled = !notifOk)
@@ -579,7 +457,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 8.dp, 0, 8.dp)
-            addView(LinearLayout(this@MainActivity).apply {
+            addView(LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label(title, 15f, colorText))
                 addView(label(subtitle, 12f, colorSub))
@@ -590,7 +468,7 @@ class MainActivity : Activity() {
     }
 
     private fun spinner(items: List<String>, selected: Int, onSelect: (Int) -> Unit) = Spinner(this).apply {
-        adapter = object : ArrayAdapter<String>(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, items) {
+        adapter = object : ArrayAdapter<String>(this@SettingsActivity, android.R.layout.simple_spinner_dropdown_item, items) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
                 super.getView(position, convertView, parent).also { (it as? TextView)?.setTextColor(colorText) }
         }
@@ -603,18 +481,18 @@ class MainActivity : Activity() {
 
     /** One setup step: numbered badge that turns green, explanation and an action button. */
     private inner class StepRow(number: String, title: String, subtitle: String, onClick: () -> Unit) {
-        private val badge = TextView(this@MainActivity).apply {
+        private val badge = TextView(this@SettingsActivity).apply {
             text = number; gravity = Gravity.CENTER; textSize = 13f
             setTextColor(0xFFFFFFFF.toInt()); setTypeface(typeface, Typeface.BOLD)
         }
         private val number = number
         private val action = button("", accent, onClick)
-        val view: View = LinearLayout(this@MainActivity).apply {
+        val view: View = LinearLayout(this@SettingsActivity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, 8.dp, 0, 8.dp)
             addView(badge, LinearLayout.LayoutParams(26.dp, 26.dp).apply { marginEnd = 10.dp })
-            addView(LinearLayout(this@MainActivity).apply {
+            addView(LinearLayout(this@SettingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label(title, 15f, colorText))
                 addView(label(subtitle, 12f, colorSub))

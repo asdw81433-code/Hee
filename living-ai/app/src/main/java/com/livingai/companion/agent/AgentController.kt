@@ -85,6 +85,8 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
+    val speaker = Speaker(context)
+
     /** Set by the accessibility service while the floating robot exists. */
     @Volatile var overlay: RobotOverlay? = null
 
@@ -137,6 +139,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     /** Stops whatever the robot is doing right now. */
     fun stopCurrent(userInitiated: Boolean = false) {
         val wasBusy = isBusy
+        speaker.stop()
         userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel()
         onStatus(if (LivingState.paused.value) AgentStatus.PAUSED else AgentStatus.IDLE)
         if (userInitiated && wasBusy) overlay?.say(tr("หยุดแล้ว", "Stopped"))
@@ -215,6 +218,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         screenSource.lowMemory = true
         screenSource.trimMemory()
         if (!isBusy) claude.release()
+        speaker.release()
         vision.forget()
         lowMemoryJob?.cancel()
         lowMemoryJob = scope.launch {
@@ -236,5 +240,6 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     override fun onSay(text: String, proactive: Boolean) {
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, text))
         overlay?.say(text)
+        if (prefs.speakReplies && !LivingState.paused.value) speaker.say(text)
     }
 }

@@ -25,7 +25,7 @@ import android.os.IBinder
 import com.livingai.companion.LivingApp
 import com.livingai.companion.LivingState
 import com.livingai.companion.R
-import com.livingai.companion.ui.MainActivity
+import com.livingai.companion.ui.HomeActivity
 import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 import kotlinx.coroutines.CompletableDeferred
@@ -286,7 +286,7 @@ class ScreenCaptureService : Service() {
             )
         }
         val immutable = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), immutable)
+        val open = PendingIntent.getActivity(this, 0, Intent(this, HomeActivity::class.java), immutable)
         val stop = PendingIntent.getService(this, 1, Intent(this, ScreenCaptureService::class.java).setAction(ACTION_STOP), immutable)
         val kill = PendingIntent.getService(this, 2, Intent(this, ScreenCaptureService::class.java).setAction(ACTION_EMERGENCY_STOP), immutable)
         return Notification.Builder(this, CHANNEL_ID)

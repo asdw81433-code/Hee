@@ -60,6 +60,7 @@ class DeviceE2ETest {
         graph.prefs.apiKey = ""
         graph.prefs.geminiKey = ""
         graph.prefs.sendScreenshots = true
+        graph.prefs.speakReplies = false
         graph.prefs.proactiveEnabled = false
         graph.controller.resume()
     }
@@ -242,6 +243,24 @@ class DeviceE2ETest {
         // Without accessibility it can still look and chat; actions report honestly that control is off.
         val reply = ask("กลับ")
         assertTrue(reply, reply.contains("Accessibility"))
+    }
+
+    @Test
+    fun i_screens_openWithoutCrashing() {
+        // Launch the real home (chat) screen and the settings screen and make sure they render.
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        waitUntil("the home screen is in front", 20_000) { observe().packageName == ctx.packageName }
+        val home = observe()
+        assertTrue(home.toPromptText(), home.elements.any { it.label.contains("Kivo") })
+        assertTrue(home.toPromptText(), home.elements.any { it.editable }) // chat input
+
+        // Chat through the home screen's own input box.
+        val reply = ask("ดูหน้าจอ")
+        assertTrue(reply, reply.contains("Kivo"))
+
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("Gemini") } }
+        shell("input keyevent KEYCODE_BACK")
     }
 
     private fun <T> onMain(block: () -> T): T {

@@ -170,6 +170,7 @@ class RobotOverlay(
             orientation = LinearLayout.HORIZONTAL
             val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (6 * dp).toInt() }
             addView(btn(tr("ส่ง", "Send"), 0xFF1565C0.toInt()) { submit() }, lp)
+            addView(btn("🎤", 0xFF455A64.toInt()) { hidePanel(); com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) }, lp)
             addView(btn(tr("👁 ดูจอ", "👁 Look"), 0xFF455A64.toInt()) { hidePanel(); controller.submit(tr("ดูหน้าจอ", "look"), fromOverlay = true) }, lp)
             addView(btn(tr("⏹ หยุด", "⏹ Stop"), 0xFFC62828.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
             addView(btn(tr("ปิด", "Close"), 0xFF455A64.toInt()) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))

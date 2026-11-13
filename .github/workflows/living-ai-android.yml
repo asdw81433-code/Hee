@@ -48,11 +48,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
           cp app/build/outputs/apk/release/app-release.apk living-ai.apk
+          cp app/build/outputs/apk/release/app-release.apk "kivo-$VERSION.apk"
           gh release delete living-ai-latest --cleanup-tag --yes || true
-          gh release create living-ai-latest living-ai.apk --prerelease --target "$GITHUB_SHA" \
-            --title "จิ๋ว AI (LIVING AI) — ล่าสุด" \
-            --notes "ดาวน์โหลด living-ai.apk แล้วแตะเพื่อติดตั้ง (สร้างจาก $GITHUB_SHA)"
+          gh release create living-ai-latest living-ai.apk "kivo-$VERSION.apk" --prerelease --target "$GITHUB_SHA" \
+            --title "Kivo $VERSION" \
+            --notes "เวอร์ชัน $VERSION — ดาวน์โหลด kivo-$VERSION.apk (หรือ living-ai.apk ซึ่งเป็นไฟล์เดียวกัน) แล้วแตะเพื่อติดตั้งทับของเดิม ดูเลขเวอร์ชันได้ข้างชื่อ Kivo ในหน้าแรกของแอป (สร้างจาก $GITHUB_SHA)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
