@@ -61,6 +61,7 @@ class RobotOverlay(
     private var confirmView: View? = null
     private var pendingConfirm: CompletableDeferred<Boolean>? = null
     private var destroyed = false
+    private var added = false
 
     private val hideBubble = Runnable { removeBubble() }
 
@@ -76,13 +77,16 @@ class RobotOverlay(
         setColor(color); cornerRadius = radiusDp * dp; setStroke((1 * dp).toInt(), 0x33FFFFFF)
     }
 
-    /** True while the orb is really attached to a window on screen. */
-    val isOnScreen: Boolean get() = robot.isAttachedToWindow
+    /**
+     * True once the window manager accepted the orb's window and until it is destroyed.
+     * (isAttachedToWindow would lag behind: the view attaches on the next frame.)
+     */
+    val isOnScreen: Boolean get() = added && !destroyed
 
     fun show() {
         controller.overlay = this
         robot.setOnTouchListener(DragTapListener())
-        safe { wm.addView(robot, robotLp) }
+        safe { wm.addView(robot, robotLp); added = true }
     }
 
     fun destroy() {
