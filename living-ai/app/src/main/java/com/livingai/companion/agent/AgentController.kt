@@ -49,7 +49,17 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         confirmer = { question -> overlay?.confirm(question) ?: false },
         listener = this,
     )
-    private val mainAgent = MainAgent(llm, vision, actions, memory, this)
+    private val mainAgent = MainAgent(
+        llm, vision, actions, memory, this,
+        alwaysImage = { prefs.sendScreenshots && LivingState.captureActive.value },
+    )
+
+    /** Checks the API key with one tiny request. Returns a message for the user. */
+    suspend fun testApiKey(): String = try {
+        "ใช้งานได้ ✓ (${prefs.model}) ตอบว่า: ${llm.ping().take(40)}"
+    } catch (e: com.livingai.core.llm.LlmException) {
+        "ใช้ไม่ได้: ${e.message}"
+    }
     private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
     /** Set by the accessibility service while the floating robot exists. */

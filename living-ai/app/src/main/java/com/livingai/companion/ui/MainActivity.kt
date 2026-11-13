@@ -203,6 +203,18 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }, matchWrap(top = 4))
 
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(button("ทดสอบ key", 0xFF2E7D32.toInt()) {
+                toast("กำลังทดสอบ…")
+                ui.launch { Toast.makeText(this@MainActivity, graph.controller.testApiKey(), Toast.LENGTH_LONG).show() }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
+            addView(button("วิธีขอ key", 0xFF546E7A.toInt()) {
+                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://console.anthropic.com/settings/keys"))) } catch (e: Exception) { toast("เปิดเบราว์เซอร์ไม่ได้") }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }, matchWrap(top = 6))
+        root.addView(label("key คือรหัสสำหรับเรียกสมอง AI (มีค่าใช้จ่ายตามการใช้งาน จ่ายให้ Anthropic โดยตรง) สมัครและสร้าง key ได้จากปุ่ม \"วิธีขอ key\" แล้วนำมาวางที่นี่", 12f, colorSub))
+
         root.addView(label("โมเดล", 14f, colorText).apply { setPadding(0, 10.dp, 0, 0) })
         val models = ClaudeLlmClient.MODELS
         val modelLabels = listOf("Opus 5.5 — ฉลาดที่สุด (ค่าเริ่มต้น)", "Sonnet 5.5 — สมดุล", "Haiku 5.5 — เร็วและประหยัดที่สุด")

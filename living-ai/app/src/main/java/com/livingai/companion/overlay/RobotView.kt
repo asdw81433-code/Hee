@@ -75,7 +75,7 @@ class RobotView(context: Context) : View(context) {
                 else -> start(Act.WAVE, 1500)
             }
             invalidate()
-            postDelayed(this, 2600L + (Math.random() * 3200).toLong())
+            postDelayed(this, 1500L + (Math.random() * 2200).toLong())
         }
     }
 
@@ -196,6 +196,12 @@ class RobotView(context: Context) : View(context) {
         var armUp = 0f     // 0 = arm down, 1 = arm raised
         var armWave = 0f
         if (busy) lift = 1.5f + sin(now / 240.0).toFloat() * 1.5f
+        else if (!asleep) {
+            // idle wiggle: gentle float, sway and glances so it always feels alive
+            lift = 1f + sin(now / 520.0).toFloat() * 1f
+            tilt = sin(now / 900.0).toFloat() * 3f
+            look = sin(now / 1700.0).toFloat() * 0.25f
+        }
         if (acting) when (act) {
             Act.HOP -> lift = abs(sin(a * PI * 2)).toFloat() * 6f * (1f - a * 0.5f)
             Act.LOOK -> look = sin(a * PI).toFloat() * actDir
@@ -381,12 +387,13 @@ class RobotView(context: Context) : View(context) {
         }
 
         if (busy || acting || happy || now < blinkStart + BLINK_MS) postInvalidateOnAnimation()
+        else if (!asleep) postInvalidateDelayed(50) // idle wiggle at ~20 fps keeps the cost low
     }
 
     private companion object {
         const val GRID_W = 72f
         const val GRID_H = 80f
         const val BLINK_MS = 190f
-        const val SLEEP_AFTER_MS = 90_000L
+        const val SLEEP_AFTER_MS = 240_000L
     }
 }

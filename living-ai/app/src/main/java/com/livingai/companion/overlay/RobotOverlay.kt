@@ -18,6 +18,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.livingai.companion.LivingState
 import com.livingai.companion.agent.AgentController
 import com.livingai.companion.vision.ScreenMetrics
 import com.livingai.core.model.AgentStatus
@@ -103,7 +104,8 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             setPadding((12 * dp).toInt(), (9 * dp).toInt(), (12 * dp).toInt(), (9 * dp).toInt())
             maxWidth = (size.x * 0.72f).toInt()
             maxLines = 9
-            setOnClickListener { removeBubble() }
+            // tap the speech bubble to answer
+            setOnClickListener { removeBubble(); if (panel == null) togglePanel() }
         }
         val lp = baseParams(focusable = false).apply {
             // above the robot when it sits in the lower half, below it otherwise
@@ -131,7 +133,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
         val size = ScreenMetrics.realSize(service)
         val pad = (12 * dp).toInt()
         val input = EditText(service).apply {
-            hint = "สั่งจิ๋ว เช่น \"ดูหน้าจอ\" \"กด ตกลง\""
+            hint = "พิมพ์คุยหรือสั่งจิ๋วได้เลย"
             setHintTextColor(0x99FFFFFF.toInt())
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 15f
@@ -166,6 +168,13 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             orientation = LinearLayout.VERTICAL
             background = card(0xF5263238.toInt(), 18f)
             setPadding(pad, pad, pad, pad)
+            val recent = LivingState.chat.value.takeLast(5)
+            if (recent.isNotEmpty()) addView(TextView(service).apply {
+                text = recent.joinToString("\n") { (if (it.fromUser) "คุณ: " else "จิ๋ว: ") + it.text.take(220) }
+                textSize = 13f; setTextColor(0xFFCFD8DC.toInt())
+                maxLines = 9
+                setPadding(0, 0, 0, (6 * dp).toInt())
+            })
             addView(input, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
             addView(row, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (8 * dp).toInt() })
             setOnTouchListener { _, e -> if (e.action == MotionEvent.ACTION_OUTSIDE) { hidePanel(); true } else false }

@@ -25,7 +25,9 @@ class MainAgent(
     private val actions: ActionAgent,
     private val memory: MemoryAgent,
     private val listener: AgentListener,
-    private val maxSteps: Int = 14,
+    private val maxSteps: Int = 25,
+    /** When true (screen sharing is on), every user turn starts with a real screenshot. */
+    private val alwaysImage: () -> Boolean = { false },
 ) {
     /** Handles one user message end-to-end and returns the robot's reply. */
     suspend fun handleUserMessage(text: String): String {
@@ -61,7 +63,7 @@ class MainAgent(
     }
 
     private suspend fun runWithModel(text: String): String {
-        val obs = vision.lookAuto()
+        val obs = if (alwaysImage()) vision.look(includeImage = true) else vision.lookAuto()
         listener.onStatus(AgentStatus.THINKING)
         val session = llm.newSession(SYSTEM_PROMPT, TOOLS, maxTokens = 8000)
         val first = buildString {

@@ -18,7 +18,7 @@ class AgentTest {
         val confirmations = ArrayList<String>()
         val vision = VisionAgent(screen, listener)
         val actions = ActionAgent(port, vision, SafetyPolicy(), { q -> confirmations.add(q); approve }, listener, settleMs = 1)
-        val main = MainAgent(llm, vision, actions, MemoryAgent(memory), listener)
+        val main = MainAgent(llm, vision, actions, MemoryAgent(memory), listener, maxSteps = 14)
     }
 
     private val settings = screen("com.android.settings", el(1, "Wi-Fi"), el(2, "บลูทูธ"), el(3, "จอภาพ"), el(4, "ค้นหา", role = "EditText", editable = true), el(5, "เสียง"))

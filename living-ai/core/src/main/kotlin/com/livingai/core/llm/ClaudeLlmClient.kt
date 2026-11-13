@@ -61,6 +61,10 @@ class ClaudeLlmClient(
         cachedClient?.close(); cachedClient = null; cachedKey = null
     }
 
+    /** One tiny request to check that the key, the model and the network all work. Throws [LlmException]. */
+    suspend fun ping(): String =
+        newSession("ตอบสั้นที่สุด", emptyList(), maxTokens = 1000).sendUser("ตอบคำเดียวว่า: พร้อม").text.ifBlank { "พร้อม" }
+
     override fun newSession(system: String, tools: List<ToolSpec>, maxTokens: Long): LlmSession =
         Session(system, tools.map(::toSdkTool), maxTokens)
 
