@@ -1,9 +1,15 @@
 package com.livingai.core.model
 
+import com.livingai.core.Lang.tr
+
 enum class ScrollDirection { UP, DOWN, LEFT, RIGHT }
 enum class SystemKey { BACK, HOME, RECENTS, NOTIFICATIONS }
 
-/** Things the Action agent may do. Every screen target is an element id, never a raw coordinate. */
+/**
+ * Things the Action agent may do. Targets are element ids whenever the screen has UI elements.
+ * The two "point" actions exist for screens without any (games, canvases): their coordinates are
+ * pixels of the screenshot the vision model just looked at, never blind guesses.
+ */
 sealed interface AgentAction {
     data class Tap(val elementId: Int) : AgentAction
     data class TypeText(val elementId: Int, val text: String) : AgentAction
@@ -11,14 +17,25 @@ sealed interface AgentAction {
     data class Press(val key: SystemKey) : AgentAction
     data class OpenApp(val name: String) : AgentAction
     data class Wait(val millis: Long) : AgentAction
+    data class TapPoint(val x: Int, val y: Int) : AgentAction
+    data class SwipePoints(val x1: Int, val y1: Int, val x2: Int, val y2: Int) : AgentAction
+
+    val isPointAction: Boolean get() = this is TapPoint || this is SwipePoints
 
     fun describe(obs: ScreenObservation?): String = when (this) {
-        is Tap -> "แตะ \"${obs?.element(elementId)?.label ?: "#$elementId"}\""
-        is TypeText -> "พิมพ์ \"$text\" ลงใน \"${obs?.element(elementId)?.label ?: "#$elementId"}\""
-        is Scroll -> "เลื่อนหน้าจอ${when (direction) { ScrollDirection.UP -> "ขึ้น"; ScrollDirection.DOWN -> "ลง"; ScrollDirection.LEFT -> "ไปซ้าย"; ScrollDirection.RIGHT -> "ไปขวา" }}"
-        is Press -> "กดปุ่ม ${key.name}"
-        is OpenApp -> "เปิดแอป \"$name\""
-        is Wait -> "รอ ${millis} ms"
+        is Tap -> tr("แตะ", "Tap") + " \"${obs?.element(elementId)?.label ?: "#$elementId"}\""
+        is TypeText -> tr("พิมพ์ \"$text\" ลงใน", "Type \"$text\" into") + " \"${obs?.element(elementId)?.label ?: "#$elementId"}\""
+        is Scroll -> when (direction) {
+            ScrollDirection.UP -> tr("เลื่อนหน้าจอขึ้น", "Scroll up")
+            ScrollDirection.DOWN -> tr("เลื่อนหน้าจอลง", "Scroll down")
+            ScrollDirection.LEFT -> tr("เลื่อนหน้าจอไปซ้าย", "Scroll left")
+            ScrollDirection.RIGHT -> tr("เลื่อนหน้าจอไปขวา", "Scroll right")
+        }
+        is Press -> tr("กดปุ่ม", "Press") + " ${key.name}"
+        is OpenApp -> tr("เปิดแอป", "Open") + " \"$name\""
+        is Wait -> tr("รอ", "Wait") + " $millis ms"
+        is TapPoint -> tr("แตะที่จุด", "Tap at") + " ($x, $y)"
+        is SwipePoints -> tr("ปัดจาก", "Swipe from") + " ($x1, $y1) → ($x2, $y2)"
     }
 }
 

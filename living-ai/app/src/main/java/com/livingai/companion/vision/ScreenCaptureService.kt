@@ -26,6 +26,8 @@ import com.livingai.companion.LivingApp
 import com.livingai.companion.LivingState
 import com.livingai.companion.R
 import com.livingai.companion.ui.MainActivity
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -277,8 +279,8 @@ class ScreenCaptureService : Service() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "สถานะ LIVING AI", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "แสดงเมื่อจิ๋วมองเห็นหน้าจอได้ พร้อมปุ่มหยุด"
+                NotificationChannel(CHANNEL_ID, tr("สถานะ ${Persona.NAME}", "${Persona.NAME} status"), NotificationManager.IMPORTANCE_LOW).apply {
+                    description = tr("แสดงเมื่อกำลังแชร์หน้าจอ พร้อมปุ่มหยุด", "Shown while the screen is shared, with stop buttons")
                     setShowBadge(false)
                 }
             )
@@ -289,12 +291,12 @@ class ScreenCaptureService : Service() {
         val kill = PendingIntent.getService(this, 2, Intent(this, ScreenCaptureService::class.java).setAction(ACTION_EMERGENCY_STOP), immutable)
         return Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_robot)
-            .setContentTitle("จิ๋วมองเห็นหน้าจอได้อยู่")
-            .setContentText("จับภาพเฉพาะตอนที่ต้องใช้ • แตะเพื่อเปิดการตั้งค่า")
+            .setContentTitle(tr("${Persona.NAME} มองเห็นหน้าจออยู่", "${Persona.NAME} can see your screen"))
+            .setContentText(tr("จับภาพเฉพาะตอนที่ต้องใช้ • แตะเพื่อเปิดแอป", "Captures only when needed • tap to open the app"))
             .setContentIntent(open)
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "หยุดมองหน้าจอ", stop).build())
-            .addAction(Notification.Action.Builder(null, "หยุดทุกอย่าง", kill).build())
+            .addAction(Notification.Action.Builder(null, tr("หยุดแชร์จอ", "Stop sharing"), stop).build())
+            .addAction(Notification.Action.Builder(null, tr("หยุดทุกอย่าง", "Stop everything"), kill).build())
             .build()
     }
 

@@ -17,6 +17,21 @@ class AppGraph(context: Context) {
 class LivingApp : Application() {
     val graph: AppGraph by lazy { AppGraph(this) }
 
+    override fun onCreate() {
+        super.onCreate()
+        applyLanguage()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyLanguage()
+    }
+
+    /** Thai on Thai devices, English everywhere else. */
+    private fun applyLanguage() {
+        com.livingai.core.Lang.thai = resources.configuration.locales[0].language == "th"
+    }
+
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         // The system is running low on memory (or we are a candidate for being killed).

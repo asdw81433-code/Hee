@@ -1,5 +1,8 @@
 package com.livingai.core.llm
 
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
+
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
@@ -44,7 +47,7 @@ class ClaudeLlmClient(
     @Synchronized
     private fun client(): AnthropicClient {
         val key = apiKey().trim()
-        if (key.isEmpty()) throw LlmException("ยังไม่ได้ใส่ API key")
+        if (key.isEmpty()) throw LlmException(tr("ยังไม่ได้ใส่ API key", "No API key yet"))
         cachedClient?.let { if (cachedKey == key) return it }
         cachedClient?.close()
         return AnthropicOkHttpClient.builder()
@@ -60,10 +63,6 @@ class ClaudeLlmClient(
     fun release() {
         cachedClient?.close(); cachedClient = null; cachedKey = null
     }
-
-    /** One tiny request to check that the key, the model and the network all work. Throws [LlmException]. */
-    suspend fun ping(): String =
-        newSession("ตอบสั้นที่สุด", emptyList(), maxTokens = 1000).sendUser("ตอบคำเดียวว่า: พร้อม").text.ifBlank { "พร้อม" }
 
     override fun newSession(system: String, tools: List<ToolSpec>, maxTokens: Long): LlmSession =
         Session(system, tools.map(::toSdkTool), maxTokens)
@@ -129,18 +128,18 @@ class ClaudeLlmClient(
                 val c = client()
                 runInterruptible(Dispatchers.IO) { c.messages().create(params) }
             } catch (e: UnauthorizedException) {
-                throw LlmException("API key ไม่ถูกต้อง ตรวจสอบในหน้าตั้งค่า", cause = e)
+                throw LlmException(tr("API key ไม่ถูกต้อง ตรวจสอบในหน้าตั้งค่า", "The API key is not valid. Check it in the app."), cause = e)
             } catch (e: RateLimitException) {
-                throw LlmException("ถูกจำกัดจำนวนคำขอ ลองใหม่อีกสักครู่", retryable = true, cause = e)
+                throw LlmException(tr("ถูกจำกัดจำนวนคำขอ ลองใหม่อีกสักครู่", "Rate limited. Try again in a moment."), retryable = true, cause = e)
             } catch (e: AnthropicServiceException) {
                 val code = e.statusCode()
-                throw LlmException("เซิร์ฟเวอร์ AI ตอบกลับผิดพลาด ($code): ${e.message?.take(200)}", retryable = code >= 500, cause = e)
+                throw LlmException(tr("เซิร์ฟเวอร์ AI ตอบกลับผิดพลาด ($code): ${e.message?.take(200)}", "The AI server returned an error ($code): ${e.message?.take(200)}"), retryable = code >= 500, cause = e)
             } catch (e: AnthropicIoException) {
                 currentCoroutineContext().ensureActive() // a cancelled call surfaces as an I/O error
-                throw LlmException("เชื่อมต่อ AI ไม่ได้ ตรวจสอบอินเทอร์เน็ต", retryable = true, cause = e)
+                throw LlmException(tr("เชื่อมต่อ AI ไม่ได้ ตรวจสอบอินเทอร์เน็ต", "Cannot reach the AI. Check the internet connection."), retryable = true, cause = e)
             } catch (e: AnthropicException) {
                 currentCoroutineContext().ensureActive()
-                throw LlmException("เรียก AI ไม่สำเร็จ: ${e.message?.take(200)}", cause = e)
+                throw LlmException(tr("เรียก AI ไม่สำเร็จ: ${e.message?.take(200)}", "The AI call failed: ${e.message?.take(200)}"), cause = e)
             }
 
             messages.add(response.toParam())

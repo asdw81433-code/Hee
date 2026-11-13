@@ -77,7 +77,7 @@ class AgentTest {
         assertTrue(rig.port.performed.isEmpty())
         val (r1, r2) = rig.llm.toolResults[0]
         assertTrue(r1.isError && r1.text.contains("ถูกระงับ"))
-        assertTrue(r2.isError && r2.text.contains("อาร์กิวเมนต์"))
+        assertTrue(r2.isError && r2.text.contains("Invalid arguments"))
     }
 
     @Test fun `risky action is not performed when the user declines`() = runTest {

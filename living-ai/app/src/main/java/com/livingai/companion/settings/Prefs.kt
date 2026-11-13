@@ -19,7 +19,7 @@ class Prefs(context: Context) {
     var proactiveEnabled: Boolean get() = bool("proactive", true); set(v) = put("proactive", v)
     var confirmEverything: Boolean get() = bool("confirm_all", false); set(v) = put("confirm_all", v)
     /** Allow down-scaled screenshots to be sent to the vision model. */
-    var sendScreenshots: Boolean get() = bool("send_shots", true); set(v) = put("send_shots", v)
+    var sendScreenshots: Boolean get() = bool("send_shots2", false); set(v) = put("send_shots2", v)
     var ocrEnabled: Boolean get() = bool("ocr", true); set(v) = put("ocr", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
@@ -34,6 +34,24 @@ class Prefs(context: Context) {
     var effort: String
         get() = sp.getString("effort", null) ?: "low"
         set(v) = sp.edit().putString("effort", v).apply()
+
+    /** "gemini" (free tier, default) or "claude". */
+    var provider: String
+        get() = sp.getString("provider", null) ?: "gemini"
+        set(v) = sp.edit().putString("provider", v).apply()
+
+    var geminiModel: String
+        get() = sp.getString("gemini_model", null) ?: com.livingai.core.llm.GeminiLlmClient.DEFAULT_MODEL
+        set(v) = sp.edit().putString("gemini_model", v).apply()
+
+    @Volatile private var geminiKeyCache: String? = null
+
+    var geminiKey: String
+        get() = geminiKeyCache ?: SecretStore.decrypt(sp.getString("gemini_key_enc", "") ?: "").also { geminiKeyCache = it }
+        set(v) {
+            geminiKeyCache = v.trim()
+            sp.edit().putString("gemini_key_enc", SecretStore.encrypt(v.trim())).apply()
+        }
 
     @Volatile private var keyCache: String? = null
 

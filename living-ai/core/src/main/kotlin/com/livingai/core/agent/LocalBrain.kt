@@ -1,5 +1,8 @@
 package com.livingai.core.agent
 
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
+
 import com.livingai.core.model.AgentAction
 import com.livingai.core.model.ScreenObservation
 import com.livingai.core.model.ScrollDirection
@@ -61,10 +64,10 @@ object LocalBrain {
         for (w in typeWords) {
             if (lower.startsWith(w)) {
                 val content = text.substring(w.length).trim().trim('"', '“', '”')
-                if (content.isEmpty()) return Plan.Unknown("บอกข้อความที่จะพิมพ์ด้วย เช่น \"พิมพ์ สวัสดี\"")
+                if (content.isEmpty()) return Plan.Unknown(tr("บอกข้อความที่จะพิมพ์ด้วย เช่น \"พิมพ์ สวัสดี\"", "Tell me what to type, e.g. \"type hello\""))
                 val target = obs?.elements?.firstOrNull { it.editable && it.focused && !it.password }
                     ?: obs?.elements?.firstOrNull { it.editable && !it.password }
-                    ?: return Plan.Unknown("ไม่พบช่องพิมพ์ข้อความบนหน้าจอ")
+                    ?: return Plan.Unknown(tr("ไม่พบช่องพิมพ์ข้อความบนหน้าจอ", "There is no text field on this screen"))
                 return Plan.Act(AgentAction.TypeText(target.id, content))
             }
         }
@@ -73,8 +76,8 @@ object LocalBrain {
         for (w in tapWords) {
             if (lower.startsWith(w)) {
                 val label = text.substring(w.length).trim().trim('"', '“', '”')
-                if (label.isEmpty()) return Plan.Unknown("บอกชื่อปุ่มด้วย เช่น \"กด ตกลง\"")
-                val el = findElement(label, obs) ?: return Plan.Unknown("ไม่พบ \"$label\" บนหน้าจอ ลองสั่ง \"ดูหน้าจอ\" เพื่อดูว่ามีอะไรบ้าง")
+                if (label.isEmpty()) return Plan.Unknown(tr("บอกชื่อปุ่มด้วย เช่น \"กด ตกลง\"", "Tell me which button, e.g. \"tap OK\""))
+                val el = findElement(label, obs) ?: return Plan.Unknown(tr("ไม่พบ \"$label\" บนหน้าจอ ลองสั่ง \"ดูหน้าจอ\" เพื่อดูว่ามีอะไรบ้าง", "I can't find \"$label\" on screen. Try \"look\" to see what is there."))
                 return Plan.Act(AgentAction.Tap(el.id))
             }
         }
@@ -83,13 +86,13 @@ object LocalBrain {
         for (w in openWords) {
             if (lower.startsWith(w)) {
                 val name = text.substring(w.length).trim()
-                if (name.isEmpty()) return Plan.Unknown("บอกชื่อแอปด้วย เช่น \"เปิด YouTube\"")
+                if (name.isEmpty()) return Plan.Unknown(tr("บอกชื่อแอปด้วย เช่น \"เปิด YouTube\"", "Tell me which app, e.g. \"open YouTube\""))
                 // "เปิดเมนู" on screen wins over launching an app called "เมนู".
                 findElement(name, obs, clickableOnly = true)?.let { return Plan.Act(AgentAction.Tap(it.id)) }
                 return Plan.Act(AgentAction.OpenApp(name))
             }
         }
-        return Plan.Unknown("โหมดออฟไลน์เข้าใจเฉพาะคำสั่งง่าย ๆ (พิมพ์ \"คำสั่ง\" เพื่อดูรายการ) ใส่ API key ในหน้าตั้งค่าเพื่อคุยได้เต็มรูปแบบ")
+        return Plan.Unknown(tr("ยังไม่ได้เชื่อมสมอง AI จึงเข้าใจเฉพาะคำสั่งง่าย ๆ (พิมพ์ \"คำสั่ง\" เพื่อดูรายการ) ใส่ key ฟรีในแอปเพื่อคุยได้เต็มรูปแบบ", "No AI brain connected yet, so I only understand simple commands (type \"help\"). Add a free key in the app to chat freely."))
     }
 
     private fun matches(lower: String, vararg options: String) = options.any { lower == it }
@@ -124,19 +127,23 @@ object LocalBrain {
     }
 
     fun describe(obs: ScreenObservation): String = buildString {
-        append("ตอนนี้เปิด ").append(obs.appLabel.ifBlank { obs.packageName }).append(" อยู่")
-        if (obs.sensitive) { append(" — เป็นหน้าจอที่มีข้อมูลลับ จิ๋วเลยไม่อ่านนะ"); return@buildString }
-        if (obs.protectedContent) append(" (ภาพหน้าจอถูกระบบป้องกันไว้)")
+        append(tr("ตอนนี้เปิด ", "You are in ")).append(obs.appLabel.ifBlank { obs.packageName }).append(tr(" อยู่", ""))
+        if (obs.sensitive) { append(tr(" — เป็นหน้าจอที่มีข้อมูลลับ จึงไม่อ่าน", " — this screen holds secrets, so I will not read it")); return@buildString }
+        if (obs.protectedContent) append(tr(" (ภาพหน้าจอถูกระบบป้องกันไว้)", " (the picture is protected by the system)"))
         val texts = obs.elements.filter { it.label.isNotBlank() }.map { it.label.replace('\n', ' ').take(40) }.distinct()
         val buttons = obs.elements.count { it.clickable }
         if (texts.isEmpty() && obs.ocrText.isBlank()) {
-            append(" แต่อ่านข้อความบนจอไม่ได้เลย (แอปอาจวาดจอเอง เช่น เกมหรือวิดีโอ)")
+            append(tr(" แต่อ่านข้อความบนจอไม่ได้เลย (แอปอาจวาดจอเอง เช่น เกมหรือวิดีโอ)", " but there is no readable text (a game or video, probably)"))
         } else {
-            append(" เห็นข้อความ ").append(texts.size).append(" จุด กดได้ ").append(buttons).append(" จุด")
-            if (texts.isNotEmpty()) append("\nเช่น: ").append(texts.take(8).joinToString(" · "))
+            append(tr(" เห็นข้อความ ${texts.size} จุด กดได้ $buttons จุด", ". I see ${texts.size} texts and $buttons tappable items"))
+            if (texts.isNotEmpty()) append(tr("\nเช่น: ", "\ne.g. ")).append(texts.take(8).joinToString(" · "))
             if (obs.ocrText.isNotBlank()) append("\nOCR: ").append(obs.ocrText.replace('\n', ' ').take(160))
         }
     }
 
-    const val HELP = "คำสั่งโหมดออฟไลน์:\n• ดูหน้าจอ\n• กด <ชื่อปุ่ม>\n• พิมพ์ <ข้อความ>\n• เลื่อนลง / เลื่อนขึ้น\n• กลับ / โฮม / แจ้งเตือน\n• เปิด <ชื่อแอป>\n• จำ <หัวข้อ> = <เนื้อหา> / จำอะไรได้บ้าง"
+    val HELP: String
+        get() = tr(
+            "คำสั่งพื้นฐาน:\n• ดูหน้าจอ\n• กด <ชื่อปุ่ม>\n• พิมพ์ <ข้อความ>\n• เลื่อนลง / เลื่อนขึ้น\n• กลับ / โฮม / แจ้งเตือน\n• เปิด <ชื่อแอป>\n• จำ <หัวข้อ> = <เนื้อหา> / จำอะไรได้บ้าง",
+            "Basic commands:\n• look\n• tap <button name>\n• type <text>\n• scroll down / scroll up\n• back / home / notifications\n• open <app name>\n• remember <topic> = <text> / recall",
+        )
 }

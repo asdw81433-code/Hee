@@ -37,7 +37,7 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
         val now = System.currentTimeMillis()
         val size = ScreenMetrics.realSize(context)
         if (!prefs.visionEnabled || LivingState.paused.value) {
-            return ScreenObservation(now, "", if (LivingState.paused.value) "(ระบบถูกสั่งหยุด)" else "(ผู้ใช้ปิดการมองเห็นหน้าจอ)", screenWidth = size.x, screenHeight = size.y)
+            return ScreenObservation(now, "", if (LivingState.paused.value) "(paused by the user)" else "(screen vision is switched off by the user)", screenWidth = size.x, screenHeight = size.y)
         }
 
         val svc = LivingAccessibilityService.instance
@@ -49,6 +49,8 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
         var source = if (snap != null) "nodes" else "none"
         var ocrText = ""
         var image: String? = null
+        var imageW = 0
+        var imageH = 0
         var protectedContent = false
 
         val sensitive = Redactor.isSensitiveScreen(pkg, elements)
@@ -68,7 +70,9 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
                                 lastSig = sig
                                 if (ocrText.isNotBlank()) source = if (snap != null) "nodes+ocr" else "ocr"
                             }
-                            if (includeImage && prefs.sendScreenshots) image = toJpegBase64(frame)
+                            if (includeImage && prefs.sendScreenshots) {
+                                toJpegBase64(frame)?.let { (b64, w, h) -> image = b64; imageW = w; imageH = h }
+                            }
                         }
                     }
                 } finally {
@@ -85,6 +89,8 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
             elements = elements,
             ocrText = ocrText,
             imageJpegBase64 = image,
+            imageWidth = imageW,
+            imageHeight = imageH,
             screenWidth = size.x,
             screenHeight = size.y,
             sensitive = sensitive,
@@ -124,14 +130,16 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
     }
 
     /** Down-scales to at most 768 px on the long edge (≈ 350 KB of pixels) and compresses to JPEG. */
-    private fun toJpegBase64(frame: Bitmap): String? = try {
+    private fun toJpegBase64(frame: Bitmap): Triple<String, Int, Int>? = try {
         val longEdge = maxOf(frame.width, frame.height)
         val scale = minOf(1f, MAX_IMAGE_EDGE / longEdge.toFloat())
         val scaled = if (scale < 1f) Bitmap.createScaledBitmap(frame, (frame.width * scale).toInt(), (frame.height * scale).toInt(), true) else frame
         val out = ByteArrayOutputStream(64 * 1024)
         scaled.compress(Bitmap.CompressFormat.JPEG, 60, out)
+        val w = scaled.width
+        val h = scaled.height
         if (scaled !== frame) scaled.recycle()
-        Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        Triple(Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP), w, h)
     } catch (e: OutOfMemoryError) {
         null
     }

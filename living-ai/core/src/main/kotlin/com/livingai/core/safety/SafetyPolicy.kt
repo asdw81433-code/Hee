@@ -1,5 +1,8 @@
 package com.livingai.core.safety
 
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
+
 import com.livingai.core.model.AgentAction
 import com.livingai.core.model.ScreenObservation
 
@@ -27,33 +30,48 @@ class SafetyPolicy(private val confirmEverything: () -> Boolean = { false }) {
         if (action is AgentAction.Wait) return SafetyDecision.Allow
         if (obs != null && (obs.sensitive || Redactor.isProtectedPackage(obs.packageName))) {
             if (action is AgentAction.Press || action is AgentAction.OpenApp) return SafetyDecision.Allow
-            return SafetyDecision.Block("หน้าจอนี้มีข้อมูลลับหรือเป็นหน้าจอระบบที่ป้องกัน จึงไม่ควบคุมให้")
+            return SafetyDecision.Block(tr("หน้าจอนี้มีข้อมูลลับหรือเป็นหน้าจอระบบที่ป้องกัน จึงไม่ควบคุมให้", "This screen holds secrets or is a protected system screen, so I will not control it"))
         }
         when (action) {
             is AgentAction.Tap -> {
                 val el = obs?.element(action.elementId)
-                    ?: return SafetyDecision.Block("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด")
-                if (el.password) return SafetyDecision.Block("ไม่แตะช่องรหัสผ่าน")
-                if (!el.enabled) return SafetyDecision.Block("องค์ประกอบ \"${el.label}\" ถูกปิดใช้งานอยู่")
+                    ?: return SafetyDecision.Block(tr("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด", "Element #${action.elementId} is not on the latest screen"))
+                if (el.password) return SafetyDecision.Block(tr("ไม่แตะช่องรหัสผ่าน", "I do not touch password fields"))
+                if (!el.enabled) return SafetyDecision.Block(tr("องค์ประกอบ \"${el.label}\" ถูกปิดใช้งานอยู่", "\"${el.label}\" is disabled"))
                 // View ids look like "send_button" / "btnSend": split them into words before matching.
                 val idWords = el.viewId.substringAfterLast('/').replace('_', ' ').replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
                 val label = el.label + " " + idWords
-                if (risky.containsMatchIn(label)) return SafetyDecision.NeedsConfirmation("การแตะ \"${el.label}\" อาจส่ง/ซื้อ/ลบ หรือยืนยันบางอย่าง")
-                if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation("กำลังอยู่ในแอปการเงิน/ซื้อขาย")
+                if (risky.containsMatchIn(label)) return SafetyDecision.NeedsConfirmation(tr("การแตะ \"${el.label}\" อาจส่ง/ซื้อ/ลบ หรือยืนยันบางอย่าง", "Tapping \"${el.label}\" may send, buy, delete or confirm something"))
+                if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation(tr("กำลังอยู่ในแอปการเงิน/ซื้อขาย", "This is a finance / shopping app"))
             }
             is AgentAction.TypeText -> {
                 val el = obs?.element(action.elementId)
-                    ?: return SafetyDecision.Block("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด")
-                if (el.password) return SafetyDecision.Block("ไม่พิมพ์ลงช่องรหัสผ่าน")
-                if (!el.editable) return SafetyDecision.Block("องค์ประกอบ \"${el.label}\" พิมพ์ข้อความไม่ได้")
-                if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation("กำลังอยู่ในแอปการเงิน/ซื้อขาย")
+                    ?: return SafetyDecision.Block(tr("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด", "Element #${action.elementId} is not on the latest screen"))
+                if (el.password) return SafetyDecision.Block(tr("ไม่พิมพ์ลงช่องรหัสผ่าน", "I do not type into password fields"))
+                if (!el.editable) return SafetyDecision.Block(tr("องค์ประกอบ \"${el.label}\" พิมพ์ข้อความไม่ได้", "\"${el.label}\" is not a text field"))
+                if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation(tr("กำลังอยู่ในแอปการเงิน/ซื้อขาย", "This is a finance / shopping app"))
             }
             is AgentAction.Scroll -> {
                 if (action.elementId != null && obs?.element(action.elementId) == null)
-                    return SafetyDecision.Block("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด")
+                    return SafetyDecision.Block(tr("ไม่พบองค์ประกอบ #${action.elementId} บนหน้าจอล่าสุด", "Element #${action.elementId} is not on the latest screen"))
+            }
+            is AgentAction.TapPoint, is AgentAction.SwipePoints -> {
+                if (obs == null) return SafetyDecision.Block(tr("ยังไม่ได้มองหน้าจอ", "The screen has not been observed yet"))
+                // Point actions must be aimed at the screenshot the model is looking at right now.
+                if (obs.imageWidth <= 0 || obs.imageJpegBase64 == null)
+                    return SafetyDecision.Block(tr("ต้องมองหน้าจอแบบมีภาพ (observe_screen with_image) ก่อนแตะตามจุด", "Observe the screen with an image first (observe_screen with_image) before a point action"))
+                // Where real UI elements exist, they are the only valid targets.
+                val labelled = obs.elements.count { it.text.isNotBlank() || it.description.isNotBlank() }
+                if (labelled >= 4 && !obs.isGame)
+                    return SafetyDecision.Block(tr("หน้าจอนี้มีองค์ประกอบ UI ให้ใช้ tap ด้วย element_id แทน", "This screen has UI elements: use tap with an element_id instead"))
+                val pts = if (action is AgentAction.TapPoint) listOf(action.x to action.y)
+                else (action as AgentAction.SwipePoints).let { listOf(it.x1 to it.y1, it.x2 to it.y2) }
+                if (pts.any { it.first !in 0 until obs.imageWidth || it.second !in 0 until obs.imageHeight })
+                    return SafetyDecision.Block(tr("พิกัดอยู่นอกภาพ ${obs.imageWidth}x${obs.imageHeight}", "Coordinates are outside the ${obs.imageWidth}x${obs.imageHeight} image"))
+                if (moneyApps.containsMatchIn(obs.packageName)) return SafetyDecision.NeedsConfirmation(tr("กำลังอยู่ในแอปการเงิน/ซื้อขาย", "This is a finance / shopping app"))
             }
             is AgentAction.Press, is AgentAction.OpenApp, is AgentAction.Wait -> Unit
         }
-        return if (confirmEverything()) SafetyDecision.NeedsConfirmation("ตั้งค่าให้ยืนยันทุกการกระทำ") else SafetyDecision.Allow
+        return if (confirmEverything()) SafetyDecision.NeedsConfirmation(tr("ตั้งค่าให้ยืนยันทุกการกระทำ", "You asked me to confirm every action")) else SafetyDecision.Allow
     }
 }

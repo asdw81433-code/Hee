@@ -21,6 +21,8 @@ import android.widget.TextView
 import com.livingai.companion.LivingState
 import com.livingai.companion.agent.AgentController
 import com.livingai.companion.vision.ScreenMetrics
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
 import com.livingai.core.model.AgentStatus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
@@ -133,7 +135,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
         val size = ScreenMetrics.realSize(service)
         val pad = (12 * dp).toInt()
         val input = EditText(service).apply {
-            hint = "พิมพ์คุยหรือสั่งจิ๋วได้เลย"
+            hint = tr("พิมพ์คุยหรือสั่งงานได้เลย", "Chat or tell me what to do")
             setHintTextColor(0x99FFFFFF.toInt())
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 15f
@@ -159,10 +161,10 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
         val row = LinearLayout(service).apply {
             orientation = LinearLayout.HORIZONTAL
             val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (6 * dp).toInt() }
-            addView(btn("ส่ง", 0xFF00838F.toInt()) { submit() }, lp)
-            addView(btn("👁 ดูหน้าจอ", 0xFF455A64.toInt()) { hidePanel(); controller.submit("ดูหน้าจอ", fromOverlay = true) }, lp)
-            addView(btn("⏹ หยุด", 0xFFC62828.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
-            addView(btn("ปิด", 0xFF455A64.toInt()) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
+            addView(btn(tr("ส่ง", "Send"), 0xFF1565C0.toInt()) { submit() }, lp)
+            addView(btn(tr("👁 ดูจอ", "👁 Look"), 0xFF455A64.toInt()) { hidePanel(); controller.submit(tr("ดูหน้าจอ", "look"), fromOverlay = true) }, lp)
+            addView(btn(tr("⏹ หยุด", "⏹ Stop"), 0xFFC62828.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
+            addView(btn(tr("ปิด", "Close"), 0xFF455A64.toInt()) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
         }
         val root = LinearLayout(service).apply {
             orientation = LinearLayout.VERTICAL
@@ -170,7 +172,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
             setPadding(pad, pad, pad, pad)
             val recent = LivingState.chat.value.takeLast(5)
             if (recent.isNotEmpty()) addView(TextView(service).apply {
-                text = recent.joinToString("\n") { (if (it.fromUser) "คุณ: " else "จิ๋ว: ") + it.text.take(220) }
+                text = recent.joinToString("\n") { (if (it.fromUser) tr("คุณ: ", "You: ") else "${Persona.NAME}: ") + it.text.take(220) }
                 textSize = 13f; setTextColor(0xFFCFD8DC.toInt())
                 maxLines = 9
                 setPadding(0, 0, 0, (6 * dp).toInt())
@@ -223,7 +225,7 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
                 background = card(0xFA1B2A30.toInt(), 18f)
                 setPadding(pad, pad, pad, pad)
                 addView(TextView(service).apply {
-                    text = "จิ๋วขออนุญาต"
+                    text = tr("${Persona.NAME} ขออนุญาต", "${Persona.NAME} asks permission")
                     textSize = 13f; setTextColor(0xFFB388FF.toInt())
                 })
                 addView(TextView(service).apply {
@@ -233,8 +235,8 @@ class RobotOverlay(private val service: AccessibilityService, private val contro
                 })
                 addView(LinearLayout(service).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    addView(btn("ไม่อนุญาต", 0xFF546E7A.toInt(), false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (8 * dp).toInt() })
-                    addView(btn("อนุญาต", 0xFF2E7D32.toInt(), true), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(btn(tr("ไม่อนุญาต", "Deny"), 0xFF546E7A.toInt(), false), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (8 * dp).toInt() })
+                    addView(btn(tr("อนุญาต", "Allow"), 0xFF2E7D32.toInt(), true), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
                 })
             }
             val lp = baseParams(focusable = false).apply {

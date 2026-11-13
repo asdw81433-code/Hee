@@ -32,7 +32,7 @@ data class UiElement(
     /** Best human label for this element. Never exposes password content. */
     val label: String
         get() = when {
-            password -> "[ช่องรหัสผ่าน]"
+            password -> com.livingai.core.Lang.tr("[ช่องรหัสผ่าน]", "[password field]")
             text.isNotBlank() -> text
             description.isNotBlank() -> description
             else -> viewId.substringAfterLast('/')
@@ -51,6 +51,9 @@ data class ScreenObservation(
     val ocrText: String = "",
     /** Down-scaled JPEG, base64 (no line breaks). Null when not captured / not allowed. */
     val imageJpegBase64: String? = null,
+    /** Pixel size of [imageJpegBase64]; point actions use this coordinate space. */
+    val imageWidth: Int = 0,
+    val imageHeight: Int = 0,
     val screenWidth: Int = 0,
     val screenHeight: Int = 0,
     /** A password/PIN/OTP entry screen or a protected system screen. */
@@ -86,39 +89,41 @@ data class ScreenObservation(
             if (ocrText.isNotBlank()) append(ocrText)
         }.trim()
 
-    /** Compact text form handed to the LLM. */
+    /** Compact text form handed to the LLM (always English: it is model-facing, not user-facing). */
     fun toPromptText(maxElements: Int = 80, maxTextLen: Int = 90): String = buildString {
-        append("แอป: ").append(appLabel.ifBlank { packageName }).append(" (").append(packageName).append(")\n")
-        if (screenWidth > 0) append("จอ: ").append(screenWidth).append('x').append(screenHeight).append('\n')
-        if (isGame) append("ประเภท: เกม\n")
+        append("App: ").append(appLabel.ifBlank { packageName }).append(" (").append(packageName).append(")\n")
+        if (screenWidth > 0) append("Screen: ").append(screenWidth).append('x').append(screenHeight).append('\n')
+        if (isGame) append("Kind: game\n")
         if (sensitive) {
-            append("⚠ หน้าจอนี้มีข้อมูลลับ (รหัสผ่าน/PIN/OTP หรือหน้าจอระบบที่ป้องกัน) จึงไม่ส่งเนื้อหาและไม่อนุญาตให้ควบคุม\n")
+            append("WARNING: this screen holds secrets (password/PIN/OTP or a protected system screen). Its content is withheld and it cannot be controlled.\n")
             return@buildString
         }
-        if (protectedContent) append("⚠ ภาพหน้าจอถูกระบบป้องกัน (FLAG_SECURE) มองไม่เห็นภาพ\n")
+        if (protectedContent) append("WARNING: the picture is protected by the system (FLAG_SECURE); no image is available.\n")
+        if (imageJpegBase64 != null && imageWidth > 0)
+            append("Screenshot attached: ").append(imageWidth).append('x').append(imageHeight).append(" px (tap_point / swipe_points use these pixel coordinates)\n")
         if (elements.isEmpty()) {
-            append("องค์ประกอบ UI: ไม่พบ (แอปอาจวาดจอเอง เช่น เกม/วิดีโอ)\n")
+            append("UI elements: none (the app draws its own screen, e.g. a game or video)\n")
         } else {
-            append("องค์ประกอบ UI (id | ชนิด | ข้อความ | สถานะ):\n")
+            append("UI elements (id | type | text | state):\n")
             val ranked = elements.sortedByDescending { (if (it.isInteractive) 2 else 0) + (if (it.label.isNotBlank()) 1 else 0) }
                 .take(maxElements).sortedBy { it.id }
             for (e in ranked) {
                 append('[').append(e.id).append("] ").append(e.role)
-                val l = e.label.replace('\n', ' ')
+                val l = (if (e.password) "[password field]" else e.label).replace('\n', ' ')
                 if (l.isNotBlank()) append(" \"").append(if (l.length > maxTextLen) l.take(maxTextLen) + "…" else l).append('"')
                 val flags = buildList {
-                    if (e.clickable) add("กดได้")
-                    if (e.editable) add("พิมพ์ได้")
-                    if (e.scrollable) add("เลื่อนได้")
-                    if (e.checkable) add(if (e.checked) "เลือกอยู่" else "ไม่ได้เลือก")
-                    if (e.focused) add("โฟกัส")
-                    if (!e.enabled) add("ปิดใช้งาน")
+                    if (e.clickable) add("tappable")
+                    if (e.editable) add("editable")
+                    if (e.scrollable) add("scrollable")
+                    if (e.checkable) add(if (e.checked) "checked" else "unchecked")
+                    if (e.focused) add("focused")
+                    if (!e.enabled) add("disabled")
                 }
                 if (flags.isNotEmpty()) append(" (").append(flags.joinToString(",")).append(')')
                 append('\n')
             }
-            if (elements.size > ranked.size) append("… อีก ").append(elements.size - ranked.size).append(" รายการ\n")
+            if (elements.size > ranked.size) append("… ").append(elements.size - ranked.size).append(" more\n")
         }
-        if (ocrText.isNotBlank()) append("ข้อความจาก OCR:\n").append(ocrText.take(1500)).append('\n')
+        if (ocrText.isNotBlank()) append("OCR text:\n").append(ocrText.take(1500)).append('\n')
     }
 }

@@ -25,4 +25,14 @@ interface LlmClient {
     fun newSession(system: String, tools: List<ToolSpec>, maxTokens: Long): LlmSession
 }
 
-class LlmException(message: String, val retryable: Boolean = false, cause: Throwable? = null) : Exception(message, cause)
+class LlmException(message: String, val retryable: Boolean = false, cause: Throwable? = null, val modelNotFound: Boolean = false) : Exception(message, cause)
+
+/** One tiny request to check that the key, the model and the network all work. Throws [LlmException]. */
+suspend fun LlmClient.ping(): String =
+    newSession("Answer as briefly as possible.", emptyList(), maxTokens = 1000).sendUser("Reply with the single word: OK").text.ifBlank { "OK" }
+
+/** Routes to whichever provider the user selected. */
+class SwitchingLlmClient(private val current: () -> LlmClient) : LlmClient {
+    override val isConfigured: Boolean get() = current().isConfigured
+    override fun newSession(system: String, tools: List<ToolSpec>, maxTokens: Long): LlmSession = current().newSession(system, tools, maxTokens)
+}

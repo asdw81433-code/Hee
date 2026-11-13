@@ -54,7 +54,12 @@ class DeviceE2ETest {
         shell("settings put secure enabled_accessibility_services $component")
         shell("settings put secure accessibility_enabled 1")
         waitUntil("accessibility service connects", 30_000) { LivingState.accessibilityConnected.value }
+        // The assertions below match the Thai texts; the emulator itself runs in English.
+        com.livingai.core.Lang.thai = true
+        graph.prefs.provider = "gemini"
         graph.prefs.apiKey = ""
+        graph.prefs.geminiKey = ""
+        graph.prefs.sendScreenshots = true
         graph.prefs.proactiveEnabled = false
         graph.controller.resume()
     }

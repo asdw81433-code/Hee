@@ -1,5 +1,8 @@
 package com.livingai.core.agent
 
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
+
 import com.livingai.core.ActionPort
 import com.livingai.core.AgentListener
 import com.livingai.core.ConfirmationPort
@@ -26,20 +29,20 @@ class ActionAgent(
         if (action is AgentAction.Wait) {
             delay(action.millis.coerceIn(100L, 5_000L))
             vision.look(includeImage = false)
-            return ActionResult(true, "รอแล้ว")
+            return ActionResult(true, tr("รอแล้ว", "waited"))
         }
         if (!port.isAvailable) {
-            return ActionResult(false, "ยังควบคุมหน้าจอไม่ได้: ผู้ใช้ยังไม่ได้เปิดบริการ Accessibility ของ LIVING AI")
+            return ActionResult(false, tr("ยังควบคุมหน้าจอไม่ได้: ยังไม่ได้เปิดบริการ Accessibility ของ ${Persona.NAME}", "I cannot control the screen yet: the ${Persona.NAME} accessibility service is not enabled"))
         }
         // Targets must come from the observation the planner actually saw.
         val before = vision.last ?: vision.look(includeImage = false)
 
         when (val d = policy.evaluate(action, before)) {
-            is SafetyDecision.Block -> return ActionResult(false, "ถูกระงับ: ${d.reason}")
+            is SafetyDecision.Block -> return ActionResult(false, tr("ถูกระงับ: ${d.reason}", "Blocked: ${d.reason}"))
             is SafetyDecision.NeedsConfirmation -> {
                 listener.onStatus(AgentStatus.WAITING_CONFIRM, action.describe(before))
                 val ok = confirmer.confirm("${action.describe(before)}\n(${d.reason})")
-                if (!ok) return ActionResult(false, "ผู้ใช้ไม่อนุญาตให้ทำ: ${action.describe(before)}")
+                if (!ok) return ActionResult(false, tr("ผู้ใช้ไม่อนุญาตให้ทำ: ${action.describe(before)}", "The user did not allow: ${action.describe(before)}"))
             }
             SafetyDecision.Allow -> Unit
         }
@@ -49,6 +52,13 @@ class ActionAgent(
         if (!result.success) {
             vision.look(includeImage = false)
             return result
+        }
+
+        if (action.isPointAction) {
+            // No node tree to compare on such screens: hand back a fresh picture so the model can judge.
+            delay(settleMs)
+            vision.look(includeImage = true)
+            return ActionResult(true, "${result.message} — " + tr("ดูภาพใหม่เพื่อตรวจผล", "check the new picture to see the result"))
         }
 
         // Verify: look again until the screen has visibly reacted (slow devices and animated
@@ -67,9 +77,9 @@ class ActionAgent(
             vision.look(includeImage = false)
         }
         val note = when {
-            changed -> "หน้าจอเปลี่ยนแล้ว"
-            action is AgentAction.Scroll -> "หน้าจอไม่เปลี่ยน อาจสุดขอบแล้ว"
-            else -> "หน้าจอยังเหมือนเดิม การกระทำอาจไม่มีผล"
+            changed -> tr("หน้าจอเปลี่ยนแล้ว", "the screen changed")
+            action is AgentAction.Scroll -> tr("หน้าจอไม่เปลี่ยน อาจสุดขอบแล้ว", "the screen did not change, probably the end of the list")
+            else -> tr("หน้าจอยังเหมือนเดิม การกระทำอาจไม่มีผล", "the screen looks the same, the action may have had no effect")
         }
         return ActionResult(true, "${result.message} — $note", screenChanged = changed)
     }

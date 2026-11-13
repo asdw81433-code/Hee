@@ -15,7 +15,13 @@ import com.livingai.core.agent.ActionAgent
 import com.livingai.core.agent.MainAgent
 import com.livingai.core.agent.MemoryAgent
 import com.livingai.core.agent.VisionAgent
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
 import com.livingai.core.llm.ClaudeLlmClient
+import com.livingai.core.llm.GeminiLlmClient
+import com.livingai.core.llm.LlmException
+import com.livingai.core.llm.SwitchingLlmClient
+import com.livingai.core.llm.ping
 import com.livingai.core.model.AgentStatus
 import com.livingai.core.model.ChatLine
 import com.livingai.core.safety.ProactivePolicy
@@ -39,7 +45,9 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val screenSource = AndroidScreenSource(context, prefs)
-    private val llm = ClaudeLlmClient(apiKey = { prefs.apiKey }, model = { prefs.model }, effort = { prefs.effort })
+    private val claude = ClaudeLlmClient(apiKey = { prefs.apiKey }, model = { prefs.model }, effort = { prefs.effort })
+    private val gemini = GeminiLlmClient(apiKey = { prefs.geminiKey }, model = { prefs.geminiModel })
+    private val llm = SwitchingLlmClient { if (prefs.provider == "claude") claude else gemini }
     val vision = VisionAgent(screenSource, this)
     private val memory = MemoryAgent(memoryStore)
     private val actions = ActionAgent(
@@ -54,12 +62,27 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         alwaysImage = { prefs.sendScreenshots && LivingState.captureActive.value },
     )
 
-    /** Checks the API key with one tiny request. Returns a message for the user. */
-    suspend fun testApiKey(): String = try {
-        "ใช้งานได้ ✓ (${prefs.model}) ตอบว่า: ${llm.ping().take(40)}"
-    } catch (e: com.livingai.core.llm.LlmException) {
-        "ใช้ไม่ได้: ${e.message}"
+    /**
+     * Checks the selected provider's key with one tiny request and returns a message for the user.
+     * For Gemini, a model name that no longer exists is replaced by one the key can actually use.
+     */
+    suspend fun testApiKey(): String {
+        val isGemini = prefs.provider != "claude"
+        return try {
+            val answer = try {
+                llm.ping()
+            } catch (e: LlmException) {
+                val replacement = if (isGemini && e.modelNotFound) gemini.findWorkingModel() else null
+                if (replacement == null) throw e
+                prefs.geminiModel = replacement
+                llm.ping()
+            }
+            tr("ใช้งานได้ ✓", "It works ✓") + " (${if (isGemini) prefs.geminiModel else prefs.model}) → ${answer.take(40)}"
+        } catch (e: LlmException) {
+            tr("ใช้ไม่ได้: ", "Not working: ") + e.message
+        }
     }
+
     private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
     /** Set by the accessibility service while the floating robot exists. */
@@ -85,7 +108,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     fun submit(text: String, fromOverlay: Boolean = false) {
         if (LivingState.paused.value) {
-            onSay("ตอนนี้จิ๋วถูกสั่งหยุดอยู่ กด \"ทำงานต่อ\" ในแอป LIVING AI ก่อนนะ")
+            onSay(tr("ตอนนี้ถูกสั่งหยุดอยู่ กด \"ทำงานต่อ\" ในแอป ${Persona.NAME} ก่อน", "I am paused. Press \"Resume\" in the ${Persona.NAME} app first."))
             return
         }
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), true, text))
@@ -100,12 +123,12 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
                 // Hard ceiling for one task, so a stuck step can never keep the robot "busy" forever.
                 withTimeout(TASK_TIMEOUT_MS) { mainAgent.handleUserMessage(text) }
             } catch (e: TimeoutCancellationException) {
-                onSay("งานนี้ใช้เวลานานเกินไป จิ๋วขอหยุดไว้ก่อนนะ")
+                onSay(tr("งานนี้ใช้เวลานานเกินไป ขอหยุดไว้ก่อน", "This is taking too long, so I stopped."))
                 onStatus(AgentStatus.IDLE)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                onSay("อุ๊ย จิ๋วสะดุด: ${e.message ?: e.javaClass.simpleName}")
+                onSay(tr("เกิดข้อผิดพลาด: ", "Something went wrong: ") + (e.message ?: e.javaClass.simpleName))
                 onStatus(AgentStatus.IDLE)
             }
         }
@@ -116,7 +139,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         val wasBusy = isBusy
         userJob?.cancel(); proactiveJob?.cancel(); appChangeJob?.cancel(); contentJob?.cancel()
         onStatus(if (LivingState.paused.value) AgentStatus.PAUSED else AgentStatus.IDLE)
-        if (userInitiated && wasBusy) overlay?.say("หยุดแล้ว")
+        if (userInitiated && wasBusy) overlay?.say(tr("หยุดแล้ว", "Stopped"))
     }
 
     /** Kill switch: stop tasks, stop screen capture, and refuse to look or act until resumed. */
@@ -191,7 +214,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         proactive.lowMemory = true
         screenSource.lowMemory = true
         screenSource.trimMemory()
-        if (!isBusy) llm.release()
+        if (!isBusy) claude.release()
         vision.forget()
         lowMemoryJob?.cancel()
         lowMemoryJob = scope.launch {
