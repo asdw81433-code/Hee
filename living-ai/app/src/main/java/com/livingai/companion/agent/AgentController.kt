@@ -69,6 +69,9 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     val vision = VisionAgent(screenSource, this)
     val memory = MemoryAgent(memoryStore, autoLearn = { prefs.autoMemory })
     val personalityStore = PersonalityStore(prefs)
+    /** Which apps are opened when: learned from the screen, names and counts only. */
+    val appHabits = com.livingai.core.companion.AppHabits(prefs)
+
     /** Water, eye breaks, moving: counted per day. */
     val habits = com.livingai.core.companion.Habits(prefs)
     /** Coins and the outfit Kivo wears. */
@@ -121,6 +124,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         habits = habits,
         repeatTap = ::repeatTap,
         customPersona = { prefs.customPersona },
+        appHabits = appHabits,
     )
 
     /**
@@ -278,6 +282,12 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     }
 
     fun onAppChanged(pkg: String) {
+        if (pkg != currentPackage && !LivingState.paused.value) {
+            val label = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault("")
+            val times = appHabits.record(pkg, label, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+            // a light reaction now and then, so Kivo visibly notices what you do
+            if (times == 1 || times % 5 == 0) overlay?.react(times)
+        }
         currentPackage = pkg
         currentIsGame = screenSource.isGame(pkg)
         if (currentIsGame) screenSource.trimMemory() // free capture/OCR memory for the game
@@ -390,6 +400,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
                 hour = hour, userName = memory.userName(), mood = emotion.state.mood, batteryPercent = dc.batteryPercent,
                 sinceLastChatMs = bond.sinceLastMs, openTodos = todos, followUp = memory.lastEpisode(minImportance = 2),
                 bondLevel = bond.level, interests = personalityStore.load().interests,
+                usualApp = appHabits.usualAt(hour), busiestToday = appHabits.topToday(1).firstOrNull(),
             )
             val line = initiative.compose(trigger, ctx) { mainAgent.activities.suggestion(it) } ?: return@launch
             if (isBusy) return@launch
@@ -482,6 +493,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         stopCurrent()
         reminders.book.all().forEach { reminders.cancel(it) }
         memory.store.clearAll()
+        appHabits.clear()
         LivingState.chat.value = emptyList()
         prefs.clearCompanionData()
         vision.forget()

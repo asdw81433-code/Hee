@@ -130,7 +130,7 @@ class RobotOverlay(
             robot.lowRam = controller.resources.lowRam
             robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin); robot.outfit = controller.wardrobe.outfit
             val quiet = !minimized && panel == null && confirmView == null && bubble == null && !controller.isBusy &&
-                android.os.SystemClock.uptimeMillis() - lastUserMove > 40_000 && LivingState.status.value == AgentStatus.IDLE
+                android.os.SystemClock.uptimeMillis() - lastUserMove > 25_000 && LivingState.status.value == AgentStatus.IDLE
             if (quiet && controller.prefs.roamEnabled) {
                 val size = ScreenMetrics.realSize(ctx)
                 val onRight = robotLp.x > size.x / 2
@@ -140,7 +140,9 @@ class RobotOverlay(
                 val dist = abs(homeX - robotLp.x) + abs(homeY - robotLp.y)
                 walkTo(homeX, homeY, (dist / dp * 4.5f).toLong().coerceIn(500, 3500))
             }
-            main.postDelayed(this, 9000L + (Math.random() * 9000).toLong())
+            // and plays by itself between strolls
+            if (quiet && Math.random() < 0.35) robot.play(listOf(com.livingai.core.robot.Gesture.SPIN, com.livingai.core.robot.Gesture.JUMP, com.livingai.core.robot.Gesture.PLAY, com.livingai.core.robot.Gesture.STRETCH, com.livingai.core.robot.Gesture.WAVE).random())
+            main.postDelayed(this, 6000L + (Math.random() * 7000).toLong())
         }
     }
 
@@ -196,8 +198,10 @@ class RobotOverlay(
     private val bubbleLp = baseParams(focusable = false).apply { gravity = Gravity.TOP or Gravity.START }
 
     /** Speech bubble: sits right above the robot's head (below it near the top edge) and follows it. */
-    fun say(text: String) = main.post {
-        if (destroyed || text.isBlank()) return@post
+    fun say(full: String) = main.post {
+        if (destroyed || full.isBlank()) return@post
+        // the bubble shows a short version; the whole reply is in the chat
+        val text = shortBubble(full)
         removeBubble()
         val size = ScreenMetrics.realSize(ctx)
         val tv = TextView(ctx).apply {
@@ -207,14 +211,16 @@ class RobotOverlay(
             background = GradientDrawable().apply { setColor(0xFFFFFFFF.toInt()); cornerRadius = 18 * dp; setStroke((2f * dp).toInt(), 0xFF2A2633.toInt()) }
             typeface = com.livingai.companion.ui.Theme.medium(ctx)
             setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
-            maxWidth = (size.x * 0.66f).toInt()
-            maxLines = 8
+            maxWidth = (size.x * 0.58f).toInt()
+            maxLines = 3
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            textSize = 13.5f
             elevation = 6 * dp
             // tap the speech bubble to answer
             setOnClickListener { removeBubble(); if (panel == null) togglePanel() }
         }
         tv.measure(
-            View.MeasureSpec.makeMeasureSpec((size.x * 0.66f).toInt(), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec((size.x * 0.58f).toInt(), View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
         bubble = tv
@@ -228,6 +234,20 @@ class RobotOverlay(
 
     /** Frames the robot really drew during the last second. */
     val fps: Int get() = robot.fps
+
+    /** First sentence or line, at most ~90 characters. */
+    private fun shortBubble(t: String): String {
+        val first = t.trim().split('\n').first { it.isNotBlank() }.trim()
+        val cut = first.indexOfAny(charArrayOf('.', '!', '?'), 25).let { if (it in 25..90) first.substring(0, it + 1) else first }
+        val s = if (cut.length > 90) cut.take(88).trimEnd() + "…" else cut
+        return if (s.length < t.trim().length) "$s 💬" else s
+    }
+
+    /** Noticed the user opened an app: a small hop or wave (no words, so it never gets annoying). */
+    fun react(times: Int) = main.post {
+        if (destroyed || minimized) return@post
+        robot.play(if (times % 10 == 0) com.livingai.core.robot.Gesture.CHEER else if (times == 1) com.livingai.core.robot.Gesture.WAVE else com.livingai.core.robot.Gesture.JUMP)
+    }
 
     /** The screen point just below the robot: where "tap here repeatedly" taps. */
     fun pointBelow(): Pair<Int, Int> = (robotLp.x + robotW() / 2) to (robotLp.y + robotH() + (10 * dp).toInt())
@@ -248,13 +268,13 @@ class RobotOverlay(
     /** The reply so far while the model is still writing: the same bubble grows instead of being rebuilt. */
     fun sayPartial(text: String) = main.post {
         if (destroyed || text.isBlank()) return@post
-        val shown = if (text.length > 220) "…" + text.takeLast(220) else text
+        val shown = if (text.length > 90) "…" + text.takeLast(90) else text
         val tv = bubble
         if (tv == null) { say(shown); return@post }
         tv.text = shown
         val size = ScreenMetrics.realSize(ctx)
         tv.measure(
-            View.MeasureSpec.makeMeasureSpec((size.x * 0.66f).toInt(), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec((size.x * 0.58f).toInt(), View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
         placeBubble()

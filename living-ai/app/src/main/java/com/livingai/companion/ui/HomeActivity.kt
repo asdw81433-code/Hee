@@ -330,11 +330,13 @@ class HomeActivity : Activity() {
     }
 
     private fun bubble(text: String, mine: Boolean): View {
+        val long = !mine && text.length > 260
         val tv = TextView(this).apply {
-            this.text = text
+            this.text = if (long) text.take(240).trimEnd() + tr("… (แตะเพื่ออ่านต่อ)", "… (tap for more)") else text
+            if (long) setOnClickListener { this.text = text; setOnClickListener(null) }
             textSize = 15f
             setTextColor(if (mine) 0xFFFFFFFF.toInt() else colorText)
-            setTextIsSelectable(true)
+            setTextIsSelectable(!long)
             setLineSpacing(2.dp.toFloat(), 1f)
             setPadding(14.dp, 9.dp, 14.dp, 9.dp)
             background = GradientDrawable().apply {

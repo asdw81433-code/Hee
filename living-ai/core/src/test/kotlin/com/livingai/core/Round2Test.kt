@@ -87,3 +87,27 @@ class Round2Test {
         assertTrue(hub.active == null && turns < 30)
     }
 }
+
+class AppHabitsTest {
+    @org.junit.jupiter.api.Test
+    fun `learns which apps are opened when, keeps only names and counts`() {
+        var now = 1_800_000_000_000L
+        val h = com.livingai.core.companion.AppHabits(InMemoryKeyValueStore()) { now }
+        repeat(4) { h.record("com.garena.rov", "RoV", 20) }
+        h.record("com.google.android.youtube", "YouTube", 9)
+        h.record("com.livingai.companion", "Kivo", 20)               // itself is ignored
+        kotlin.test.assertEquals("RoV" to 4, h.topToday(1).single())
+        kotlin.test.assertEquals("RoV", h.usualAt(20))
+        kotlin.test.assertEquals(null, h.usualAt(9), "seen once is not a habit")
+        now += 86_400_000L
+        kotlin.test.assertTrue(h.topToday().isEmpty()); kotlin.test.assertEquals("RoV", h.top(1).single().first)
+        kotlin.test.assertTrue(h.summary().contains("RoV"))
+    }
+
+    @org.junit.jupiter.api.Test
+    fun `screen description stays short`() {
+        val obs = screen("com.android.settings", *(1..30).map { el(it, "รายการตั้งค่าที่ยาวมากหมายเลข $it") }.toTypedArray())
+        val d = com.livingai.core.tools.LocalBrain.describe(obs)
+        kotlin.test.assertTrue(d.length < 160, "${d.length}: $d")
+    }
+}

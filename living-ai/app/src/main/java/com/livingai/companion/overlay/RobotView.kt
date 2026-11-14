@@ -133,7 +133,7 @@ internal class CanvasPainter : Painter {
 class RobotView(context: Context) : View(context) {
 
     private val animator = RobotAnimator()
-    private val renderer = com.livingai.core.robot.HoverBotRenderer()
+    private val renderer = com.livingai.core.robot.PixelBotRenderer()
     private val painter = CanvasPainter()
     private val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val captionRect = RectF()

@@ -55,6 +55,7 @@ class KivoCore(
     private val repeatTap: (suspend (Int) -> String)? = null,
     /** Extra things the user wants this companion to be or know, added to every model prompt. */
     private val customPersona: () -> String = { "" },
+    val appHabits: com.livingai.core.companion.AppHabits? = null,
 ) {
     val autopilot = com.livingai.core.tools.AutoPilot(vision, actions, memory.store, listener, { brain?.generatorOrNull() })
     init {
@@ -302,6 +303,7 @@ class KivoCore(
                 didAct = true
                 f(plan.count)
             }
+            LocalBrain.Plan.AppStats -> { replyMood = Mood.CURIOUS; appHabits?.summary() ?: tr("ยังไม่ได้เปิดการเรียนรู้จากจอ", "Learning from the screen is off") }
             LocalBrain.Plan.Summarize -> { replyMood = Mood.FOCUSED; summarizeScreen() }
             is LocalBrain.Plan.Habit -> {
                 val h = habits ?: return tr("ยังไม่ได้เปิดการติดตามนิสัย", "Habit tracking is not available")

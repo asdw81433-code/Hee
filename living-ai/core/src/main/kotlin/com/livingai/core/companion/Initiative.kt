@@ -29,6 +29,9 @@ data class InitiativeContext(
     val followUp: Memory? = null,
     val bondLevel: Int = 0,
     val interests: List<String> = emptyList(),
+    /** What Kivo learned from the screen: the app usually opened at this hour, and today's most opened app. */
+    val usualApp: String? = null,
+    val busiestToday: Pair<String, Int>? = null,
 )
 
 /**
@@ -102,7 +105,10 @@ class Initiative(private val clock: Clock, private val kv: KeyValueStore, privat
                     else -> greeting
                 }
             }
-            Trigger.IDLE -> when (Math.floorMod(turn, 5)) {
+            Trigger.IDLE -> when (Math.floorMod(turn, 6)) {
+                5 -> ctx.busiestToday?.takeIf { it.second >= 5 }?.let { tr("วันนี้เปิด ${it.first} ไป ${it.second} รอบแล้วนะ ชอบอะไรในนั้นเหรอ 😄", "You've opened ${it.first} ${it.second} times today. What do you like about it? 😄") }
+                    ?: ctx.usualApp?.let { tr("ปกติเวลานี้เธอเปิด $it นี่นา จะให้เปิดให้ไหม พิมพ์ \"เปิด $it\" ได้เลย", "Around now you usually open $it. Want me to? Say \"open $it\".") }
+                    ?: SmallTalk.musing(turn)
                 0 -> activitySuggestion(turn / 5)
                 1 -> if (ctx.openTodos.isNotEmpty()) tr("อย่าลืมนะ: ${ctx.openTodos.first()} ยังไม่ได้ทำ", "Don't forget: ${ctx.openTodos.first()}") else SmallTalk.musing(turn)
                 2 -> ctx.followUp?.let { tr("นึกขึ้นได้ เรื่อง \"${it.title}\" เป็นไงต่อ เล่าให้ฟังหน่อยสิ", "I was wondering, how did \"${it.title}\" turn out?") }

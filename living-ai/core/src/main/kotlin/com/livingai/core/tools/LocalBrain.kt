@@ -26,6 +26,7 @@ object LocalBrain {
         data class ListNotes(val todos: Boolean) : Plan
         data class DoneTodo(val query: String) : Plan
         data object Summarize : Plan
+        data object AppStats : Plan
         /** Work towards [goal] step by step without further instructions. */
         data class Auto(val goal: String) : Plan
         /** Tap the spot under the robot [count] times (for idle / clicker games). */
@@ -165,6 +166,7 @@ object LocalBrain {
             return Plan.Describe
 
         // Memory
+        if (listOf("ใช้แอปอะไรบ่อย", "เปิดแอปอะไรบ่อย", "เรียนรู้อะไรจากจอ", "สถิติแอป", "app stats", "which apps do i use").any { lower.contains(it) }) return Plan.AppStats
         if (lower.startsWith("จำอะไร") || lower.startsWith("recall") || lower.startsWith("what do you remember"))
             return Plan.Recall(text.substringAfter(' ', "").trim())
         for (w in listOf("จำไว้ว่า", "จำว่า", "จำ", "remember that", "remember")) {
@@ -253,9 +255,9 @@ object LocalBrain {
         if (texts.isEmpty() && obs.ocrText.isBlank()) {
             append(tr(" แต่อ่านข้อความบนจอไม่ได้เลย (แอปอาจวาดจอเอง เช่น เกมหรือวิดีโอ)", " but there is no readable text (a game or video, probably)"))
         } else {
-            append(tr(" เห็นข้อความ ${texts.size} จุด กดได้ $buttons จุด", ". I see ${texts.size} texts and $buttons tappable items"))
-            if (texts.isNotEmpty()) append(tr("\nเช่น: ", "\ne.g. ")).append(texts.take(8).joinToString(" · "))
-            if (obs.ocrText.isNotBlank()) append("\nOCR: ").append(obs.ocrText.replace('\n', ' ').take(160))
+            append(tr(" • กดได้ $buttons ปุ่ม", " • $buttons buttons"))
+            if (texts.isNotEmpty()) append(tr("\nเช่น ", "\ne.g. ")).append(texts.take(4).joinToString(" · ") { it.take(18) })
+            else if (obs.ocrText.isNotBlank()) append("\n").append(obs.ocrText.replace('\n', ' ').take(80))
         }
     }
 
