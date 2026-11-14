@@ -26,7 +26,11 @@ import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 import com.livingai.core.AgentStatus
 import com.livingai.core.memory.ChatLine
+import com.livingai.core.emotion.EmotionEngine
+import com.livingai.core.emotion.EmotionEvent
 import com.livingai.core.emotion.Mood
+import com.livingai.core.personality.Bond
+import com.livingai.core.personality.PersonalityStore
 import com.livingai.core.companion.ProactivePolicy
 import com.livingai.core.tools.SafetyPolicy
 import com.livingai.core.companion.ScreenEventKind
@@ -49,7 +53,11 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     val screenSource = AndroidScreenSource(context, prefs)
     val vision = VisionAgent(screenSource, this)
-    private val memory = MemoryAgent(memoryStore)
+    val memory = MemoryAgent(memoryStore, autoLearn = { prefs.autoMemory })
+    val personalityStore = PersonalityStore(prefs)
+    val bond = Bond(prefs) { System.currentTimeMillis() }
+    /** Simulated mood; more playful personalities react more strongly. */
+    val emotion = EmotionEngine({ SystemClock.elapsedRealtime() }, sensitivity = { 0.75f + personalityStore.load().playfulness * 0.4f })
     private val actions = ActionAgent(
         port = A11yActionPort(context, prefs),
         vision = vision,
@@ -59,7 +67,10 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         targetLeadMs = 230L,
     )
     val devicePort = AndroidDevicePort(context)
-    private val mainAgent = KivoCore(vision, actions, devicePort, memory, this, localContext = ::deviceContext)
+    private val mainAgent = KivoCore(
+        vision, actions, devicePort, memory, this, localContext = ::deviceContext,
+        emotion = emotion, personality = { personalityStore.load() }, bond = bond,
+    )
 
     /** Decides what may be in memory at the same time; see core.resource.ResourceManager. */
     val resources = ResourceManager(AndroidMemoryProbe(context), { SystemClock.elapsedRealtime() })
@@ -73,6 +84,14 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     init {
         resources.register(ocrResource, ResourceMode.VISION)
+        // feelings fade and idle resources are released, once a minute
+        scope.launch {
+            while (true) {
+                delay(60_000)
+                emotion.tick(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+                resources.onIdleTick()
+            }
+        }
     }
 
     /** Clock and battery for the built-in mind. */
@@ -248,22 +267,14 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         overlay?.pointAt(x, y)
     }
 
-    private var moodJob: Job? = null
-
     override fun onMood(mood: Mood) {
         LivingState.mood.value = mood
         overlay?.setMood(mood)
-        // Feelings fade: back to neutral after a while (sleepy late at night).
-        moodJob?.cancel()
-        if (mood == Mood.CALM) return
-        moodJob = scope.launch {
-            delay(75_000)
-            val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-            val rest = if (hour >= 23 || hour < 5) Mood.SLEEPY else Mood.CALM
-            LivingState.mood.value = rest
-            overlay?.setMood(rest)
-        }
     }
+
+    /** The robot was touched / dragged: that is an event for the emotion engine too. */
+    fun onTouched() = emotion.onEvent(EmotionEvent.TOUCHED)
+    fun onPickedUp() = emotion.onEvent(EmotionEvent.PICKED_UP)
 
     override fun onSay(text: String, proactive: Boolean) {
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, text))

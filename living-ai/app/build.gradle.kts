@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
 }
 
 android {
@@ -12,8 +11,8 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.8.0"
+        versionCode = 11
+        versionName = "0.9.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -70,9 +69,6 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(libs.coroutines.android)
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
     implementation(libs.mlkit.text)
 
     androidTestImplementation(libs.androidx.test.runner)

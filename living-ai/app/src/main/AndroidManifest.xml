@@ -55,6 +55,9 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity android:name=".ui.CharacterActivity" android:exported="false" />
+        <activity android:name=".ui.MemoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+
         <!-- Invisible screen that only runs the system speech recogniser, also from the floating orb. -->
         <activity
             android:name=".ui.VoiceActivity"

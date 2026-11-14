@@ -116,7 +116,7 @@ class HomeActivity : Activity() {
     // ---------- parts ----------
 
     private fun header(): View {
-        orb = RobotView(this).apply { showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin); setOnClickListener { poke() } }
+        orb = RobotView(this).apply { showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin); setOnClickListener { startActivity(Intent(this@HomeActivity, CharacterActivity::class.java)) } }
         statusText = label("", 13f, colorSub)
         moodText = label("", 12f, colorSub)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
@@ -146,6 +146,8 @@ class HomeActivity : Activity() {
                     addView(statusText)
                     addView(moodText)
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(smallButton("🧠", grey) { startActivity(Intent(this@HomeActivity, MemoryActivity::class.java)) },
+                    LinearLayout.LayoutParams(46.dp, 42.dp).apply { marginEnd = 6.dp })
                 addView(smallButton("⚙", grey) { startActivity(Intent(this@HomeActivity, SettingsActivity::class.java)) },
                     LinearLayout.LayoutParams(46.dp, 42.dp))
             })

@@ -3,7 +3,9 @@ package com.livingai.core
 import com.livingai.core.companion.LocalMind
 import com.livingai.core.companion.ScreenEventKind
 import com.livingai.core.emotion.Mood
+import com.livingai.core.memory.InMemoryMemoryStore
 import com.livingai.core.memory.MemoryAgent
+import com.livingai.core.memory.MemoryKind
 import com.livingai.core.perception.ScreenObservation
 import com.livingai.core.perception.VisionAgent
 import com.livingai.core.privacy.Redactor
@@ -16,7 +18,7 @@ class CoreTest {
         val screen = FakeScreen(start)
         val port = FakePort(screen)
         val device = FakeDevice()
-        val memory = FakeMemory()
+        val memory = InMemoryMemoryStore()
         val listener = RecordingListener()
         val confirmations = ArrayList<String>()
         val vision = VisionAgent(screen, listener)
@@ -47,7 +49,7 @@ class CoreTest {
         assertEquals(listOf<AgentAction>(AgentAction.Tap(2)), rig.port.performed)
         assertTrue(reply.contains("หน้าจอเปลี่ยนแล้ว"), reply)
         assertEquals(250 to 240, rig.listener.targets.first())
-        assertEquals(2, rig.memory.chat.size)
+        assertEquals(2, rig.memory.recentChat(10).size)
         assertEquals(AgentStatus.IDLE, rig.listener.statuses.last())
     }
 
@@ -106,7 +108,7 @@ class CoreTest {
     @Test fun `it learns the user's name`() = runTest {
         val rig = Rig(screen("com.app", el(1, "OK")))
         rig.core.handleUserMessage("ฉันชื่อ ต้น")
-        assertEquals("ต้น", rig.memory.facts[MemoryAgent.NAME_KEY])
+        assertEquals("ต้น", MemoryAgent(rig.memory).userName())
         assertEquals("มะลิ", LocalMind.chat("my name is มะลิ", ctx)!!.rememberName)
         assertNull(LocalMind.chat("ชื่ออะไร", ctx)!!.rememberName)
     }
@@ -138,7 +140,7 @@ class CoreTest {
         val rig = Rig(game)
         assertNotNull(rig.core.reactToScreen(ScreenEventKind.APP_OPENED, rig.vision.look(false)))
         assertEquals(Mood.EXCITED, rig.listener.moods.last())
-        assertEquals(1, rig.memory.events.size)
+        assertTrue(rig.memory.recentChat(5).any { !it.fromUser })
     }
 
     @Test fun `point actions need a screenshot, valid coordinates and a screen without ui elements`() {

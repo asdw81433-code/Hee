@@ -11,7 +11,6 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${libs.versions.kotlin.get()}")
         if (!coreOnly) {
             classpath("com.android.tools.build:gradle:${libs.versions.agp.get()}")
-            classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:${libs.versions.ksp.get()}")
         }
     }
 }

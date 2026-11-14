@@ -468,7 +468,7 @@ class RobotOverlay(
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - downX; val dy = e.rawY - downY
-                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; main.removeCallbacks(longPress) }
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; main.removeCallbacks(longPress); controller.onPickedUp() }
                     if (dragging) {
                         mover?.cancel()
                         main.removeCallbacks(goHome)
@@ -486,6 +486,7 @@ class RobotOverlay(
                 MotionEvent.ACTION_UP -> if (main.removeCallbacks(longPress).let { !dragging && !longPressed }) {
                     v.performClick()
                     robot.poke()
+                    controller.onTouched()
                     if (controller.isBusy) controller.stopCurrent(userInitiated = true) else togglePanel()
                 }
             }

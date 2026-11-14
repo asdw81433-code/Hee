@@ -12,6 +12,8 @@ import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.livingai.companion.vision.OcrEngine
+import com.livingai.core.memory.Memory
+import com.livingai.core.memory.MemoryKind
 import com.livingai.core.tools.AgentAction
 import com.livingai.core.perception.ScreenObservation
 import com.livingai.core.privacy.Redactor
@@ -184,15 +186,23 @@ class DeviceE2ETest {
     fun f_memory_storeWorks() = runBlocking {
         val store = graph.memoryStore
         store.clearAll()
-        store.putFact("ชื่อผู้ใช้", "ต้น")
-        store.putFact("ชื่อผู้ใช้", "ต้นกล้า") // same key replaces
-        store.addEvent("com.example", "ผู้ใช้เปิด Example")
+        store.save(Memory(kind = MemoryKind.FACT, title = "ชื่อผู้ใช้", content = "ต้น"))
+        store.save(Memory(kind = MemoryKind.FACT, title = "ชื่อผู้ใช้", content = "ต้นกล้า")) // same title replaces
+        store.save(Memory(kind = MemoryKind.FACT, title = "อาหารที่ชอบ", content = "ส้มตำปูปลาร้า"))
+        val note = store.save(Memory(kind = MemoryKind.NOTE, title = "ซื้อของ", content = "นม ไข่ ขนมปัง"))
         store.addChat(true, "สวัสดี")
-        assertEquals(listOf("ต้นกล้า"), store.searchFacts("ชื่อ", 5).map { it.value })
-        assertEquals(1, store.recentEvents(5).size)
+        assertEquals(listOf("ต้นกล้า"), store.list(MemoryKind.FACT, 10).filter { it.title == "ชื่อผู้ใช้" }.map { it.content })
+        // Thai relevance search: finds the food memory, not the unrelated ones
+        assertEquals("อาหารที่ชอบ", store.search("ชอบกินอะไร ส้มตำ", 3).first().title)
+        assertTrue(store.search("ฟุตบอลพรีเมียร์ลีก", 3).isEmpty())
+        store.save(Memory(id = note, kind = MemoryKind.NOTE, title = "ซื้อของ", content = "กาแฟ"))
+        assertEquals("กาแฟ", store.list(MemoryKind.NOTE, 5).single().content)
+        assertTrue(store.search("ขนมปัง", 3).isEmpty()) // the index follows the edit
+        store.delete(note)
+        assertTrue(store.list(MemoryKind.NOTE, 5).isEmpty())
         assertEquals("สวัสดี", store.recentChat(5).single().text)
         store.clearAll()
-        assertTrue(store.recentFacts(5).isEmpty())
+        assertTrue(store.list(null, 5).isEmpty())
     }
 
     @Test
@@ -268,6 +278,17 @@ class DeviceE2ETest {
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("สิทธิ์ที่ใช้") } }
         shell("input keyevent KEYCODE_BACK")
+
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.CharacterActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the character screen is in front", 20_000) { observe().elements.any { it.label.contains("นิสัย") } }
+        shell("input keyevent KEYCODE_BACK")
+
+        // The memory manager shows what is in the database.
+        runBlocking { graph.memoryStore.save(Memory(kind = MemoryKind.KNOWLEDGE, title = "ทดสอบหน้าความจำ", content = "ข้อมูลตัวอย่าง")) }
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.MemoryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the memory screen lists the saved memory", 20_000) { observe().elements.any { it.label.contains("ทดสอบหน้าความจำ") } }
+        shell("input keyevent KEYCODE_BACK")
+        runBlocking { graph.memoryStore.clearAll() }
     }
 
     private fun <T> onMain(block: () -> T): T {

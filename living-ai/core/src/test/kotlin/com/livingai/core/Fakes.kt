@@ -43,21 +43,6 @@ class FakeDevice(var succeed: Boolean = true) : DevicePort {
     }
 }
 
-class FakeMemory : MemoryStore {
-    val facts = LinkedHashMap<String, String>()
-    val events = ArrayList<MemoryEvent>()
-    val chat = ArrayList<ChatLine>()
-    private var t = 0L
-    override suspend fun putFact(key: String, value: String) { facts[key] = value }
-    override suspend fun searchFacts(query: String, limit: Int) =
-        facts.filter { it.key.contains(query, true) || it.value.contains(query, true) }.map { MemoryFact(it.key, it.value, 0) }.take(limit)
-    override suspend fun recentFacts(limit: Int) = facts.map { MemoryFact(it.key, it.value, 0) }.takeLast(limit)
-    override suspend fun addEvent(packageName: String, summary: String) { events.add(MemoryEvent(++t, packageName, summary)) }
-    override suspend fun recentEvents(limit: Int) = events.takeLast(limit).reversed()
-    override suspend fun addChat(fromUser: Boolean, text: String) { chat.add(ChatLine(++t, fromUser, text)) }
-    override suspend fun recentChat(limit: Int) = chat.takeLast(limit)
-}
-
 class RecordingListener : AgentListener {
     val said = ArrayList<String>()
     val statuses = ArrayList<AgentStatus>()

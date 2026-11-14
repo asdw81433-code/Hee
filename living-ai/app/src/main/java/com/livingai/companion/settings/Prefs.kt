@@ -4,7 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 
 /** User settings. Everything defaults to the safest useful value. */
-class Prefs(context: Context) {
+class Prefs(context: Context) : com.livingai.core.KeyValueStore {
+    override fun getString(key: String, default: String): String = sp.getString("kv_$key", null) ?: default
+    override fun putString(key: String, value: String) = sp.edit().putString("kv_$key", value).apply()
+    override fun getLong(key: String, default: Long): Long = sp.getLong("kv_$key", default)
+    override fun putLong(key: String, value: Long) = sp.edit().putLong("kv_$key", value).apply()
+
     private val sp: SharedPreferences = context.getSharedPreferences("living_ai", Context.MODE_PRIVATE)
 
     private fun bool(key: String, def: Boolean) = sp.getBoolean(key, def)
@@ -28,6 +33,8 @@ class Prefs(context: Context) {
     var skin: String
         get() = sp.getString("skin", null) ?: "snow"
         set(v) = sp.edit().putString("skin", v).apply()
+    /** Kivo may save things the user says about themselves without being told to. */
+    var autoMemory: Boolean get() = bool("auto_memory", true); set(v) = put("auto_memory", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

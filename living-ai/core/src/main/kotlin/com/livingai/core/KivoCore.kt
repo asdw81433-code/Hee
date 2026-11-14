@@ -3,7 +3,13 @@ package com.livingai.core
 import com.livingai.core.Lang.tr
 import com.livingai.core.companion.LocalMind
 import com.livingai.core.companion.ScreenEventKind
+import com.livingai.core.emotion.EmotionEngine
+import com.livingai.core.emotion.EmotionEvent
 import com.livingai.core.emotion.Mood
+import com.livingai.core.emotion.Sentiment
+import com.livingai.core.personality.Bond
+import com.livingai.core.personality.Personality
+import com.livingai.core.personality.Stylist
 import com.livingai.core.memory.MemoryAgent
 import com.livingai.core.perception.ScreenObservation
 import com.livingai.core.perception.VisionAgent
@@ -32,7 +38,15 @@ class KivoCore(
     private val listener: AgentListener,
     /** Clock, battery and so on for the built-in mind. */
     private val localContext: () -> LocalMind.Context = { LocalMind.Context() },
+    /** Simulated mood; every change comes from an event in here or from the phone. */
+    val emotion: EmotionEngine = EmotionEngine({ System.currentTimeMillis() }),
+    private val personality: () -> Personality = { Personality() },
+    private val bond: Bond? = null,
 ) {
+    init {
+        emotion.onChange = { listener.onMood(it.mood) }
+    }
+
     private var anyActionFailed = false
     private var replyMood: Mood? = null
     private var lastHint = ""
@@ -40,21 +54,45 @@ class KivoCore(
     /** Handles one user message end-to-end and returns Kivo's reply. */
     suspend fun handleUserMessage(text: String): String {
         memory.logChat(fromUser = true, text = text)
+        bond?.recordInteraction()
         anyActionFailed = false
         replyMood = null
-        val reply = try {
+        understood = true
+        didAct = false
+        Sentiment.of(text)?.let { emotion.onEvent(it) }
+        val learned = memory.learnFrom(text)
+        var reply = try {
             respond(text)
         } catch (e: CancellationException) {
             listener.onStatus(AgentStatus.IDLE)
             throw e
         }
-        listener.onMood(replyMood ?: if (anyActionFailed) Mood.CONFUSED else Mood.HAPPY)
+        if (learned.isNotEmpty() && !understood) {
+            // a statement about the user is not a failed command: acknowledge what was learned instead
+            understood = true
+            reply = tr("จำไว้แล้วนะ: ${learned.first().content}", "Got it, I'll remember: ${learned.first().content}")
+        } else if (learned.isNotEmpty()) {
+            reply += "\n" + tr("(จำไว้แล้ว: ${learned.first().title})", "(remembered: ${learned.first().title})")
+        }
+        // how it went decides how Kivo feels about it
+        when {
+            anyActionFailed -> emotion.onEvent(EmotionEvent.TASK_FAILED)
+            !understood -> emotion.onEvent(EmotionEvent.NOT_UNDERSTOOD)
+            didAct -> emotion.onEvent(EmotionEvent.TASK_SUCCEEDED)
+            learned.isNotEmpty() -> emotion.onEvent(EmotionEvent.LEARNED_SOMETHING)
+            else -> replyMood?.let { emotion.suggest(it) }
+        }
+        reply = Stylist.apply(reply, personality().speechStyle)
+        listener.onMood(emotion.state.mood)
         memory.logChat(fromUser = false, text = reply)
         listener.onStatus(AgentStatus.TALKING)
         listener.onSay(reply)
         listener.onStatus(AgentStatus.IDLE)
         return reply
     }
+
+    private var understood = true
+    private var didAct = false
 
     private suspend fun context(): LocalMind.Context {
         val base = localContext()
@@ -75,7 +113,7 @@ class KivoCore(
         }
         val out = ArrayList<String>()
         for (step in LocalMind.steps(text)) {
-            val line = runStep(step) ?: return (out + lastHint).joinToString("\n")
+            val line = runStep(step) ?: run { understood = false; return (out + lastHint).joinToString("\n") }
             out.add(line)
             if (anyActionFailed) break
         }
@@ -112,7 +150,9 @@ class KivoCore(
         val obs = vision.look(includeImage = false)
         return when (val plan = LocalBrain.plan(step, obs)) {
             is LocalBrain.Plan.Act -> {
+                emotion.onEvent(EmotionEvent.TASK_STARTED)
                 val r = actions.execute(plan.action)
+                didAct = true
                 if (!r.success) anyActionFailed = true
                 if (r.success) tr("เรียบร้อย! ${plan.action.describe(obs)} (${r.message})", "Done! ${plan.action.describe(obs)} (${r.message})")
                 else tr("ทำไม่สำเร็จ: ${r.message}", "That did not work: ${r.message}")
@@ -120,7 +160,8 @@ class KivoCore(
             is LocalBrain.Plan.Device -> {
                 listener.onStatus(AgentStatus.ACTING, plan.command.describe())
                 val r = device.run(plan.command)
-                if (!r.success) anyActionFailed = true
+                didAct = true
+                if (!r.success) anyActionFailed = true else memory.logEpisode(plan.command.describe())
                 if (r.success) tr("เรียบร้อย! ${r.message}", "Done! ${r.message}") else tr("ทำไม่สำเร็จ: ${r.message}", "That did not work: ${r.message}")
             }
             LocalBrain.Plan.Describe -> { replyMood = Mood.CURIOUS; LocalBrain.describe(if (VisionAgent.isSparse(obs)) vision.lookAuto() else obs) }
@@ -139,14 +180,17 @@ class KivoCore(
         if (obs.sensitive) return null
         val app = obs.appLabel.ifBlank { obs.packageName }
         val reply = LocalMind.remark(kind, obs, detail, context())
-        memory.logEvent(obs.packageName, if (kind == ScreenEventKind.ERROR_DETECTED) "Error seen in $app: ${detail.take(80)}" else "User opened $app")
-        if (reply != null) {
-            listener.onMood(reply.mood)
-            memory.logChat(fromUser = false, text = reply.text)
+        emotion.onEvent(if (kind == ScreenEventKind.ERROR_DETECTED) EmotionEvent.ERROR_SEEN else EmotionEvent.NEW_THING_SEEN)
+        if (kind == ScreenEventKind.ERROR_DETECTED) memory.logEpisode(tr("เจอข้อผิดพลาดใน $app", "An error appeared in $app"), detail.take(120))
+        val said = reply?.let { Stylist.apply(it.text, personality().speechStyle) }
+        if (reply != null && said != null) {
+            emotion.suggest(reply.mood)
+            listener.onMood(emotion.state.mood)
+            memory.logChat(fromUser = false, text = said)
             listener.onStatus(AgentStatus.TALKING)
-            listener.onSay(reply.text, proactive = true)
+            listener.onSay(said, proactive = true)
         }
         listener.onStatus(AgentStatus.IDLE)
-        return reply?.text
+        return said
     }
 }

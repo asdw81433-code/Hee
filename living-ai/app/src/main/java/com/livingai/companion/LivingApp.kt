@@ -4,13 +4,13 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.Context
 import com.livingai.companion.agent.AgentController
-import com.livingai.companion.data.RoomMemoryStore
+import com.livingai.companion.memory.SqliteMemoryStore
 import com.livingai.companion.settings.Prefs
 
 /** Small manual dependency graph: everything is created lazily and lives as long as the process. */
 class AppGraph(context: Context) {
     val prefs = Prefs(context)
-    val memoryStore = RoomMemoryStore(context)
+    val memoryStore = SqliteMemoryStore(context)
     val controller = AgentController(context, prefs, memoryStore)
     val floating = com.livingai.companion.overlay.FloatingOrbManager(context, prefs, controller)
 }
