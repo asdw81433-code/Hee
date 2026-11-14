@@ -60,7 +60,7 @@ class ChatBrainTest {
         assertTrue(a.first().content.contains("Kivo") && a.first().content.contains("not a human"))
         assertFalse(a.first().content.contains("14:05"), "the clock must not be in the cached system prompt")
         val last = a.last().content
-        assertTrue(last.contains("14:05") && last.contains("ส้มตำ") && last.contains("ต้น") && last.endsWith("กินอะไรดี"), last)
+        assertTrue(last.contains("14:05") && last.contains("ส้มตำ") && last.contains("ต้น") && last.contains("ตอบเป็นภาษาไทย") && last.endsWith("กินอะไรดี"), last)
         // one turn later the earlier messages are unchanged → the engine can reuse its cache
         val b = brain.buildMessages("ขอบคุณ", ctx.copy(minute = 9), Personality(), history + ChatLine(4, false, "ส้มตำไหม") + ChatLine(5, true, "ขอบคุณ"), emptyList())
         assertEquals(a.take(7), b.take(7))

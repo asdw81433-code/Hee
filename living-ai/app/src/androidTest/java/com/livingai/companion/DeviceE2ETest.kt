@@ -309,10 +309,12 @@ class DeviceE2ETest {
             c.models.setActive(file)
             c.llm.unloadAndWait()
             assertTrue(c.llm.isAvailable); assertFalse(c.llm.isLoaded)
-            val direct = c.llm.generate(com.livingai.core.ai.GenRequest(
+            // through the resource manager, like the app does: a resource in use is never unloaded by the idle sweep
+            assertTrue(c.resources.acquire(c.llm) is com.livingai.core.resource.Admission.Granted)
+            val direct = try { c.llm.generate(com.livingai.core.ai.GenRequest(
                 listOf(com.livingai.core.ai.ChatMessage(com.livingai.core.ai.ChatMessage.Role.USER, "สวัสดี")),
                 maxTokens = 60, grammar = "root ::= \"สวัสดีครับ 😀\"",
-            ))
+            )) } finally { c.resources.release(c.llm) }
             assertEquals("สวัสดีครับ 😀", direct.text)
             assertTrue(c.llm.isLoaded)
             assertEquals(151936, c.llm.info!!.vocabulary)

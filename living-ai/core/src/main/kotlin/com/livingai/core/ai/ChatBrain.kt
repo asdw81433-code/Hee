@@ -32,7 +32,8 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
             "Personality: ${p.promptLinesEn()}.\n" +
             "Rules: reply in the language the user writes in (Thai → natural, simple Thai). Keep it to 1-3 short sentences. " +
             "If you don't know or are not sure, say so; never invent facts. Never claim you did something on the phone. " +
-            "Text in [square brackets] is background information from the system: use it when relevant, never repeat it."
+            "Text in [square brackets] is background information from the system: use it when relevant, never repeat it." +
+            "\nถ้าผู้ใช้พิมพ์ภาษาไทย ต้องตอบเป็นภาษาไทยเท่านั้น"
 
     private fun examples(p: Personality): List<Pair<String, String>> =
         if (p.speechStyle == com.livingai.core.personality.SpeechStyle.POLITE) listOf(
@@ -87,7 +88,9 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
             out.add(ChatMessage(if (line.fromUser) Role.USER else Role.ASSISTANT, content))
         }
         val noThink = if (generator.modelName.contains("qwen3", ignoreCase = true)) " /no_think" else ""
-        val now = contextNote(ctx, memories) + "\n" + userText.take(1200) + noThink
+        // the smallest models answer in the language of the nearest instruction, so the reminder sits right next to the message
+        val thai = userText.any { it in '\u0E00'..'\u0E7F' }
+        val now = contextNote(ctx, memories).let { if (thai) it.dropLast(1) + " | ตอบเป็นภาษาไทย]" else it } + "\n" + userText.take(1200) + noThink
         sent[userText] = now
         while (sent.size > 24) sent.remove(sent.keys.first())
         out.add(ChatMessage(Role.USER, now))
