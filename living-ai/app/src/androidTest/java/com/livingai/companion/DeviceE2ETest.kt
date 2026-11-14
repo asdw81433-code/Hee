@@ -233,6 +233,12 @@ class DeviceE2ETest {
         val hello = ask("สวัสดี")
         assertTrue(hello, hello.isNotBlank() && !hello.contains("Accessibility"))
 
+        // Tucked away as a dot and back again; the foreground service keeps it alive.
+        robot.setMinimized(true); SystemClock.sleep(400)
+        robot.setMinimized(false); SystemClock.sleep(400)
+        assertTrue(onMain { graph.floating.isShowing })
+        waitUntil("the companion service is running", 10_000) { com.livingai.companion.service.CompanionService.running }
+
         // Hide and show again through the same switch the big button uses.
         graph.prefs.overlayEnabled = false
         instr.runOnMainSync { graph.floating.apply() }

@@ -72,8 +72,8 @@ class RobotOverlay(
     private var homeX = robotLp.x
     private var homeY = robotLp.y
 
-    private fun robotW() = if (robot.width > 0) robot.width else (65 * dp).toInt()
-    private fun robotH() = if (robot.height > 0) robot.height else (90 * dp).toInt()
+    private fun robotW() = if (robot.width > 0) robot.width else (84 * dp).toInt()
+    private fun robotH() = if (robot.height > 0) robot.height else (118 * dp).toInt()
 
     /** Walks the robot's window to (x, y). Main thread only. */
     private fun walkTo(x: Int, y: Int, durationMs: Long) {
@@ -96,8 +96,8 @@ class RobotOverlay(
                 placeBubble()
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) { robot.walking = false; robot.facing = 0f }
-                override fun onAnimationCancel(animation: android.animation.Animator) { robot.walking = false; robot.facing = 0f }
+                override fun onAnimationEnd(animation: android.animation.Animator) { robot.walking = false; robot.running = false; robot.facing = 0f }
+                override fun onAnimationCancel(animation: android.animation.Animator) { robot.walking = false; robot.running = false; robot.facing = 0f }
             })
             start()
         }
@@ -117,6 +117,7 @@ class RobotOverlay(
         var ry = y + gap
         if (rx + w > size.x) rx = x - w - gap
         if (ry + h > size.y) ry = y - h - gap
+        robot.running = true
         walkTo(rx, ry, 200)
         main.removeCallbacks(goHome)
         main.postDelayed(goHome, 3500)
@@ -126,7 +127,9 @@ class RobotOverlay(
     private val roam = object : Runnable {
         override fun run() {
             if (destroyed) return
-            val quiet = panel == null && confirmView == null && bubble == null && !controller.isBusy &&
+            robot.lowRam = controller.resources.lowRam
+            robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin)
+            val quiet = !minimized && panel == null && confirmView == null && bubble == null && !controller.isBusy &&
                 android.os.SystemClock.uptimeMillis() - lastUserMove > 40_000 && LivingState.status.value == AgentStatus.IDLE
             if (quiet && controller.prefs.roamEnabled) {
                 val size = ScreenMetrics.realSize(ctx)
@@ -161,6 +164,7 @@ class RobotOverlay(
 
     fun show() {
         controller.overlay = this
+        robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin)
         robot.mood = LivingState.mood.value
         robot.status = LivingState.status.value
         robot.setOnTouchListener(DragTapListener())
@@ -174,8 +178,9 @@ class RobotOverlay(
         main.removeCallbacksAndMessages(null)
         mover?.cancel()
         pendingConfirm?.complete(false)
-        removeBubble(); hidePanel(); removeConfirm()
-        safe { wm.removeView(robot) }
+        removeBubble(); hidePanel(); removeConfirm(); hideMenu()
+        dot?.let { v -> safe { wm.removeView(v) } }
+        if (!minimized) safe { wm.removeView(robot) }
     }
 
     private inline fun safe(block: () -> Unit) {
@@ -373,6 +378,76 @@ class RobotOverlay(
         confirmView = null
     }
 
+    // ---------- long-press menu, minimise ----------
+
+    private var menu: View? = null
+    private var minimized = false
+    private var dot: View? = null
+
+    private fun hideMenu() {
+        menu?.let { v -> safe { wm.removeView(v) } }
+        menu = null
+    }
+
+    private fun showMenu() {
+        hideMenu(); hidePanel(); removeBubble()
+        val pad = (10 * dp).toInt()
+        fun item(label: String, onClick: () -> Unit) = TextView(ctx).apply {
+            text = label; textSize = 15f; setTextColor(0xFFFFFFFF.toInt())
+            setPadding(pad * 2, pad, pad * 2, pad)
+            setOnClickListener { hideMenu(); onClick() }
+        }
+        val root = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            background = card(0xF51B2A30.toInt(), 16f)
+            setPadding(0, pad / 2, 0, pad / 2)
+            addView(item(tr("💬 คุยกับ ${Persona.NAME}", "💬 Talk to ${Persona.NAME}")) { togglePanel() })
+            addView(item(tr("🎤 พูด", "🎤 Speak")) { com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) })
+            addView(item(tr("🎮 เล่นด้วยกัน", "🎮 Play together")) { controller.submit(tr("เล่นเกม", "play a game"), fromOverlay = true) })
+            addView(item(tr("🙈 ย่อเก็บไว้ข้างจอ", "🙈 Tuck away")) { setMinimized(true) })
+            addView(item(tr("⏹ ปิด ${Persona.NAME}", "⏹ Turn ${Persona.NAME} off")) { com.livingai.companion.service.CompanionService.stop(ctx); controller.prefs.overlayEnabled = false; com.livingai.companion.LivingApp.graph(ctx).floating.apply() })
+            setOnTouchListener { _, e -> if (e.action == MotionEvent.ACTION_OUTSIDE) { hideMenu(); true } else false }
+        }
+        val size = ScreenMetrics.realSize(ctx)
+        val lp = baseParams(focusable = false).apply {
+            gravity = Gravity.TOP or Gravity.START
+            flags = flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            x = (robotLp.x - (150 * dp).toInt()).coerceIn(0, (size.x - (230 * dp).toInt()).coerceAtLeast(0))
+            y = (robotLp.y - (40 * dp).toInt()).coerceIn(0, (size.y - (260 * dp).toInt()).coerceAtLeast(0))
+        }
+        safe { wm.addView(root, lp); menu = root }
+    }
+
+    /** Tucks the robot away as a small dot on the screen edge; a tap on the dot brings it back. */
+    fun setMinimized(value: Boolean) {
+        main.post { applyMinimized(value) }
+    }
+
+    private fun applyMinimized(value: Boolean) {
+        if (destroyed || minimized == value) return
+        minimized = value
+        hideMenu(); hidePanel(); removeBubble(); mover?.cancel()
+        if (value) {
+            safe { wm.removeView(robot) }
+            val d = View(ctx).apply {
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(robot.skin.accent); setStroke((2 * dp).toInt(), 0xFFFFFFFF.toInt()) }
+                setOnClickListener { setMinimized(false) }
+            }
+            val size = ScreenMetrics.realSize(ctx)
+            val lp = baseParams(focusable = false).apply {
+                gravity = Gravity.TOP or Gravity.START
+                width = (22 * dp).toInt(); height = (22 * dp).toInt()
+                x = if (robotLp.x > size.x / 2) size.x - (26 * dp).toInt() else (4 * dp).toInt()
+                y = robotLp.y + (40 * dp).toInt()
+            }
+            safe { wm.addView(d, lp); dot = d }
+        } else {
+            dot?.let { v -> safe { wm.removeView(v) } }
+            dot = null
+            safe { wm.addView(robot, robotLp) }
+        }
+    }
+
     // ---------- touch ----------
 
     private inner class DragTapListener : View.OnTouchListener {
@@ -382,15 +457,18 @@ class RobotOverlay(
         private var startX = 0
         private var startY = 0
         private var dragging = false
+        private var longPressed = false
+        private val longPress = Runnable { longPressed = true; robot.poke(); showMenu() }
 
         override fun onTouch(v: View, e: MotionEvent): Boolean {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    downX = e.rawX; downY = e.rawY; startX = robotLp.x; startY = robotLp.y; dragging = false
+                    downX = e.rawX; downY = e.rawY; startX = robotLp.x; startY = robotLp.y; dragging = false; longPressed = false
+                    main.postDelayed(longPress, 550)
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = e.rawX - downX; val dy = e.rawY - downY
-                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) dragging = true
+                    if (!dragging && (abs(dx) > slop || abs(dy) > slop)) { dragging = true; main.removeCallbacks(longPress) }
                     if (dragging) {
                         mover?.cancel()
                         main.removeCallbacks(goHome)
@@ -404,7 +482,8 @@ class RobotOverlay(
                         lastUserMove = android.os.SystemClock.uptimeMillis()
                     }
                 }
-                MotionEvent.ACTION_UP -> if (!dragging) {
+                MotionEvent.ACTION_CANCEL -> main.removeCallbacks(longPress)
+                MotionEvent.ACTION_UP -> if (main.removeCallbacks(longPress).let { !dragging && !longPressed }) {
                     v.performClick()
                     robot.poke()
                     if (controller.isBusy) controller.stopCurrent(userInitiated = true) else togglePanel()

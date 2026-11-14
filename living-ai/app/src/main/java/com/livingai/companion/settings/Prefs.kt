@@ -24,6 +24,10 @@ class Prefs(context: Context) {
     var speakReplies: Boolean get() = bool("speak", true); set(v) = put("speak", v)
     /** The robot strolls along the screen edge by itself while idle. */
     var roamEnabled: Boolean get() = bool("roam", true); set(v) = put("roam", v)
+    /** Colours of the robot (see RobotSkin). */
+    var skin: String
+        get() = sp.getString("skin", null) ?: "snow"
+        set(v) = sp.edit().putString("skin", v).apply()
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

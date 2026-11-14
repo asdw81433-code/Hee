@@ -116,7 +116,7 @@ class HomeActivity : Activity() {
     // ---------- parts ----------
 
     private fun header(): View {
-        orb = RobotView(this).apply { showCaption = false; setOnClickListener { poke() } }
+        orb = RobotView(this).apply { showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin); setOnClickListener { poke() } }
         statusText = label("", 13f, colorSub)
         moodText = label("", 12f, colorSub)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
@@ -133,7 +133,7 @@ class HomeActivity : Activity() {
             addView(LinearLayout(this@HomeActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                addView(orb, LinearLayout.LayoutParams(72.dp, 80.dp))
+                addView(orb, LinearLayout.LayoutParams(92.dp, 108.dp))
                 addView(LinearLayout(this@HomeActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(10.dp, 0, 0, 0)

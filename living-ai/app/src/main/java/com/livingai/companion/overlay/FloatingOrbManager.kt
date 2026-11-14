@@ -25,14 +25,21 @@ class FloatingOrbManager(private val app: Context, private val prefs: Prefs, pri
     val isShowing: Boolean
         get() = appOverlay?.isOnScreen == true || LivingAccessibilityService.instance?.overlay?.isOnScreen == true
 
-    /** Brings the orb in line with the user's switch and the permissions that exist right now. */
+    /** Shrinks the robot to a small dot at the edge of the screen, or brings it back. */
+    fun setMinimized(minimized: Boolean) {
+        (appOverlay ?: LivingAccessibilityService.instance?.overlay)?.setMinimized(minimized)
+    }
+
+    /** Brings the robot in line with the user's switch and the permissions that exist right now. */
     fun apply() {
         val svc = LivingAccessibilityService.instance
         if (!prefs.overlayEnabled) {
             hideAppOverlay()
             svc?.setOverlayEnabled(false)
+            com.livingai.companion.service.CompanionService.stop(app)
             return
         }
+        if (svc != null || canDrawOverlays()) com.livingai.companion.service.CompanionService.ensure(app)
         if (svc != null) {
             hideAppOverlay()
             svc.setOverlayEnabled(true)

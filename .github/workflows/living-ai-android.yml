@@ -32,19 +32,6 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Probe model and library sources (information only)
-        continue-on-error: true
-        working-directory: .
-        run: |
-          for r in Qwen/Qwen2.5-0.5B-Instruct-GGUF Qwen/Qwen2.5-1.5B-Instruct-GGUF; do
-            echo "== $r"
-            curl -sS -m 30 "https://huggingface.co/api/models/$r/tree/main" | python3 -c "import sys,json; [print(f['path'], f.get('size'), (f.get('lfs') or {}).get('oid','')) for f in json.load(sys.stdin) if 'q4' in f['path'].lower() or 'LICENSE' in f['path']]" || true
-          done
-          for u in https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.7.0/tesseract4android-4.7.0.pom https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.9.0/tesseract4android-4.9.0.pom https://jitpack.io/com/github/adaptech-cz/Tesseract4Android/4.7.0/Tesseract4Android-4.7.0.pom; do
-            echo "$(curl -sS -o /dev/null -w '%{http_code}' -m 120 -L "$u") $u"
-          done
-          curl -sS -m 30 https://jitpack.io/api/builds/com.github.adaptech-cz/Tesseract4Android | head -c 600 || true
-          echo; ls "$ANDROID_HOME/ndk" 2>/dev/null; ls "$ANDROID_HOME/cmake" 2>/dev/null; nproc; free -g | sed -n 2p
       - name: Unit tests (agents, safety, redaction)
         run: ./gradlew :core:test || ./gradlew :core:test  # retry once: Maven Central is occasionally flaky
       - name: Build APKs (debug for tests, release for installing)
@@ -76,6 +63,20 @@ jobs:
             living-ai/core/build/reports/tests
             living-ai/app/build/reports
           if-no-files-found: ignore
+      - name: Probe model and library sources (information only)
+        if: always()
+        continue-on-error: true
+        working-directory: .
+        run: |
+          for r in Qwen/Qwen2.5-0.5B-Instruct-GGUF Qwen/Qwen2.5-1.5B-Instruct-GGUF; do
+            echo "== $r"
+            curl -sS -m 30 "https://huggingface.co/api/models/$r/tree/main" | python3 -c "import sys,json; [print(f['path'], f.get('size'), (f.get('lfs') or {}).get('oid','')) for f in json.load(sys.stdin) if 'q4' in f['path'].lower() or 'LICENSE' in f['path']]" || true
+          done
+          for u in https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.7.0/tesseract4android-4.7.0.pom https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.9.0/tesseract4android-4.9.0.pom https://jitpack.io/com/github/adaptech-cz/Tesseract4Android/4.7.0/Tesseract4Android-4.7.0.pom; do
+            echo "$(curl -sS -o /dev/null -w '%{http_code}' -m 120 -L "$u") $u"
+          done
+          curl -sS -m 30 https://jitpack.io/api/builds/com.github.adaptech-cz/Tesseract4Android | head -c 600 || true
+          echo; ls "$ANDROID_HOME/ndk" 2>/dev/null; ls "$ANDROID_HOME/cmake" 2>/dev/null; nproc; free -g | sed -n 2p
 
   device-tests:
     name: Android 16 emulator E2E

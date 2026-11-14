@@ -6,6 +6,8 @@
     <!-- Screen capture must run in a foreground service of type mediaProjection (Android 14+). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- The robot staying on screen over other apps runs as a special-use foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Lets the orb float on screen even while the accessibility service is off. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Status notification with the stop button (runtime permission on Android 13+). -->
@@ -66,6 +68,15 @@
             android:name=".vision.ScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <service
+            android:name=".service.CompanionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="On-screen companion character shown over other apps at the user's request" />
+        </service>
 
         <!-- The user must enable this by hand in Settings > Accessibility. -->
         <service
