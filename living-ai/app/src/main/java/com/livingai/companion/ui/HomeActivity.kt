@@ -190,6 +190,7 @@ class HomeActivity : Activity() {
     }
 
     private fun refreshBrain() {
+        if (graph.controller.llm.isAvailable && LivingState.status.value == AgentStatus.IDLE) statusText.text = tr("🧠 สมอง AI พร้อม • ทำงานในเครื่อง", "🧠 AI brain ready • on this phone")
         val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
         val d = graph.models.downloads.value[spec.id]
         val installed = graph.controller.models.installed().isNotEmpty()
@@ -370,7 +371,8 @@ class HomeActivity : Activity() {
                 combine(LivingState.status, LivingState.statusDetail, LivingState.paused) { s, d, p -> Triple(s, d, p) }.collect { (s, d, paused) ->
                     orb.status = s
                     statusText.text = when (s) {
-                        AgentStatus.IDLE -> tr("พร้อมคุย • ทำงานในเครื่อง", "Ready • running on this phone")
+                        AgentStatus.IDLE -> if (graph.controller.llm.isAvailable && graph.prefs.llmEnabled) tr("🧠 สมอง AI พร้อม • ทำงานในเครื่อง", "🧠 AI brain ready • on this phone")
+                            else tr("⚠️ ยังไม่มีสมอง AI (ตอบได้แค่พื้นฐาน)", "⚠️ No AI brain yet (basic replies only)")
                         AgentStatus.LOOKING -> tr("👁 กำลังมองหน้าจอ…", "👁 Looking at the screen…")
                         AgentStatus.THINKING -> tr("💭 กำลังพิมพ์…", "💭 Typing…")
                         AgentStatus.ACTING -> tr("✋ กำลังใช้หน้าจอ: ", "✋ Using the screen: ") + d

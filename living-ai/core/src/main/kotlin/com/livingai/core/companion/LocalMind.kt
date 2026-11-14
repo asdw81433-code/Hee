@@ -162,6 +162,13 @@ object LocalMind {
     }
 
     /** "เปิด YouTube แล้ว ค้นหา เพลง" → two steps. A message that only types text is never split. */
+    /** Messages only the built-in mind can answer correctly: the clock, the date, the battery, being told the user's name. */
+    fun needsLiveData(input: String): Boolean {
+        val t = input.lowercase()
+        return listOf("กี่โมง", "เวลา", "วันนี้วันอะไร", "วันที่เท่าไหร่", "วันที่", "แบต", "battery", "what time", "the time", "what day", "date today", "เราชื่อ", "ฉันชื่อ", "ผมชื่อ", "หนูชื่อ", "เรียกเราว่า", "เรียกฉันว่า", "my name is", "call me")
+            .any { t.contains(it) }
+    }
+
     fun steps(input: String): List<String> {
         val t = input.trim()
         val lower = t.lowercase()

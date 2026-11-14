@@ -157,7 +157,10 @@ class KivoCore(
         com.livingai.core.companion.Calculator.find(text)?.let { expr ->
             com.livingai.core.companion.Calculator.eval(expr)?.let { v -> replyMood = Mood.FOCUSED; return "$expr = ${com.livingai.core.companion.Calculator.format(v)}" }
         }
-        LocalMind.chat(text, context())?.let { reply ->
+        // with an AI brain, conversation goes to the brain; the built-in lines only answer what needs
+        // live phone data (clock, date, battery) or remembers the user's name
+        val brainReady = brain?.isAvailable == true
+        if (!brainReady || LocalMind.needsLiveData(text)) LocalMind.chat(text, context())?.let { reply ->
             replyMood = reply.mood
             reply.rememberName?.let { memory.remember(MemoryAgent.NAME_KEY, it) }
             return reply.text
@@ -174,6 +177,11 @@ class KivoCore(
                 // … otherwise this is conversation for the language model
                 if (out.isEmpty()) think(text)?.let { return it }
                 // no model (or it failed): never "I don't understand" for ordinary talk, keep the conversation going
+                // the brain is installed but could not answer: say why instead of a canned line
+                if (out.isEmpty() && lastGeneric && brainReady && brain?.lastError != null) {
+                    understood = false
+                    return tr("สมอง AI ตอบไม่ได้ตอนนี้: ${brain.lastError}", "The AI brain can't answer right now: ${brain.lastError}")
+                }
                 if (out.isEmpty() && lastGeneric) {
                     val now = System.currentTimeMillis()
                     val hint = brain?.isAvailable != true && now - modelHintGiven > 6 * 3_600_000L

@@ -125,9 +125,11 @@ class ChatBrainTest {
         assertEquals("ไปทะเลสิ ลมเย็นดี", core.handleUserMessage("พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน"))
         assertTrue(AgentStatus.THINKING in listener.statuses)
         assertEquals(1, gen.requests.size)
-        core.handleUserMessage("สวัสดี")           // built-in small talk answers instantly
+        core.handleUserMessage("สวัสดี")           // with a brain, greetings go to the brain too
+        assertEquals(2, gen.requests.size)
+        core.handleUserMessage("ตอนนี้กี่โมงแล้ว")   // live data comes from the phone, not the model
         core.handleUserMessage("กด ตกลง")          // a command for the rule parser
-        assertEquals(1, gen.requests.size)
+        assertEquals(2, gen.requests.size)
     }
 
     @Test
@@ -135,8 +137,9 @@ class ChatBrainTest {
         val q = "พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน"
         val plain = core(null, InMemoryMemoryStore(), RecordingListener()).handleUserMessage(q)
         val failing = core(ScriptedGenerator(fail = true), InMemoryMemoryStore(), RecordingListener()).handleUserMessage(q)
-        // never "I don't understand": the conversation goes on
-        for (r in listOf(plain, failing)) assertTrue(r.isNotBlank() && !r.contains("ไม่เข้าใจ"), r)
+        // never "I don't understand" without a brain; with a broken brain, the reason is told
+        assertTrue(plain.isNotBlank() && !plain.contains("ไม่เข้าใจ"), plain)
+        assertTrue(failing.contains("no memory"), failing)
     }
 
     @Test

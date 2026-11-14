@@ -83,7 +83,9 @@ class LlamaEngine(
         private set
 
     override val name: String get() = "llm"
-    override val estimatedBytes: Long get() = (modelFile()?.length() ?: 0L) + 96L * 1024 * 1024
+    // memory-mapped weights can be paged out by Android and read again, so only part of the file must
+    // fit next to the context and compute buffers
+    override val estimatedBytes: Long get() = (modelFile()?.length() ?: 0L) * (if (config().mmap) 4 else 10) / 10 + 160L * 1024 * 1024
     override val isAvailable: Boolean get() = LlamaNative.loadError == null && modelFile()?.let { it.isFile && it.length() > 1024 } == true
     override val isLoaded: Boolean get() = handle != 0L
     override val modelName: String get() = modelFile()?.name?.removeSuffix(".gguf") ?: ""
