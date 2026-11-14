@@ -173,6 +173,7 @@ class ModelActivity : Activity() {
                 d == null -> if (graph.controller.models.isInstalled(spec)) tr("ติดตั้งแล้ว ✓ ตรวจสอบไฟล์ผ่าน", "Installed ✓ verified") else ""
                 d.error != null -> tr("ไม่สำเร็จ: ${d.error}", "Failed: ${d.error}")
                 d.verifying -> tr("กำลังตรวจสอบไฟล์…", "Verifying the file…")
+                d.note != null && d.doneBytes == 0L -> d.note
                 else -> "${mb(d.doneBytes)} / ${mb(d.totalBytes)}  (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)"
             }
         }

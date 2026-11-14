@@ -197,9 +197,10 @@ class HomeActivity : Activity() {
             d == null -> tr("🤖 ${Persona.NAME} ยังไม่มีสมอง AI — ติดตั้งแล้วจะคุยได้ฉลาดขึ้นมากและทำงานแทนได้เก่งขึ้น", "🤖 ${Persona.NAME} has no AI brain yet. Install it for much smarter talk and better autopilot")
             d.error != null -> tr("โหลดไม่สำเร็จ: ${d.error} (กดเพื่อโหลดต่อจากเดิม)", "Download failed: ${d.error} (tap to continue)")
             d.verifying -> tr("กำลังตรวจสอบไฟล์…", "Verifying…")
-            else -> tr("กำลังโหลดสมอง AI ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%) ปิดหน้านี้ได้ โหลดต่อเบื้องหลัง", "Downloading the AI brain ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)")
+            d.note != null && d.doneBytes == 0L -> d.note
+            else -> (d.note?.let { "$it\n" } ?: "") + tr("กำลังโหลดสมอง AI ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%) ปิดแอปได้ ดูความคืบหน้าในแถบแจ้งเตือน", "Downloading the AI brain ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)")
         }
-        brainButton.text = if (d?.running == true) tr("หยุด", "Stop") else if (d?.error != null) tr("โหลดต่อ", "Resume") else tr("ติดตั้ง", "Install")
+        brainButton.text = if (d?.running == true) tr("ยกเลิก", "Cancel") else if (d?.error != null) tr("ลองใหม่", "Try again") else tr("ติดตั้ง", "Install")
     }
 
     private fun setupBanner(): View {

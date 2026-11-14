@@ -64,6 +64,7 @@ import kotlinx.coroutines.withTimeout
 class AgentController(private val context: Context, val prefs: Prefs, private val memoryStore: MemoryStore) : AgentListener {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val appContext: Context get() = context
 
     val screenSource = AndroidScreenSource(context, prefs)
     val vision = VisionAgent(screenSource, this)
@@ -94,7 +95,8 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     val resources = ResourceManager(AndroidMemoryProbe(context), { SystemClock.elapsedRealtime() })
 
     // ---------- the on-device language model ----------
-    val models = ModelFiles(java.io.File(context.filesDir, "models"), prefs)
+    /** App-specific external storage: no permission needed, removed with the app, and the system downloader can write there. */
+    val models = ModelFiles(context.getExternalFilesDir("models") ?: java.io.File(context.filesDir, "models"), prefs)
     val llm = LlamaEngine(
         modelFile = { models.active() },
         // a smaller context in low-RAM mode: less memory, shorter conversations

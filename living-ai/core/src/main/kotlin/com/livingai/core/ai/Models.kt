@@ -26,6 +26,8 @@ data class ModelSpec(
     val minRamGb: Int,
     val noteTh: String,
     val noteEn: String,
+    /** Other places with the same file (same checksum), tried when [url] fails. */
+    val mirrors: List<String> = emptyList(),
 )
 
 object ModelCatalog {
@@ -43,6 +45,10 @@ object ModelCatalog {
         licenseUrl = "https://ai.google.dev/gemma/terms",
         source = "Google (huggingface.co/ggml-org)",
         minRamGb = 4,
+        mirrors = listOf(
+            "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+            "https://hf-mirror.com/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+        ),
         noteTh = "ภาษาไทยเป็นธรรมชาติที่สุดในรุ่นที่ทดสอบ คุยเล่นเป็นตัวละครได้ดี จำชื่อและใช้ความจำได้ แต่ความรู้ทั่วไปยังผิดได้บ่อย",
         noteEn = "The most natural Thai of the models tested; stays in character and uses memories. General knowledge is often wrong.",
     )

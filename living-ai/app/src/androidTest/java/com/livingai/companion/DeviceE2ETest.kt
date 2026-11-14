@@ -341,6 +341,34 @@ class DeviceE2ETest {
         }
     }
 
+    @Test
+    fun l_aiBrain_downloadsInstallsAndAnswers() = runBlocking {
+        // the real recommended model, through the same code path as the "Install" button
+        val c = graph.controller
+        val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+        c.models.installed().forEach { c.models.delete(it) }
+        graph.models.cancel(spec)
+        onMain { graph.models.download(spec) }
+        var last = ""
+        waitUntil("the AI brain is downloaded and verified ($last)", 900_000) {
+            val d = graph.models.downloads.value[spec.id]
+            last = d?.let { "${it.doneBytes / 1_000_000}/${it.totalBytes / 1_000_000} MB ${it.note ?: ""} ${it.error ?: ""}" } ?: "none"
+            if (d?.error != null) throw AssertionError("download failed: ${d.error}")
+            c.models.isInstalled(spec)
+        }
+        assertEquals(spec.fileName, c.models.active()?.name)
+        // and it really talks (slow on an emulator CPU, so a short answer)
+        val r = c.llm.generate(com.livingai.core.ai.GenRequest(
+            listOf(com.livingai.core.ai.ChatMessage(com.livingai.core.ai.ChatMessage.Role.USER, "ตอบสั้นๆ: ประเทศไทยมีเมืองหลวงชื่ออะไร")),
+            maxTokens = 24, temperature = 0f,
+        ))
+        note = "real brain on device: \"${r.text}\" ${"%.1f".format(r.tokensPerSecond)} tok/s"
+        android.util.Log.i("KivoTest", note)
+        assertTrue("answer: ${r.text}", r.text.any { it in '\u0E00'..'\u0E7F' })
+        c.llm.unloadAndWait()
+        c.models.installed().forEach { c.models.delete(it) }
+    }
+
     private fun <T> onMain(block: () -> T): T {
         var out: T? = null
         instr.runOnMainSync { out = block() }

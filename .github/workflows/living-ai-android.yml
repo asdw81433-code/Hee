@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # screenshots are published as a separate pre-release for review
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -145,6 +145,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           ram-size: 4096M
+          disk-size: 6000M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: living-ai
@@ -176,6 +177,8 @@ jobs:
                   print(('FAIL ' if bad else 'SKIP ' if skipped else 'PASS ') + case.get('name'))
                   for b in bad:
                       print('    ' + (b.text or b.get('message') or '').strip()[:1500].replace('\n', '\n    '))
+                  out = case.find('system-out')
+                  if out is not None and out.text and 'real brain' in out.text: print('    ' + out.text.strip()[:300])
           PY
       - uses: actions/upload-artifact@v4
         if: always()

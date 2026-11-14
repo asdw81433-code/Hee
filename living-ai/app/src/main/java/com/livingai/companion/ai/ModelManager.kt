@@ -5,7 +5,6 @@ import com.livingai.core.Lang.tr
 import com.livingai.core.ai.AiException
 import com.livingai.core.ai.ChatMessage
 import com.livingai.core.ai.GenRequest
-import com.livingai.core.ai.ModelDownloader
 import com.livingai.core.ai.ModelSpec
 import com.livingai.core.resource.Admission
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +21,7 @@ import kotlinx.coroutines.launch
  */
 class ModelManager(private val controller: AgentController) {
 
-    data class Download(val doneBytes: Long, val totalBytes: Long, val verifying: Boolean = false, val error: String? = null, val running: Boolean = true)
+    data class Download(val doneBytes: Long, val totalBytes: Long, val verifying: Boolean = false, val error: String? = null, val running: Boolean = true, val note: String? = null)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val jobs = HashMap<String, Job>()
@@ -35,25 +34,139 @@ class ModelManager(private val controller: AgentController) {
         downloads.value = downloads.value.toMutableMap().apply { if (d == null) remove(id) else put(id, d) }
     }
 
-    /** Call only after the user confirmed the download dialog. */
-    fun download(spec: ModelSpec) {
+    private val context get() = controller.appContext
+    private val dm get() = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+    private fun idKey(spec: ModelSpec) = "dl_id_" + spec.id
+    private fun srcKey(spec: ModelSpec) = "dl_src_" + spec.id
+    private fun tmpFile(spec: ModelSpec) = java.io.File(controller.models.file(spec).parentFile, spec.fileName + ".download")
+
+    /**
+     * Call only after the user confirmed the download dialog. Uses Android's own download manager:
+     * it keeps going when the app is closed or the network drops, shows progress in the
+     * notification shade, and follows the redirects of the model host. If the main source fails,
+     * the mirrors are tried in turn. The finished file must match the expected SHA-256.
+     */
+    fun download(spec: ModelSpec, source: Int = 0) {
         if (jobs[spec.id]?.isActive == true) return
-        update(spec.id, Download(controller.models.downloadedBytes(spec), spec.bytes))
+        val existing = controller.prefs.getLong(idKey(spec), -1L)
+        val id = if (existing >= 0 && state(existing) != null) existing else enqueue(spec, source) ?: return
+        watch(spec, id)
+    }
+
+    private fun urls(spec: ModelSpec) = listOf(spec.url) + spec.mirrors
+
+    private fun enqueue(spec: ModelSpec, source: Int): Long? {
+        val url = urls(spec).getOrNull(source) ?: return null
+        val tmp = tmpFile(spec)
+        tmp.delete()
+        return try {
+            val req = android.app.DownloadManager.Request(android.net.Uri.parse(url))
+                .setTitle(tr("${com.livingai.core.Persona.NAME}: สมอง AI", "${com.livingai.core.Persona.NAME}: AI brain"))
+                .setDescription(spec.title)
+                .setDestinationUri(android.net.Uri.fromFile(tmp))
+                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setAllowedOverMetered(true)
+                .setAllowedOverRoaming(true)
+                .addRequestHeader("User-Agent", "Kivo-Android")
+            val id = dm.enqueue(req)
+            controller.prefs.putLong(idKey(spec), id)
+            controller.prefs.putLong(srcKey(spec), source.toLong())
+            id
+        } catch (e: Exception) {
+            update(spec.id, Download(0, spec.bytes, error = e.message ?: e.javaClass.simpleName, running = false))
+            null
+        }
+    }
+
+    private data class State(val status: Int, val done: Long, val total: Long, val reason: Int)
+
+    private fun state(id: Long): State? = try {
+        dm.query(android.app.DownloadManager.Query().setFilterById(id))?.use { c ->
+            if (!c.moveToFirst()) null else State(
+                c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)),
+                c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
+                c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)),
+                c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON)),
+            )
+        }
+    } catch (e: Exception) { null }
+
+    private fun reasonText(status: Int, reason: Int): String = when {
+        status == android.app.DownloadManager.STATUS_PAUSED -> when (reason) {
+            android.app.DownloadManager.PAUSED_WAITING_FOR_NETWORK -> tr("รอเน็ต…", "waiting for a network…")
+            android.app.DownloadManager.PAUSED_WAITING_TO_RETRY -> tr("เน็ตหลุด กำลังลองใหม่…", "connection dropped, retrying…")
+            android.app.DownloadManager.PAUSED_QUEUED_FOR_WIFI -> tr("รอ Wi-Fi…", "waiting for Wi-Fi…")
+            else -> tr("หยุดชั่วคราว…", "paused…")
+        }
+        reason == android.app.DownloadManager.ERROR_INSUFFICIENT_SPACE -> tr("พื้นที่ในเครื่องไม่พอ (ต้องการ ~900 MB)", "not enough storage (~900 MB needed)")
+        reason == android.app.DownloadManager.ERROR_DEVICE_NOT_FOUND -> tr("ไม่พบที่เก็บไฟล์", "no storage found")
+        reason == android.app.DownloadManager.ERROR_TOO_MANY_REDIRECTS -> tr("เซิร์ฟเวอร์ส่งต่อมากเกินไป", "too many redirects")
+        reason == android.app.DownloadManager.ERROR_HTTP_DATA_ERROR -> tr("ข้อมูลจากเซิร์ฟเวอร์ขาดหาย", "the server's data broke off")
+        reason in 400..599 -> tr("เซิร์ฟเวอร์ตอบ $reason", "server answered $reason")
+        else -> tr("โหลดไม่สำเร็จ (รหัส $reason)", "download failed (code $reason)")
+    }
+
+    private fun watch(spec: ModelSpec, id: Long) {
         jobs[spec.id] = scope.launch {
-            try {
-                val file = ModelDownloader.download(spec, controller.models) { p -> update(spec.id, Download(p.doneBytes, p.totalBytes, p.verifying)) }
-                if (controller.models.installed().size == 1) controller.models.setActive(file)
-                update(spec.id, null)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                update(spec.id, null)
-                throw e
-            } catch (e: Exception) {
-                update(spec.id, Download(controller.models.downloadedBytes(spec), spec.bytes, error = e.message ?: e.javaClass.simpleName, running = false))
+            while (true) {
+                val st = state(id)
+                if (st == null) { update(spec.id, null); controller.prefs.putLong(idKey(spec), -1L); return@launch }
+                val total = if (st.total > 0) st.total else spec.bytes
+                when (st.status) {
+                    android.app.DownloadManager.STATUS_SUCCESSFUL -> { finish(spec); return@launch }
+                    android.app.DownloadManager.STATUS_FAILED -> {
+                        dm.remove(id); controller.prefs.putLong(idKey(spec), -1L)
+                        val next = controller.prefs.getLong(srcKey(spec), 0L).toInt() + 1
+                        if (next < urls(spec).size) {
+                            update(spec.id, Download(0, spec.bytes, running = true, note = tr("แหล่งแรกโหลดไม่ได้ (${reasonText(st.status, st.reason)}) ลองแหล่งสำรอง…", "first source failed, trying a mirror…")))
+                            enqueue(spec, next)?.let { watch(spec, it) }
+                        } else {
+                            update(spec.id, Download(0, spec.bytes, error = reasonText(st.status, st.reason), running = false))
+                        }
+                        return@launch
+                    }
+                    else -> update(spec.id, Download(st.done, total, running = true, note = if (st.status == android.app.DownloadManager.STATUS_PAUSED) reasonText(st.status, st.reason) else null))
+                }
+                kotlinx.coroutines.delay(1000)
             }
         }
     }
 
-    fun cancel(spec: ModelSpec) { jobs.remove(spec.id)?.cancel() }
+    private suspend fun finish(spec: ModelSpec) {
+        val tmp = tmpFile(spec)
+        update(spec.id, Download(spec.bytes, spec.bytes, verifying = true))
+        val ok = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            tmp.isFile && tmp.length() == spec.bytes && com.livingai.core.ai.ModelFiles.sha256(tmp).equals(spec.sha256, ignoreCase = true)
+        }
+        controller.prefs.putLong(idKey(spec), -1L)
+        if (!ok) {
+            tmp.delete()
+            update(spec.id, Download(0, spec.bytes, error = tr("ไฟล์ที่ได้ไม่ครบหรือเสีย (ตรวจ SHA-256 ไม่ผ่าน) ลบทิ้งแล้ว กดโหลดใหม่ได้", "the file is incomplete or damaged (checksum mismatch); deleted, try again"), running = false))
+            return
+        }
+        val target = controller.models.file(spec)
+        target.delete()
+        if (!tmp.renameTo(target)) { update(spec.id, Download(0, spec.bytes, error = tr("บันทึกไฟล์ไม่ได้", "could not save the file"), running = false)); return }
+        if (controller.models.installed().size == 1 || controller.models.active() == null) controller.models.setActive(target)
+        update(spec.id, null)
+    }
+
+    fun cancel(spec: ModelSpec) {
+        jobs.remove(spec.id)?.cancel()
+        val id = controller.prefs.getLong(idKey(spec), -1L)
+        if (id >= 0) runCatching { dm.remove(id) }
+        controller.prefs.putLong(idKey(spec), -1L)
+        tmpFile(spec).delete()
+        update(spec.id, null)
+    }
+
+    /** After the app restarts, picks up downloads that the system kept running. */
+    fun resumeWatching() {
+        for (spec in com.livingai.core.ai.ModelCatalog.ALL) {
+            val id = controller.prefs.getLong(idKey(spec), -1L)
+            if (id >= 0 && jobs[spec.id]?.isActive != true) watch(spec, id)
+        }
+    }
 
     /**
      * Measures real generation speed on this phone with 2, 4 and 6 threads and keeps the fastest.
