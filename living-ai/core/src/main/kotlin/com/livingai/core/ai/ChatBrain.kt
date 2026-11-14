@@ -137,6 +137,44 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         }
     }
 
+    /** A short summary of [screenText] in Thai (3 bullet points at most). */
+    suspend fun summarize(screenText: String, onPartial: (String) -> Unit = {}): String? {
+        if (!generator.isAvailable) return null
+        val so = StringBuilder()
+        return try {
+            val r = generator.generate(GenRequest(
+                listOf(
+                    ChatMessage(Role.SYSTEM, "You summarise what is on a phone screen for the user. Reply in Thai with at most 3 short bullet points starting with •. Use only the text given; never add facts."),
+                    ChatMessage(Role.USER, "ข้อความบนหน้าจอ:\n$screenText\n\nสรุปเป็นภาษาไทยสั้นๆ"),
+                ),
+                maxTokens = 160, temperature = 0.2f, grammar = SCRIPT_GRAMMAR, stop = listOf("<|im_end|>", "<end_of_turn>"),
+            )) { so.append(it); onPartial(clean(so.toString())) }
+            clean(r.text).ifBlank { null }
+        } catch (e: AiException) { lastError = e.message; null }
+    }
+
+    /**
+     * Rewrites a free-form request as one command Kivo's rule parser knows, e.g. "อยากฟังเพลง" → "เปิด Spotify".
+     * Returns null for "not a command". The caller still checks the result with the parser and asks the user.
+     */
+    suspend fun toCommand(text: String): String? {
+        if (!generator.isAvailable) return null
+        val examples = listOf(
+            "ช่วยเปิดยูทูปให้หน่อยดิ" to "เปิด YouTube", "อยากฟังเพลง" to "เปิด Spotify", "เน็ตไม่ติดเลย" to "เปิด wifi",
+            "พรุ่งนี้ปลุกตอนหกโมงครึ่งนะ" to "ตั้งปลุก 6:30", "ต้มมาม่า 3 นาที" to "จับเวลา 3 นาที",
+            "อย่าให้ลืมโทรหาแม่ตอนสองทุ่ม" to "เตือน 2 ทุ่ม ว่าโทรหาแม่", "จดไว้หน่อยว่ารหัสห้องคือ 1234" to "จดโน้ต รหัสห้องคือ 1234",
+            "เสียงดังไป" to "เปิด เสียง", "วันนี้อากาศดีจัง" to "NONE", "เล่าเรื่องตลกหน่อย" to "NONE",
+        )
+        val messages = ArrayList<ChatMessage>()
+        messages.add(ChatMessage(Role.SYSTEM, "Rewrite the user's Thai request as ONE command in this exact style, or NONE if it is not a request to operate the phone. Commands: เปิด <app>, เปิด wifi/บลูทูธ/เสียง/แบต, ตั้งปลุก <time>, จับเวลา <duration>, เตือน <time> ว่า <text>, จดโน้ต <text>, ต้องทำ <task>, ดูหน้าจอ, สรุปหน้าจอ, เล่นเกม."))
+        for ((q, c) in examples) { messages.add(ChatMessage(Role.USER, q)); messages.add(ChatMessage(Role.ASSISTANT, c)) }
+        messages.add(ChatMessage(Role.USER, text.take(200)))
+        return try {
+            val r = generator.generate(GenRequest(messages, maxTokens = 24, temperature = 0f, grammar = COMMAND_GRAMMAR))
+            r.text.trim().takeIf { it.isNotEmpty() && it != "NONE" }
+        } catch (e: AiException) { null }
+    }
+
     @Volatile var lastError: String? = null
         private set
     @Volatile var lastResult: GenResult? = null
@@ -148,6 +186,17 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
          * or other scripts in the middle of a Thai answer; this grammar makes those characters impossible.
          */
         const val WINDOW_STEP = 6
+        /** One line, a known command word first, or NONE. */
+        const val COMMAND_GRAMMAR =
+            "root ::= \"NONE\" | verb [^\\n]{0,40}\n" +
+                "verb ::= \"เปิด \" | \"ตั้งปลุก \" | \"จับเวลา \" | \"เตือน \" | \"จดโน้ต \" | \"ต้องทำ \" | \"ดูหน้าจอ\" | \"สรุปหน้าจอ\" | \"เล่นเกม\""
+
+        /** Words that make a message look like a request to do something, rather than conversation. */
+        fun looksLikeRequest(text: String): Boolean {
+            val t = text.lowercase()
+            return listOf("ช่วย", "หน่อย", "อยาก", "ขอให้", "เปิด", "ปิด", "ตั้ง", "ปลุก", "เตือน", "อย่าให้ลืม", "จด", "ฟังเพลง", "ดูหนัง", "please", "can you", "i want", "remind")
+                .any { t.contains(it) } && t.length < 160
+        }
         const val SCRIPT_GRAMMAR =
             "root ::= [^\\u0370-\\u0DFF\\u0E80-\\u1FFF\\u2E80-\\uA7FF\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFE30-\\uFE4F\\uFF00-\\uFFEF]*"
 

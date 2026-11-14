@@ -21,6 +21,10 @@ sealed interface DeviceCommand {
     data class ShareText(val text: String) : DeviceCommand
     /** Kivo itself reminds the user at [atMs] (notification, speech bubble and voice). */
     data class Remind(val atMs: Long, val text: String) : DeviceCommand
+    /** Opens the calendar app with a new event filled in; the user saves it there. */
+    data class AddEvent(val atMs: Long, val title: String) : DeviceCommand
+    /** Reads the user's calendar for a day (needs the calendar permission). [dayOffset] 0 = today. */
+    data class ListEvents(val dayOffset: Int) : DeviceCommand
     data object ListReminders : DeviceCommand
     /** Cancels the reminders whose text contains [query]; all of them when it is empty. */
     data class CancelReminders(val query: String) : DeviceCommand
@@ -33,6 +37,8 @@ sealed interface DeviceCommand {
         is SetTimer -> tr("ตั้งเวลา $seconds วินาที", "Set a $seconds s timer")
         is ShareText -> tr("ร่างข้อความ", "Draft a message")
         is Remind -> tr("ตั้งเตือน: $text", "Set a reminder: $text")
+        is AddEvent -> tr("เพิ่มนัด: $title", "Add an event: $title")
+        is ListEvents -> tr("ดูนัดในปฏิทิน", "Read the calendar")
         ListReminders -> tr("ดูรายการเตือน", "List reminders")
         is CancelReminders -> tr("ยกเลิกการเตือน", "Cancel reminders")
     }

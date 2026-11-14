@@ -46,6 +46,14 @@ class AndroidDevicePort(private val context: Context, private val reminders: Rem
             ActionResult(true, tr("จะเตือน \"${r.text}\" ตอน $time", "I'll remind you \"${r.text}\" at $time") +
                 if (reminders.canBeExact()) "" else tr(" (อาจช้าได้ไม่กี่นาที เพราะยังไม่ได้เปิดสิทธิ์ \"การปลุกและการช่วยเตือน\")", " (may be a few minutes late: the \"Alarms & reminders\" permission is off)"))
         }
+        is DeviceCommand.AddEvent -> start(
+            Intent(Intent.ACTION_INSERT).setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, command.atMs)
+                .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, command.atMs + 60 * 60_000L)
+                .putExtra(android.provider.CalendarContract.Events.TITLE, command.title),
+            tr("เปิดปฏิทินพร้อมนัด \"${command.title}\" ตอน ${DateFormat.format("d MMM HH:mm", command.atMs)} แล้ว กดบันทึกในปฏิทินได้เลย", "opened the calendar with \"${command.title}\" at ${DateFormat.format("d MMM HH:mm", command.atMs)}: press save there"),
+        )
+        is DeviceCommand.ListEvents -> listEvents(command.dayOffset)
         DeviceCommand.ListReminders -> {
             val all = reminders.book.all()
             ActionResult(true, if (all.isEmpty()) tr("ไม่มีการเตือนที่ตั้งไว้", "no reminders are set")
@@ -56,6 +64,30 @@ class AndroidDevicePort(private val context: Context, private val reminders: Rem
             hits.forEach { reminders.cancel(it) }
             if (hits.isEmpty()) ActionResult(false, tr("ไม่เจอการเตือนที่ตรงกัน", "no matching reminder")) else ActionResult(true, tr("ยกเลิกแล้ว ${hits.size} รายการ", "cancelled ${hits.size}"))
         }
+    }
+
+    /** Today's (or another day's) events from the phone's calendars. Needs the calendar permission, asked in Settings. */
+    private fun listEvents(dayOffset: Int): ActionResult {
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return ActionResult(false, tr("ยังไม่ได้อนุญาตให้อ่านปฏิทิน เปิดได้ที่ ตั้งค่า → ปฏิทิน", "Calendar access is off. Allow it in Settings → Calendar."))
+        }
+        val cal = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); add(java.util.Calendar.DAY_OF_YEAR, dayOffset) }
+        val start = cal.timeInMillis; val end = start + 86_400_000L
+        val uri = android.provider.CalendarContract.Instances.CONTENT_URI.buildUpon().also {
+            android.content.ContentUris.appendId(it, start); android.content.ContentUris.appendId(it, end)
+        }.build()
+        val out = ArrayList<String>()
+        runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.CalendarContract.Instances.BEGIN, android.provider.CalendarContract.Instances.TITLE, android.provider.CalendarContract.Instances.ALL_DAY),
+                null, null, android.provider.CalendarContract.Instances.BEGIN + " ASC")?.use { c ->
+                while (c.moveToNext() && out.size < 12) {
+                    val time = if (c.getInt(2) == 1) tr("ทั้งวัน", "all day") else DateFormat.format("HH:mm", c.getLong(0)).toString()
+                    out.add("• $time  ${c.getString(1) ?: ""}")
+                }
+            }
+        }.onFailure { return ActionResult(false, tr("อ่านปฏิทินไม่ได้", "Could not read the calendar")) }
+        val day = when (dayOffset) { 0 -> tr("วันนี้", "Today"); 1 -> tr("พรุ่งนี้", "Tomorrow"); else -> DateFormat.format("d MMM", start).toString() }
+        return ActionResult(true, if (out.isEmpty()) tr("$day ไม่มีนัด ว่างสบาย", "$day: nothing scheduled") else "$day:\n" + out.joinToString("\n"))
     }
 
     private fun spoken(seconds: Int): String {

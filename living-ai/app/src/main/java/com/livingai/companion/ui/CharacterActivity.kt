@@ -16,7 +16,10 @@ import com.livingai.core.Persona
 import com.livingai.core.personality.Personality
 import com.livingai.core.personality.Preset
 import com.livingai.core.personality.SpeechStyle
+import com.livingai.core.robot.Eyewear
 import com.livingai.core.robot.Gesture
+import com.livingai.core.robot.Hat
+import com.livingai.core.robot.Neckwear
 import com.livingai.core.robot.RobotSkin
 
 /** Kivo's look and character: colours, personality preset and traits, way of speaking, interests, and how close you are. */
@@ -43,7 +46,7 @@ class CharacterActivity : Activity() {
         val preview = ui.card(root)
         robot = RobotView(this).apply {
             showCaption = false; mayRest = false
-            skin = RobotSkin.byName(graph.prefs.skin); mood = LivingState.mood.value
+            skin = RobotSkin.byName(graph.prefs.skin); outfit = graph.controller.wardrobe.outfit; mood = LivingState.mood.value
             setOnClickListener { poke() }
         }
         preview.gravity = Gravity.CENTER_HORIZONTAL
@@ -79,6 +82,38 @@ class CharacterActivity : Activity() {
                 }, LinearLayout.LayoutParams(ui.dp(42), ui.dp(42)).apply { marginEnd = ui.dp(10) })
             }
         })
+
+        // outfits
+        val w = graph.controller.wardrobe
+        val shop = ui.card(root, tr("ของแต่งตัว", "Outfits"))
+        shop.addView(ui.label(tr("🪙 ${w.coins} เหรียญ • ได้จากเล่นเกม ทำงานที่ต้องทำเสร็จ และคุยกันทุกวัน", "🪙 ${w.coins} coins • from games, finished to-dos and daily chats"), 13f, ui.sub))
+        fun itemName(e: Enum<*>): String = when (e) {
+            Hat.NONE, Eyewear.NONE, Neckwear.NONE -> tr("ไม่ใส่", "None")
+            Hat.CAP -> tr("หมวกแก๊ป", "Cap"); Hat.BOW -> tr("โบว์", "Bow"); Hat.CAT_EARS -> tr("หูแมว", "Cat ears"); Hat.FLOWER -> tr("ดอกไม้", "Flower")
+            Hat.BEANIE -> tr("หมวกไหมพรม", "Beanie"); Hat.CROWN -> tr("มงกุฎ", "Crown"); Hat.PARTY -> tr("หมวกปาร์ตี้", "Party hat")
+            Eyewear.ROUND_GLASSES -> tr("แว่นกลม", "Round glasses"); Eyewear.SUNGLASSES -> tr("แว่นกันแดด", "Sunglasses"); Eyewear.STAR_GLASSES -> tr("แว่นดาว", "Star glasses")
+            Neckwear.SCARF -> tr("ผ้าพันคอ", "Scarf"); Neckwear.BOWTIE -> tr("หูกระต่าย", "Bow tie"); Neckwear.BELL -> tr("กระดิ่ง", "Bell")
+            else -> e.name
+        }
+        fun slot(title: String, items: List<Enum<*>>, worn: Enum<*>, wear: (Enum<*>) -> com.livingai.core.robot.Outfit) {
+            shop.addView(ui.label(title, 14f, ui.text, bold = true).apply { setPadding(0, ui.dp(10), 0, ui.dp(4)) })
+            shop.addView(wrapRow(items.map { item ->
+                val owned = w.owns(item)
+                val label = itemName(item) + if (owned) "" else " 🪙${w.price(item)}"
+                ui.chip(label, item == worn) {
+                    if (!owned) {
+                        if (w.coins < w.price(item)) { android.widget.Toast.makeText(this, tr("เหรียญยังไม่พอ ต้องใช้ ${w.price(item)} 🪙", "Not enough coins: ${w.price(item)} 🪙 needed"), android.widget.Toast.LENGTH_SHORT).show(); return@chip }
+                        android.app.AlertDialog.Builder(this).setMessage(tr("ซื้อ${itemName(item)} ราคา ${w.price(item)} 🪙 ?", "Buy ${itemName(item)} for ${w.price(item)} 🪙?"))
+                            .setPositiveButton(tr("ซื้อเลย", "Buy")) { _, _ -> if (w.buy(item)) { w.outfit = wear(item); robot?.play(Gesture.CHEER); build() } }
+                            .setNegativeButton(tr("ไว้ก่อน", "Not now"), null).show()
+                    } else { w.outfit = wear(item); graph.floating.apply(); build() }
+                }
+            }))
+        }
+        val now = w.outfit
+        slot(tr("หัว", "Head"), Hat.entries, now.hat) { now.copy(hat = it as Hat) }
+        slot(tr("แว่น", "Eyes"), Eyewear.entries, now.eyewear) { now.copy(eyewear = it as Eyewear) }
+        slot(tr("คอ", "Neck"), Neckwear.entries, now.neck) { now.copy(neck = it as Neckwear) }
 
         // personality
         val pc = ui.card(root, tr("นิสัย", "Personality"))

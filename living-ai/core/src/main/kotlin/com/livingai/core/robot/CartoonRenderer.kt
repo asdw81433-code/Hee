@@ -17,6 +17,7 @@ import kotlin.math.sqrt
  */
 class CartoonRenderer {
     var skin: RobotSkin = RobotSkin.SNOW
+    var outfit: Outfit = Outfit()
 
     // path buffer
     private val buf = FloatArray(2048)
@@ -175,10 +176,14 @@ class CartoonRenderer {
         if (earZ in -0.35f..0.35f) { ear(g, -1f, yaw, accent); ear(g, 1f, yaw, accent) }
         else if (earZ > 0.35f) ear(g, 1f, yaw, accent) else ear(g, -1f, yaw, accent)
 
+        neckwear(g, outfit.neck, accent)
+
         // ---- face ----
         space = FACE
         if (dark) { begin(); ellipse(0f, -0.02f, 0.5f, 0.33f); paint(g, RobotRenderer.lighten(body, 0.78f)) }
         face(g, pose, ink, timeMs)
+        eyewear(g, outfit.eyewear)
+        hat(g, outfit.hat, accent, timeMs)
 
         // ---- in front ----
         space = BODY
@@ -267,6 +272,129 @@ class CartoonRenderer {
         y = max(y, 0.07f)
         val s = 1f + z.coerceIn(-0.2f, 0.3f) * 0.6f
         begin(); ellipse(x * 1.05f, y, 0.19f * s, 0.1f * s); paint(g, RobotRenderer.darken(body, 0.08f), INK, outW)
+    }
+
+    // ---------- outfit ----------
+
+    private fun hat(g: Painter, hat: Hat, accent: Int, timeMs: Long) {
+        if (hat == Hat.NONE) return
+        space = BODY
+        val top = base + BODY_H
+        val x0 = fx * 0.45f
+        when (hat) {
+            Hat.CAP -> {
+                begin(); mv(x0 - 0.5f, top - 0.2f); cu(x0 - 0.5f, top + 0.22f, x0 + 0.5f, top + 0.22f, x0 + 0.5f, top - 0.2f); close()
+                paint(g, accent, INK, outW)
+                begin(); mv(x0 + 0.3f, top - 0.2f); qd(x0 + 0.75f, top - 0.24f, x0 + 0.82f, top - 0.14f); qd(x0 + 0.6f, top - 0.1f, x0 + 0.25f, top - 0.14f); close()
+                paint(g, RobotRenderer.darken(accent, 0.15f), INK, outW)
+                begin(); ellipse(x0, top + 0.12f, 0.05f, 0.04f); paint(g, RobotRenderer.lighten(accent, 0.4f), INK, outW * 0.6f)
+            }
+            Hat.BEANIE -> {
+                val c = 0xFFFF6B8B.toInt()
+                begin(); mv(x0 - 0.52f, top - 0.18f); cu(x0 - 0.52f, top + 0.3f, x0 + 0.52f, top + 0.3f, x0 + 0.52f, top - 0.18f); close(); paint(g, c, INK, outW)
+                begin(); mv(x0 - 0.55f, top - 0.22f); ln(x0 + 0.55f, top - 0.22f); ln(x0 + 0.55f, top - 0.08f); ln(x0 - 0.55f, top - 0.08f); close(); paint(g, 0xFFFFF1F4.toInt(), INK, outW)
+                begin(); ellipse(x0, top + 0.26f, 0.1f, 0.09f); paint(g, 0xFFFFF1F4.toInt(), INK, outW)
+            }
+            Hat.CROWN -> {
+                val c = 0xFFFFC93C.toInt()
+                val y = top - 0.08f
+                begin(); mv(x0 - 0.3f, y); ln(x0 - 0.34f, y + 0.3f); ln(x0 - 0.16f, y + 0.16f); ln(x0, y + 0.36f); ln(x0 + 0.16f, y + 0.16f); ln(x0 + 0.34f, y + 0.3f); ln(x0 + 0.3f, y); close()
+                paint(g, c, INK, outW)
+                begin(); ellipse(x0, y + 0.1f, 0.05f, 0.05f); paint(g, 0xFFFF5A6E.toInt(), INK, outW * 0.6f)
+                val tw = 0.5f + 0.5f * sin(timeMs / 300.0).toFloat()
+                begin(); val sx = x0 + 0.42f; val sy = y + 0.4f; val k = 0.06f + 0.04f * tw
+                mv(sx, sy + k); qd(sx, sy, sx + k, sy); qd(sx, sy, sx, sy - k); qd(sx, sy, sx - k, sy); qd(sx, sy, sx, sy + k); close(); paint(g, 0xFFFFF3A6.toInt())
+            }
+            Hat.PARTY -> {
+                val y = top - 0.1f
+                begin(); mv(x0 - 0.24f, y); ln(x0 + 0.06f, y + 0.55f); ln(x0 + 0.26f, y); qd(x0, y - 0.06f, x0 - 0.24f, y); close(); paint(g, 0xFF5EC8FF.toInt(), INK, outW)
+                begin(); mv(x0 - 0.12f, y + 0.2f); ln(x0 + 0.17f, y + 0.22f); paint(g, 0, 0xFFFFE066.toInt(), outW * 1.2f)
+                begin(); ellipse(x0 + 0.06f, y + 0.6f, 0.07f, 0.07f); paint(g, 0xFFFF6B8B.toInt(), INK, outW * 0.7f)
+            }
+            Hat.CAT_EARS -> for (side in intArrayOf(-1, 1)) {
+                val bx = x0 + side * 0.36f; val by = top - 0.16f
+                begin(); mv(bx - side * 0.16f, by); ln(bx + side * 0.06f, by + 0.38f); ln(bx + side * 0.2f, by - 0.02f); close(); paint(g, skin.body, INK, outW)
+                begin(); mv(bx - side * 0.07f, by + 0.04f); ln(bx + side * 0.05f, by + 0.26f); ln(bx + side * 0.12f, by + 0.02f); close(); paint(g, 0xFFFF9EB5.toInt())
+            }
+            Hat.BOW -> {
+                val bx = x0 + 0.38f; val by = top - 0.06f
+                val c = 0xFFFF5A8A.toInt()
+                begin(); mv(bx, by); cu(bx - 0.1f, by + 0.2f, bx - 0.3f, by + 0.12f, bx - 0.26f, by - 0.02f); cu(bx - 0.24f, by - 0.16f, bx - 0.1f, by - 0.1f, bx, by); close(); paint(g, c, INK, outW)
+                begin(); mv(bx, by); cu(bx + 0.1f, by + 0.2f, bx + 0.3f, by + 0.12f, bx + 0.26f, by - 0.02f); cu(bx + 0.24f, by - 0.16f, bx + 0.1f, by - 0.1f, bx, by); close(); paint(g, c, INK, outW)
+                begin(); ellipse(bx, by, 0.06f, 0.06f); paint(g, RobotRenderer.lighten(c, 0.3f), INK, outW)
+            }
+            Hat.FLOWER -> {
+                val bx = x0 - 0.42f; val by = top - 0.1f
+                for (i in 0 until 5) {
+                    val a = i * 1.2566f
+                    begin(); ellipse(bx + cos(a) * 0.1f, by + sin(a) * 0.1f, 0.075f, 0.075f); paint(g, 0xFFFFFFFF.toInt(), INK, outW * 0.7f)
+                }
+                begin(); ellipse(bx, by, 0.06f, 0.06f); paint(g, 0xFFFFC93C.toInt(), INK, outW * 0.7f)
+            }
+            Hat.NONE -> Unit
+        }
+    }
+
+    private fun eyewear(g: Painter, e: Eyewear) {
+        if (e == Eyewear.NONE) return
+        space = FACE
+        val ey = 0.1f; val ex = 0.25f
+        when (e) {
+            Eyewear.ROUND_GLASSES -> {
+                begin(); ellipse(-ex, ey, 0.16f, 0.16f); paint(g, 0x22FFFFFF, INK, outW)
+                begin(); ellipse(ex, ey, 0.16f, 0.16f); paint(g, 0x22FFFFFF, INK, outW)
+                begin(); mv(-ex + 0.16f, ey + 0.02f); qd(0f, ey + 0.07f, ex - 0.16f, ey + 0.02f); paint(g, 0, INK, outW)
+            }
+            Eyewear.SUNGLASSES -> {
+                for (sx in floatArrayOf(-ex, ex)) {
+                    begin(); mv(sx - 0.17f, ey + 0.1f); ln(sx + 0.17f, ey + 0.1f); qd(sx + 0.17f, ey - 0.14f, sx, ey - 0.12f); qd(sx - 0.17f, ey - 0.14f, sx - 0.17f, ey + 0.1f); close()
+                    paint(g, 0xF01B1D2A.toInt(), INK, outW)
+                    begin(); mv(sx - 0.1f, ey + 0.05f); ln(sx - 0.02f, ey + 0.05f); paint(g, 0, 0x88FFFFFF.toInt(), outW * 0.8f)
+                }
+                begin(); mv(-ex + 0.17f, ey + 0.08f); ln(ex - 0.17f, ey + 0.08f); paint(g, 0, INK, outW)
+            }
+            Eyewear.STAR_GLASSES -> {
+                for (sx in floatArrayOf(-ex, ex)) {
+                    begin()
+                    for (i in 0..10) {
+                        val a = -1.5708f + i * 0.6283f
+                        val r = if (i % 2 == 0) 0.19f else 0.09f
+                        val x = sx + cos(a) * r; val y = ey - sin(a) * r
+                        if (i == 0) mv(x, y) else ln(x, y)
+                    }
+                    close(); paint(g, 0x99FF6BC1.toInt(), INK, outW)
+                }
+                begin(); mv(-ex + 0.12f, ey + 0.04f); ln(ex - 0.12f, ey + 0.04f); paint(g, 0, INK, outW)
+            }
+            Eyewear.NONE -> Unit
+        }
+    }
+
+    private fun neckwear(g: Painter, nw: Neckwear, accent: Int) {
+        if (nw == Neckwear.NONE) return
+        space = BODY
+        val y = base + 0.5f
+        val x0 = fx * 0.35f
+        when (nw) {
+            Neckwear.SCARF -> {
+                val c = 0xFFFF6B5E.toInt()
+                begin(); mv(-BODY_W + 0.04f, y + 0.02f); qd(0f, y - 0.12f, BODY_W - 0.04f, y + 0.02f); ln(BODY_W - 0.06f, y + 0.16f); qd(0f, y + 0.02f, -BODY_W + 0.06f, y + 0.16f); close()
+                paint(g, c, INK, outW)
+                begin(); mv(x0 + 0.25f, y - 0.02f); ln(x0 + 0.4f, y - 0.3f); ln(x0 + 0.52f, y - 0.26f); ln(x0 + 0.38f, y + 0.02f); close(); paint(g, RobotRenderer.darken(c, 0.12f), INK, outW)
+            }
+            Neckwear.BOWTIE -> {
+                val c = 0xFF2E2A45.toInt()
+                begin(); mv(x0, y + 0.05f); ln(x0 - 0.16f, y + 0.14f); ln(x0 - 0.16f, y - 0.04f); close(); paint(g, c, INK, outW * 0.8f)
+                begin(); mv(x0, y + 0.05f); ln(x0 + 0.16f, y + 0.14f); ln(x0 + 0.16f, y - 0.04f); close(); paint(g, c, INK, outW * 0.8f)
+                begin(); ellipse(x0, y + 0.05f, 0.04f, 0.04f); paint(g, 0xFFFF5A6E.toInt(), INK, outW * 0.6f)
+            }
+            Neckwear.BELL -> {
+                begin(); mv(-0.5f, y + 0.12f); qd(0f, y - 0.02f, 0.5f, y + 0.12f); paint(g, 0, INK, u * 0.05f + outW * 2f); paint(g, 0, 0xFFFF5A6E.toInt(), u * 0.05f)
+                begin(); ellipse(x0, y - 0.0f, 0.09f, 0.09f); paint(g, 0xFFFFC93C.toInt(), INK, outW)
+                begin(); mv(x0 - 0.05f, y - 0.03f); ln(x0 + 0.05f, y - 0.03f); paint(g, 0, INK, outW * 0.6f)
+            }
+            Neckwear.NONE -> Unit
+        }
     }
 
     // ---------- face ----------

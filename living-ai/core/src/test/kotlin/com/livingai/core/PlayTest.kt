@@ -129,6 +129,48 @@ class ActivitiesTest {
     }
 
     @Test
+    fun `coins come from playing and finishing to-dos and buy outfits`() = runBlocking {
+        val kv = InMemoryKeyValueStore()
+        var day = 100L
+        val w = com.livingai.core.personality.Wardrobe(kv) { day }
+        val store = InMemoryMemoryStore()
+        val listener = RecordingListener()
+        val src = FakeScreen(screen("com.example", el(1, "ตกลง")))
+        val vision = VisionAgent(src, listener)
+        val core = KivoCore(vision, ActionAgent(FakePort(src), vision, SafetyPolicy(), { true }, listener, settleMs = 1), FakeDevice(), MemoryAgent(store), listener,
+            activities = ActivityHub(Random(4)), wardrobe = w)
+        assertTrue(core.handleUserMessage("สวัสดี").contains("+5"))     // daily bonus once
+        assertFalse(core.handleUserMessage("สวัสดี").contains("+5"))
+        core.handleUserMessage("ต้องทำ ซื้อนม")
+        assertTrue(core.handleUserMessage("ซื้อนมเสร็จแล้ว").contains("🪙"))
+        core.handleUserMessage("ทายเลข")
+        val end = core.handleUserMessage("ยอมแพ้").let { core.handleUserMessage("เลิกเล่น") }
+        assertTrue(end.isNotBlank())
+        assertEquals(10L, w.coins)
+        day++; core.handleUserMessage("หวัดดี"); assertEquals(15L, w.coins)
+        assertFalse(w.buy(com.livingai.core.robot.Hat.CROWN))
+        assertTrue(w.buy(com.livingai.core.robot.Hat.BOW) || w.coins < 30)
+        w.earn(200)
+        assertTrue(w.buy(com.livingai.core.robot.Hat.CROWN)); assertTrue(w.owns(com.livingai.core.robot.Hat.CROWN))
+        w.outfit = com.livingai.core.robot.Outfit(hat = com.livingai.core.robot.Hat.CROWN, eyewear = com.livingai.core.robot.Eyewear.SUNGLASSES)
+        assertEquals(com.livingai.core.robot.Hat.CROWN, w.outfit.hat)
+        assertEquals(com.livingai.core.robot.Eyewear.NONE, w.outfit.eyewear, "not owned, so not worn")
+    }
+
+    @Test
+    fun `facts are answered from the table, not guessed`() {
+        assertEquals("1 สัปดาห์มี 7 วัน", com.livingai.core.companion.Knowledge.answer("1 สัปดาห์มีกี่วัน"))
+        assertTrue(com.livingai.core.companion.Knowledge.answer("ประเทศไทยมีเมืองหลวงชื่ออะไร")!!.contains("กรุงเทพ"))
+        assertTrue(com.livingai.core.companion.Knowledge.answer("ไทยมีกี่จังหวัด")!!.contains("77"))
+        assertTrue(com.livingai.core.companion.Knowledge.answer("ภูเขาที่สูงที่สุดในไทยคืออะไร")!!.contains("อินทนนท์"))
+        assertEquals("100 °C = 212 °F", com.livingai.core.companion.Knowledge.answer("100 องศาเซลเซียส เท่ากับกี่ฟาเรนไฮต์"))
+        val cal = java.util.Calendar.getInstance().apply { set(2026, 11, 20) }
+        assertEquals("อีก 12 วันจะถึงปีใหม่", com.livingai.core.companion.Knowledge.answer("อีกกี่วันจะถึงปีใหม่", cal))
+        assertNull(com.livingai.core.companion.Knowledge.answer("วันนี้เหนื่อยจัง"))
+        assertNull(com.livingai.core.companion.Knowledge.answer("เปิดไวไฟ"))
+    }
+
+    @Test
     fun calculator() {
         assertEquals("87", Calculator.format(Calculator.eval(Calculator.find("คิดเลข 12*7+3")!!)!!))
         assertEquals("2.5", Calculator.format(Calculator.eval(Calculator.find("(2+3)/2 เท่ากับเท่าไหร่")!!)!!))

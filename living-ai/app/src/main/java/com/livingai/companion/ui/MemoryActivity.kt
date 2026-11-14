@@ -78,7 +78,11 @@ class MemoryActivity : Activity() {
         root.addView(list)
 
         val manage = ui.card(root, tr("จัดการข้อมูล", "Manage data"))
-        manage.addView(ui.button(tr("ส่งออกเป็นไฟล์ JSON", "Export as a JSON file"), ui.grey) { export() })
+        manage.addView(ui.button(tr("สำรองเป็นไฟล์ (JSON)", "Back up to a file (JSON)"), ui.grey) { export() })
+        manage.addView(ui.button(tr("กู้คืนจากไฟล์สำรอง", "Restore from a backup file"), ui.grey) {
+            @Suppress("DEPRECATION")
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "*/*" }, REQ_IMPORT)
+        }, ui.matchWrap(top = 8))
         manage.addView(ui.button(tr("ลบประวัติแชท", "Delete chat history"), ui.grey) {
             confirm(tr("ลบประวัติแชททั้งหมด?", "Delete the whole chat history?")) { scope.launch { graph.memoryStore.clearChat(); com.livingai.companion.LivingState.chat.value = emptyList(); toast(tr("ลบแล้ว", "Deleted")) } }
         }, ui.matchWrap(top = 8))
@@ -178,6 +182,7 @@ class MemoryActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data ?: return
+        if (requestCode == REQ_IMPORT && resultCode == RESULT_OK) { restore(uri); return }
         if (requestCode != REQ_EXPORT || resultCode != RESULT_OK) return
         scope.launch {
             val ok = runCatching {
@@ -185,6 +190,27 @@ class MemoryActivity : Activity() {
                 withContext(Dispatchers.IO) { contentResolver.openOutputStream(uri)!!.use { it.write(json.toByteArray()) } }
             }.isSuccess
             toast(if (ok) tr("ส่งออกแล้ว", "Exported") else tr("ส่งออกไม่สำเร็จ", "Export failed"))
+        }
+    }
+
+    /** Reads a backup made with "Back up to a file" and adds the memories that are not there yet. */
+    private fun restore(uri: android.net.Uri) {
+        scope.launch {
+            val added = runCatching {
+                val json = withContext(Dispatchers.IO) { contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() } }
+                val arr = org.json.JSONObject(json).getJSONArray("memories")
+                val existing = graph.memoryStore.list(null, 5000).map { it.kind.name + "|" + it.title + "|" + it.content }.toHashSet()
+                var n = 0
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val kind = runCatching { MemoryKind.valueOf(o.getString("kind")) }.getOrNull() ?: continue
+                    val m = Memory(kind = kind, title = o.optString("title"), content = o.optString("content"), createdAt = o.optLong("createdAt"), importance = o.optInt("importance", 1), done = o.optBoolean("done"))
+                    if (existing.add(m.kind.name + "|" + m.title + "|" + m.content)) { graph.memoryStore.save(m); n++ }
+                }
+                n
+            }
+            added.onSuccess { toast(tr("กู้คืนแล้ว $it รายการ", "Restored $it memories")); reload() }
+                .onFailure { toast(tr("ไฟล์นี้ไม่ใช่ไฟล์สำรองของ ${Persona.NAME}", "This is not a ${Persona.NAME} backup file")) }
         }
     }
 
@@ -198,5 +224,5 @@ class MemoryActivity : Activity() {
 
     override fun onDestroy() { scope.cancel(); super.onDestroy() }
 
-    private companion object { const val REQ_EXPORT = 7101 }
+    private companion object { const val REQ_EXPORT = 7101; const val REQ_IMPORT = 7102 }
 }

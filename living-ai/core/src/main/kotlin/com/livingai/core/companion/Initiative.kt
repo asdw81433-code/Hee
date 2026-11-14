@@ -8,7 +8,7 @@ import com.livingai.core.memory.Memory
 import com.livingai.core.personality.Personality
 
 /** Things that happen on the phone which Kivo may react to on its own. */
-enum class Trigger { UNLOCKED, IDLE, BATTERY_LOW, CHARGING, MUSIC_STARTED, LATE_NIGHT }
+enum class Trigger { UNLOCKED, IDLE, BATTERY_LOW, CHARGING, MUSIC_STARTED, LATE_NIGHT, HABIT_WATER, HABIT_EYES }
 
 /** What the user allows: quiet mode, and hours in which Kivo never starts talking. */
 data class QuietSettings(val quietMode: Boolean = false, val dndEnabled: Boolean = true, val dndStartHour: Int = 22, val dndEndHour: Int = 7) {
@@ -82,6 +82,8 @@ class Initiative(private val clock: Clock, private val kv: KeyValueStore, privat
             Trigger.BATTERY_LOW -> ctx.batteryPercent?.let { tr("แบตเหลือ $it% แล้วนะ$name หาที่ชาร์จหน่อยไหม", "Battery is at $it%$name. Time to charge?") }
             Trigger.CHARGING -> tr("ได้ชาร์จแล้ว ค่อยมีแรงหน่อย ⚡", "Charging. That feels better ⚡")
             Trigger.MUSIC_STARTED -> tr("เพลงมา! ขอเต้นด้วยคนนะ 🎵", "Music! Mind if I dance? 🎵")
+            Trigger.HABIT_WATER -> tr("ดื่มน้ำสักแก้วไหม$name 💧 ดื่มแล้วพิมพ์ \"ดื่มน้ำแล้ว\" นะ", "Time for a glass of water$name 💧 Tell me \"drank water\" after.")
+            Trigger.HABIT_EYES -> tr("พักสายตาสัก 20 วินาทีไหม มองไกลๆ ก่อน 👀", "Rest your eyes for 20 seconds? Look far away 👀")
             Trigger.LATE_NIGHT -> tr("ดึกแล้วนะ$name พักสายตาบ้าง พรุ่งนี้จะได้สดชื่น", "It's late$name. Rest your eyes so tomorrow is easier.")
             Trigger.UNLOCKED -> {
                 val greeting = when (ctx.hour) {

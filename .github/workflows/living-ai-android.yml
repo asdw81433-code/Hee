@@ -115,6 +115,8 @@ jobs:
   device-tests:
     name: Android 16 emulator E2E
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # screenshots are published as a separate pre-release for review
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -150,6 +152,16 @@ jobs:
             adb push "$RUNNER_TEMP/tiny.gguf" /data/local/tmp/kivo-tiny.gguf
             ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp" || ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"
             ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"; R=$?; mkdir -p app/build/screenshots; for f in $(adb shell ls /data/local/tmp/ | grep kivo-shot | tr -d '\r'); do adb pull "/data/local/tmp/$f" app/build/screenshots/ || true; done; exit $R
+      - name: Publish screenshots for review (not the app)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls app/build/screenshots/*.png >/dev/null 2>&1 || exit 0
+          gh release delete kivo-screenshots --cleanup-tag --yes || true
+          gh release create kivo-screenshots app/build/screenshots/*.png --prerelease --latest=false --target "$GITHUB_SHA" \
+            --title "ภาพหน้าจอสำหรับตรวจ (ไม่ใช่ตัวแอป)" --notes "ภาพจากเทสต์บนอีมูเลเตอร์ Android 16 ของคอมมิต $GITHUB_SHA ตัวแอปอยู่ที่ living-ai-latest"
       - name: Device test summary
         if: always()
         run: |

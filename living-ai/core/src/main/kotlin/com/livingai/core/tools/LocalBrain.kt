@@ -25,6 +25,9 @@ object LocalBrain {
         data class Todo(val text: String) : Plan
         data class ListNotes(val todos: Boolean) : Plan
         data class DoneTodo(val query: String) : Plan
+        data object Summarize : Plan
+        /** "water", "eyes", "move" = log it; "" = show today's numbers. */
+        data class Habit(val kind: String) : Plan
         data object Help : Plan
         data class Unknown(val hint: String) : Plan
     }
@@ -62,6 +65,18 @@ object LocalBrain {
                 ?: return Plan.Unknown(tr("จะให้เตือนตอนไหนดี เช่น \"เตือนอีก 10 นาที ว่ากินยา\" หรือ \"เตือน 2 ทุ่ม ให้โทรหาแม่\"", "When should I remind you? e.g. \"remind me in 10 minutes to take medicine\""))
             return Plan.Device(DeviceCommand.Remind(at, TimeParser.stripTime(rest).ifBlank { tr("ถึงเวลาแล้ว", "It's time") }))
         }
+        // calendar: "นัดหมอวันศุกร์บ่ายสอง" is added through the calendar app; "พรุ่งนี้มีนัดอะไร" reads it
+        if (Regex("(วันนี้|พรุ่งนี้|มะรืน)?\\s*มีนัด(อะไร|ไหม|มั้ย)|ตารางนัด|ดูนัด|ดูปฏิทิน|what.*(calendar|schedule)|my schedule").containsMatchIn(lower)) {
+            val day = when { lower.contains("มะรืน") -> 2; lower.contains("พรุ่งนี้") || lower.contains("tomorrow") -> 1; else -> 0 }
+            return Plan.Device(DeviceCommand.ListEvents(day))
+        }
+        after("เพิ่มนัด", "ลงนัด", "นัดหมาย", "นัด", "add event", "schedule")?.let { rest ->
+            if (rest.isEmpty()) return Plan.Unknown(tr("นัดอะไร ตอนไหนดี เช่น \"นัด หาหมอ พรุ่งนี้ บ่ายสอง\"", "What and when? e.g. \"add event dentist tomorrow 2 pm\""))
+            val at = TimeParser.whenMs(rest.replace(Regex("วัน(จันทร์|อังคาร|พุธ|พฤหัส(บดี)?|ศุกร์|เสาร์|อาทิตย์)"), "").let { it }, nowMs)
+                ?: return Plan.Unknown(tr("นัดตอนไหนดี เช่น \"นัด หาหมอ พรุ่งนี้ บ่ายสอง\"", "When? e.g. \"add event dentist tomorrow 2 pm\""))
+            val title = TimeParser.stripTime(rest).replace(Regex("วัน(จันทร์|อังคาร|พุธ|พฤหัส(บดี)?|ศุกร์|เสาร์|อาทิตย์)"), "").replace(Regex("\\s+"), " ").trim().ifBlank { tr("นัดหมาย", "Event") }
+            return Plan.Device(DeviceCommand.AddEvent(weekday(rest, at, nowMs), title))
+        }
         // alarm: "ตั้งปลุก 6 โมงเช้า"
         after("ตั้งนาฬิกาปลุก", "ตั้งปลุก", "ปลุกเรา", "ปลุกฉัน", "ปลุก", "set an alarm", "set alarm", "wake me")?.let { rest ->
             val c = TimeParser.clock(rest) ?: return Plan.Unknown(tr("จะให้ปลุกกี่โมงดี เช่น \"ตั้งปลุก 6 โมงเช้า\"", "What time? e.g. \"set an alarm for 6:30\""))
@@ -72,6 +87,14 @@ object LocalBrain {
             val d = TimeParser.duration(rest) ?: return Plan.Unknown(tr("จับเวลานานเท่าไหร่ดี เช่น \"จับเวลา 5 นาที\"", "For how long? e.g. \"timer 5 minutes\""))
             return Plan.Device(DeviceCommand.SetTimer(d))
         }
+        // screen summary
+        if (listOf("สรุปหน้าจอ", "สรุปจอ", "สรุปให้หน่อย", "สรุปหน้านี้", "summarize the screen", "summarise the screen", "summarize this").any { lower.contains(it) }) return Plan.Summarize
+        // good habits
+        if (Regex("^(ดื่มน้ำ|กินน้ำ)(แล้ว|ไป|\\s*\\d)|drank water|had water").containsMatchIn(lower)) return Plan.Habit("water")
+        if (Regex("^(พักสายตา|พักตา)(แล้ว)?|rested my eyes").containsMatchIn(lower)) return Plan.Habit("eyes")
+        if (Regex("^(ออกกำลังกาย|ยืดเส้น|เดิน)(แล้ว|ไป)|exercised").containsMatchIn(lower)) return Plan.Habit("move")
+        if (listOf("สถิติวันนี้", "นิสัยดี", "สรุปวันนี้", "my habits", "today's stats").any { lower.contains(it) }) return Plan.Habit("")
+
         // notes and to-dos
         if (listOf("ดูโน้ต", "โน้ตทั้งหมด", "มีโน้ตอะไร", "show notes", "my notes").any { lower.contains(it) }) return Plan.ListNotes(todos = false)
         if (listOf("ต้องทำอะไรบ้าง", "มีอะไรต้องทำ", "ดูสิ่งที่ต้องทำ", "รายการที่ต้องทำ", "to-do list", "todo list", "my todos").any { lower.contains(it) }) return Plan.ListNotes(todos = true)
@@ -94,6 +117,19 @@ object LocalBrain {
             for ((page, words) in settingsPages) if (words.any { rest == it || rest.startsWith("$it ") || (it.length >= 4 && rest.startsWith(it)) }) return Plan.Device(DeviceCommand.OpenSettings(page))
         }
         return null
+    }
+
+    /** "วันศุกร์" moves the time to the next Friday (keeping the hour and minute). */
+    private fun weekday(text: String, atMs: Long, nowMs: Long): Long {
+        val names = listOf("อาทิตย์" to java.util.Calendar.SUNDAY, "จันทร์" to java.util.Calendar.MONDAY, "อังคาร" to java.util.Calendar.TUESDAY,
+            "พุธ" to java.util.Calendar.WEDNESDAY, "พฤหัส" to java.util.Calendar.THURSDAY, "ศุกร์" to java.util.Calendar.FRIDAY, "เสาร์" to java.util.Calendar.SATURDAY)
+        val want = names.firstOrNull { (n, _) -> text.contains("วัน$n") }?.second ?: return atMs
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = atMs }
+        val now = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
+        cal.set(java.util.Calendar.YEAR, now.get(java.util.Calendar.YEAR)); cal.set(java.util.Calendar.DAY_OF_YEAR, now.get(java.util.Calendar.DAY_OF_YEAR))
+        var guard = 0
+        while ((cal.get(java.util.Calendar.DAY_OF_WEEK) != want || cal.timeInMillis <= nowMs) && guard++ < 14) cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        return cal.timeInMillis
     }
 
     fun plan(input: String, obs: ScreenObservation?, nowMs: Long = System.currentTimeMillis()): Plan {

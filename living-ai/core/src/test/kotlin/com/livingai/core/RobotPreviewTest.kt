@@ -122,7 +122,33 @@ class RobotPreviewTest {
             Triple("off", s) { a, t -> a.status = AgentStatus.PAUSED; t },
         ))
         sheet("skins", 6, RobotSkin.ALL.map { sk -> Triple(sk.name, sk) { a: RobotAnimator, t: Long -> a.mood = Mood.HAPPY; t } })
+        val outfits = Hat.entries.drop(1).map { Outfit(hat = it) } + Eyewear.entries.drop(1).map { Outfit(eyewear = it) } + Neckwear.entries.drop(1).map { Outfit(neck = it) } +
+            listOf(Outfit(Hat.CROWN, Eyewear.SUNGLASSES, Neckwear.BOWTIE), Outfit(Hat.CAT_EARS, Eyewear.ROUND_GLASSES, Neckwear.BELL))
+        outfitSheet("outfits", 6, outfits)
         sheet("gestures", 5, Gesture.entries.map { gst -> Triple(gst.name, s) { a: RobotAnimator, t: Long -> a.play(gst, t - gst.ms / 2); t } })
+    }
+
+    private fun outfitSheet(name: String, cols: Int, outfits: List<Outfit>) {
+        val rows = (outfits.size + cols - 1) / cols
+        val img = BufferedImage(cols * cell, rows * cellH, BufferedImage.TYPE_INT_ARGB)
+        val g = img.createGraphics()
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        outfits.forEachIndexed { i, o ->
+            val x = (i % cols) * cell; val y = (i / cols) * cellH
+            g.transform = AffineTransform(); g.clip = null
+            g.paint = Color(if (i % 2 == 0) 0xFF141824.toInt() else 0xFF2B3550.toInt(), true); g.fillRect(x, y, cell, cellH)
+            val anim = RobotAnimator(); anim.mood = Mood.HAPPY
+            val r = CartoonRenderer(); r.skin = RobotSkin.ALL[i % RobotSkin.ALL.size]; r.outfit = o
+            var pose = anim.update(100_000L - 600); for (k in 1..20) pose = anim.update(100_000L - 600 + k * 30L)
+            g.translate(x, y)
+            r.draw(AwtPainter(g), pose, cell.toFloat(), cellH.toFloat() - 16, RobotAnimator.eyeColor(anim.status, anim.mood, r.skin), 100_000L)
+            g.transform = AffineTransform(); g.paint = Color.WHITE
+            g.font = Font(Font.SANS_SERIF, Font.PLAIN, 11)
+            g.drawString(listOf(o.hat, o.eyewear, o.neck).filter { it.name != "NONE" }.joinToString("+") { it.name.lowercase() }, x + 6, y + cellH - 5)
+        }
+        g.dispose()
+        val out = File("build/robot-preview/$name.png"); out.parentFile.mkdirs()
+        ImageIO.write(img, "png", out)
     }
 
     @Test fun `state machine picks one motion by priority and gestures end on their own`() {

@@ -275,6 +275,35 @@ class MathPractice(private val rnd: Random, private val rounds: Int = 6) : Activ
     }
 }
 
+/** "เป่ายิ้งฉุบ": best of three against Kivo. */
+class RockPaperScissors(private val rnd: Random) : Activity {
+    override val id = "rps"
+    override val title get() = tr("เป่ายิ้งฉุบ", "Rock paper scissors")
+    private var me = 0
+    private var you = 0
+    private val names get() = listOf(tr("✊ ค้อน", "✊ rock"), tr("✋ กระดาษ", "✋ paper"), tr("✌️ กรรไกร", "✌️ scissors"))
+    override fun start(): String { me = 0; you = 0; return tr("เป่ายิ้งฉุบ ใครชนะก่อน 2 ตาชนะ! พิมพ์ ค้อน กระดาษ หรือ กรรไกร", "Rock paper scissors, first to 2! Type rock, paper or scissors.") }
+    override fun handle(input: String): GameTurn {
+        val t = norm(input)
+        val pick = when {
+            t.contains("ค้อน") || t.contains("หิน") || t.contains("rock") || t.contains("✊") -> 0
+            t.contains("กระดาษ") || t.contains("paper") || t.contains("✋") -> 1
+            t.contains("กรรไกร") || t.contains("scissor") || t.contains("✌") -> 2
+            else -> return GameTurn(tr("พิมพ์ ค้อน กระดาษ หรือ กรรไกร นะ", "Type rock, paper or scissors"))
+        }
+        val k = rnd.nextInt(3)
+        val res = (pick - k + 3) % 3   // 0 draw, 1 you win, 2 Kivo wins
+        if (res == 1) you++ else if (res == 2) me++
+        val line = tr("เธอ ${names[pick]} • เรา ${names[k]} → ", "You ${names[pick]} • me ${names[k]} → ") +
+            when (res) { 0 -> tr("เสมอ!", "draw!"); 1 -> tr("เธอได้แต้ม!", "your point!"); else -> tr("เราได้แต้ม!", "my point!") } + "  ($you:$me)"
+        return when {
+            you == 2 -> GameTurn(line + tr("\nเธอชนะ! 🎉", "\nYou win! 🎉"), true, EmotionEvent.GAME_LOST)
+            me == 2 -> GameTurn(line + tr("\nเราชนะ 😄 เอาใหม่ไหม", "\nI win 😄 Again?"), true, EmotionEvent.GAME_WON)
+            else -> GameTurn(line + tr("\nตาต่อไป!", "\nNext round!"))
+        }
+    }
+}
+
 /** "วางแผนวันนี้": three questions, the answers become to-do items. */
 class DayPlanner : Activity {
     override val id = "plan"
@@ -299,7 +328,7 @@ class ActivityHub(private val rnd: Random = Random.Default, private val playfuln
 
     private fun create(id: String): Activity = when (id) {
         "number" -> NumberGuess(rnd); "word" -> WordGuess(rnd); "quiz" -> Quiz(rnd); "xo" -> TicTacToe(rnd) { 0.1f + playfulness() * 0.25f }
-        "memory" -> MemoryGame(rnd); "vocab" -> VocabPractice(rnd); "math" -> MathPractice(rnd); else -> DayPlanner()
+        "memory" -> MemoryGame(rnd); "vocab" -> VocabPractice(rnd); "math" -> MathPractice(rnd); "rps" -> RockPaperScissors(rnd); else -> DayPlanner()
     }
 
     private val triggers = listOf(
@@ -310,13 +339,14 @@ class ActivityHub(private val rnd: Random = Random.Default, private val playfuln
         "memory" to listOf("เกมความจำ", "จำเลข", "จำลำดับ", "จับคู่", "memory game"),
         "vocab" to listOf("ฝึกศัพท์", "ท่องศัพท์", "ฝึกภาษาอังกฤษ", "ศัพท์อังกฤษ", "vocabulary", "vocab"),
         "math" to listOf("ฝึกคิดเลข", "ฝึกเลข", "โจทย์เลข", "คิดเลขเร็ว", "maths practice", "math practice", "mental math"),
+        "rps" to listOf("เป่ายิ้งฉุบ", "เป่ายิงฉุบ", "ค้อนกรรไกรกระดาษ", "rock paper scissors", "rps"),
         "plan" to listOf("วางแผนวันนี้", "วางแผนวัน", "แพลนวันนี้", "plan my day", "plan the day"),
     )
 
     val menu: String
         get() = tr(
-            "เล่นอะไรกันดี? 🎮\n• ทายคำ • ทายเลข • ควิซ • เอ็กซ์โอ • เกมความจำ\nหรือทำอะไรที่ได้ประโยชน์:\n• ฝึกศัพท์อังกฤษ • ฝึกคิดเลข • วางแผนวันนี้\nพิมพ์ชื่อได้เลย (เลิกเมื่อไหร่ก็พิมพ์ \"เลิกเล่น\")",
-            "What shall we play? 🎮\n• word guess • number guess • quiz • tic-tac-toe • memory game\nOr something useful:\n• vocabulary • maths practice • plan my day\nJust type the name (\"stop playing\" ends it).",
+            "เล่นอะไรกันดี? 🎮\n• ทายคำ • ทายเลข • ควิซ • เอ็กซ์โอ • เกมความจำ • เป่ายิ้งฉุบ\nหรือทำอะไรที่ได้ประโยชน์:\n• ฝึกศัพท์อังกฤษ • ฝึกคิดเลข • วางแผนวันนี้\nพิมพ์ชื่อได้เลย (เลิกเมื่อไหร่ก็พิมพ์ \"เลิกเล่น\")",
+            "What shall we play? 🎮\n• word guess • number guess • quiz • tic-tac-toe • memory game • rock paper scissors\nOr something useful:\n• vocabulary • maths practice • plan my day\nJust type the name (\"stop playing\" ends it).",
         )
 
     /** A suggestion Kivo can make on its own; rotates so it is not always the same one. */

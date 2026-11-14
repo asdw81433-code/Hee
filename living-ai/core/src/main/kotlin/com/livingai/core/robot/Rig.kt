@@ -58,6 +58,13 @@ data class RobotSkin(val name: String, val body: Int, val accent: Int, val visor
     }
 }
 
+/** Things Kivo can wear. One per slot. */
+enum class Hat(val price: Int) { NONE(0), CAP(0), BOW(30), CAT_EARS(40), FLOWER(30), BEANIE(50), CROWN(120), PARTY(60) }
+enum class Eyewear(val price: Int) { NONE(0), ROUND_GLASSES(40), SUNGLASSES(80), STAR_GLASSES(100) }
+enum class Neckwear(val price: Int) { NONE(0), SCARF(50), BOWTIE(40), BELL(60) }
+
+data class Outfit(val hat: Hat = Hat.NONE, val eyewear: Eyewear = Eyewear.NONE, val neck: Neckwear = Neckwear.NONE)
+
 /** How the face is drawn. Chosen by the animator from mood and activity. */
 enum class Face { CALM, HAPPY, SAD, CURIOUS, EXCITED, SLEEPY, ASLEEP, CONFUSED, FRUSTRATED, FOCUSED, OFF }
 

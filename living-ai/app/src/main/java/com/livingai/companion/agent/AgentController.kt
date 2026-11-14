@@ -69,6 +69,10 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     val vision = VisionAgent(screenSource, this)
     val memory = MemoryAgent(memoryStore, autoLearn = { prefs.autoMemory })
     val personalityStore = PersonalityStore(prefs)
+    /** Water, eye breaks, moving: counted per day. */
+    val habits = com.livingai.core.companion.Habits(prefs)
+    /** Coins and the outfit Kivo wears. */
+    val wardrobe = com.livingai.core.personality.Wardrobe(prefs)
     val bond = Bond(prefs) { System.currentTimeMillis() }
     /** Simulated mood; more playful personalities react more strongly. */
     val emotion = EmotionEngine({ SystemClock.elapsedRealtime() }, sensitivity = { 0.75f + personalityStore.load().playfulness * 0.4f })
@@ -113,6 +117,8 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         vision, actions, devicePort, memory, this, localContext = ::deviceContext,
         emotion = emotion, personality = { personalityStore.load() }, bond = bond, brain = brain,
         activities = com.livingai.core.companion.ActivityHub(playfulness = { personalityStore.load().playfulness }),
+        wardrobe = wardrobe,
+        habits = habits,
     )
 
     /** When and what Kivo says on its own; see core.companion.Initiative. */
@@ -166,6 +172,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
 
     private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
+    val chirps = Chirps(context) { prefs.soundsEnabled }
     val speaker = Speaker(context, prefs).also { sp -> sp.onSpeaking = { talking -> overlay?.setVoiceTalking(talking) } }
 
     /** Set by the accessibility service while the floating robot exists. */
@@ -324,12 +331,21 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     }
 
     override fun onMood(mood: Mood) {
+        if (LivingState.mood.value != mood) {
+            com.livingai.companion.ui.KivoWidget.refresh(context)
+            when (mood) {
+                Mood.HAPPY, Mood.EXCITED -> chirps.play(Chirps.Kind.HAPPY)
+                Mood.SAD -> chirps.play(Chirps.Kind.SAD)
+                Mood.CONFUSED -> chirps.play(Chirps.Kind.SURPRISE)
+                else -> Unit
+            }
+        }
         LivingState.mood.value = mood
         overlay?.setMood(mood)
     }
 
     /** The robot was touched / dragged: that is an event for the emotion engine too. */
-    fun onTouched() = emotion.onEvent(EmotionEvent.TOUCHED)
+    fun onTouched() { chirps.play(Chirps.Kind.TAP); emotion.onEvent(EmotionEvent.TOUCHED) }
     fun onPickedUp() = emotion.onEvent(EmotionEvent.PICKED_UP)
 
     // ---------- Kivo's own initiative (device events come from CompanionService) ----------
@@ -393,7 +409,13 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
             lateNightDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
             speakUp(Trigger.LATE_NIGHT)
         } else if (!music) {
-            speakUp(Trigger.IDLE) // the policy decides whether enough time has passed
+            val due = prefs.habitNudges && hour in 9..21 && cal.get(java.util.Calendar.MINUTE) < 2
+            when {
+                // on the hour, every second hour: water while today's goal is not reached; otherwise an eye break
+                due && hour % 2 == 0 && habits.count("water") < habits.goal("water") -> speakUp(Trigger.HABIT_WATER)
+                due && hour % 2 == 1 -> speakUp(Trigger.HABIT_EYES)
+                else -> speakUp(Trigger.IDLE) // the policy decides whether enough time has passed
+            }
         }
     }
 
@@ -445,6 +467,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
     /** A reminder is due: say it like any other thing Kivo says on its own (the notification is posted by the receiver). */
     fun announceReminder(text: String) {
         emotion.onEvent(EmotionEvent.TASK_STARTED)
+        chirps.play(Chirps.Kind.NOTIFY)
         onSay(tr("⏰ ถึงเวลาแล้ว: $text", "⏰ Reminder: $text"), proactive = true)
         scope.launch { memory.logEpisode(tr("เตือน: $text", "Reminded: $text")) }
     }

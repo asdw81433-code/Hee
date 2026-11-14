@@ -57,6 +57,10 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
         e.apply()
     }
 
+    /** Little robot sounds (touch, happy, sad…); never when the phone is on silent. */
+    var soundsEnabled: Boolean get() = bool("sounds", true); set(v) = put("sounds", v)
+    /** Gentle nudges to drink water and rest the eyes (respecting quiet mode and quiet hours). */
+    var habitNudges: Boolean get() = bool("habit_nudges", true); set(v) = put("habit_nudges", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

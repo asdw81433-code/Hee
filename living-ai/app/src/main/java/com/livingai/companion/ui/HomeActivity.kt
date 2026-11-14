@@ -338,6 +338,8 @@ class HomeActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        orb.skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin)
+        orb.outfit = graph.controller.wardrobe.outfit
         graph.floating.apply()
         refresh()
     }

@@ -22,7 +22,7 @@ import com.livingai.core.robot.RobotAnimator
 import com.livingai.core.robot.RobotSkin
 
 /** [Painter] on an Android Canvas. Shaders and helper objects are cached, so drawing a frame allocates nothing. */
-private class CanvasPainter : Painter {
+internal class CanvasPainter : Painter {
     var canvas: Canvas? = null
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -168,6 +168,10 @@ class RobotView(context: Context) : View(context) {
     var skin: RobotSkin
         get() = renderer.skin
         set(value) { renderer.skin = value; invalidate() }
+
+    var outfit: com.livingai.core.robot.Outfit
+        get() = renderer.outfit
+        set(value) { renderer.outfit = value; invalidate() }
 
     /** Mouth moves while this is true (the speech bubble is showing or the voice is speaking). */
     var talking: Boolean

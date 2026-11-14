@@ -226,6 +226,7 @@ class SettingsActivity : Activity() {
         quiet.addView(kit.label(tr("ความถี่ในการทักปรับได้ที่ \"ความช่างคุย\" ในหน้าตัวละคร ถ้าเธอไม่ตอบ ${Persona.NAME} จะเว้นระยะนานขึ้นเอง", "How often is set by \"Talkativeness\" on the Character page. When ignored, ${Persona.NAME} backs off by itself."), 12f, colorSub))
 
         val voice = kit.card(root, tr("เสียง", "Voice"))
+        voice.addView(kit.toggle(tr("เสียงบี๊บของหุ่น", "Robot sounds"), tr("เสียงเล็กๆ ตอนแตะ ดีใจ เสียใจ (เงียบเองเมื่อมือถือปิดเสียง)", "Tiny sounds when touched, happy or sad (silent when the phone is muted)"), p.soundsEnabled) { p.soundsEnabled = it; if (it) graph.controller.chirps.play(com.livingai.companion.agent.Chirps.Kind.HAPPY) })
         voice.addView(kit.slider(tr("ความเร็วในการพูด", "Speaking speed"), ((p.ttsRate - 0.5f) / 1.5f).coerceIn(0f, 1f)) { p.ttsRate = 0.5f + it * 1.5f })
         voice.addView(kit.slider(tr("ระดับเสียงสูง-ต่ำ", "Pitch"), ((p.ttsPitch - 0.5f) / 1.5f).coerceIn(0f, 1f)) { p.ttsPitch = 0.5f + it * 1.5f })
         val voiceInfo = kit.label("", 12f, colorSub)
@@ -244,6 +245,37 @@ class SettingsActivity : Activity() {
                 "Speaking and listening use the phone's own engines. If there is no offline voice for your language, install one under Settings → General management → Text-to-speech. Voice input without internet needs the phone's offline speech pack. The microphone is on only while you press 🎤."),
             12f, colorSub,
         ).apply { setPadding(0, 6.dp, 0, 0) })
+
+        val habitsCard = kit.card(root, tr("นิสัยดีๆ", "Good habits"))
+        habitsCard.addView(kit.label(graph.controller.habits.summary(), 14f))
+        habitsCard.addView(kit.toggle(tr("ชวนดื่มน้ำ / พักสายตา", "Nudge me to drink water / rest my eyes"), tr("ทุก 2 ชั่วโมงช่วง 9:00–21:00 ไม่ทักในโหมดเงียบหรือช่วงห้ามรบกวน", "Every 2 hours, 9:00–21:00; never in quiet mode or quiet hours"), p.habitNudges) { p.habitNudges = it })
+
+        val calCard = kit.card(root, tr("ปฏิทิน", "Calendar"))
+        calCard.addView(kit.label(tr("\"นัด หาหมอ วันศุกร์ บ่ายสอง\" ใช้ได้เลยโดยไม่ต้องให้สิทธิ์ (เปิดแอปปฏิทินให้กดบันทึก) ส่วน \"พรุ่งนี้มีนัดอะไร\" ต้องอนุญาตให้อ่านปฏิทิน", "\"Add event dentist Friday 2 pm\" works without permission (opens your calendar app). \"What's on tomorrow\" needs calendar access."), 13f, colorSub))
+        val calOk = checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+        calCard.addView(kit.button(if (calOk) tr("✓ อ่านปฏิทินได้แล้ว", "✓ Calendar access on") else tr("อนุญาตให้อ่านปฏิทิน", "Allow calendar access"), if (calOk) kit.grey else kit.accent) {
+            if (!calOk) requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), REQ_CAL)
+        }, kit.matchWrap(top = 8))
+
+        val upd = kit.card(root, tr("อัปเดต", "Updates"))
+        val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+        val updText = kit.label(tr("เวอร์ชันนี้ $version", "This is version $version"), 13f, colorSub)
+        upd.addView(updText)
+        upd.addView(kit.button(tr("ตรวจหาเวอร์ชันใหม่", "Check for a new version")) {
+            updText.text = tr("กำลังตรวจ…", "Checking…")
+            ui.launch {
+                val r = runCatching { com.livingai.companion.tools.UpdateChecker.check(version) }
+                r.onSuccess { res ->
+                    if (res.newer) {
+                        updText.text = tr("มีเวอร์ชันใหม่ ${res.latest}! กดปุ่มด้านล่างเพื่อดาวน์โหลด แล้วแตะไฟล์เพื่อติดตั้งทับ (ข้อมูลไม่หาย)", "Version ${res.latest} is out! Download it below and tap the file to install over this one (your data stays).")
+                        upd.addView(kit.button(tr("⬇ ดาวน์โหลด ${res.latest}", "⬇ Download ${res.latest}")) {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(res.downloadUrl ?: com.livingai.companion.tools.UpdateChecker.RELEASE_PAGE)))
+                        }, kit.matchWrap(top = 8))
+                        Theme.applyFonts(upd)
+                    } else updText.text = tr("ใช้เวอร์ชันล่าสุดอยู่แล้ว ($version) ✓", "You have the latest version ($version) ✓")
+                }.onFailure { updText.text = tr("ตรวจไม่ได้ (ต้องต่อเน็ต): ${it.message}", "Could not check (needs internet): ${it.message}") }
+            }
+        }, kit.matchWrap(top = 8))
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !graph.controller.reminders.canBeExact()) {
             val exact = kit.card(root, tr("การเตือนให้ตรงเวลา", "Reminders on time"))
@@ -424,6 +456,7 @@ class SettingsActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_CAL) { recreate(); return }
         refreshSteps()
     }
 
@@ -533,5 +566,6 @@ class SettingsActivity : Activity() {
     companion object {
         private const val REQ_CAPTURE = 7001
         private const val REQ_NOTIF = 7002
+        private const val REQ_CAL = 7003
     }
 }

@@ -48,6 +48,9 @@ class KivoCore(
     private val brain: com.livingai.core.ai.ChatBrain? = null,
     /** Games and other things done together. */
     val activities: com.livingai.core.companion.ActivityHub = com.livingai.core.companion.ActivityHub(),
+    /** Coins and outfits; null = no rewards. */
+    val wardrobe: com.livingai.core.personality.Wardrobe? = null,
+    val habits: com.livingai.core.companion.Habits? = null,
 ) {
     init {
         emotion.onChange = { listener.onMood(it.mood) }
@@ -61,6 +64,7 @@ class KivoCore(
     suspend fun handleUserMessage(text: String): String {
         memory.logChat(fromUser = true, text = text)
         bond?.recordInteraction()
+        val bonus = wardrobe?.dailyBonus() ?: 0
         anyActionFailed = false
         replyMood = null
         understood = true
@@ -92,6 +96,7 @@ class KivoCore(
             inGame -> Unit
             else -> replyMood?.let { emotion.suggest(it) }
         }
+        if (bonus > 0) reply += "\n" + tr("🪙 +$bonus เหรียญประจำวัน", "🪙 +$bonus daily coins")
         reply = Stylist.apply(reply, personality().speechStyle)
         listener.onMood(emotion.state.mood)
         memory.logChat(fromUser = false, text = reply)
@@ -117,14 +122,32 @@ class KivoCore(
      * chained with "แล้ว" / "then".
      */
     private suspend fun respond(text: String): String {
+        pendingCommand?.let { cmd ->
+            pendingCommand = null
+            if (text.trim().lowercase().trimEnd('!', '.', ' ', 'ๆ') in yesWords) return respond(cmd)
+        }
         // a game in progress (or a request to start one) comes first: "5" is a move, not a command
         activities.handle(text)?.let { turn ->
             turn.event?.let { emotion.onEvent(it) }
             for (todo in turn.todos) memory.store.save(Memory(kind = MemoryKind.TODO, title = todo, content = "", importance = 2))
-            if (turn.finished && turn.event != null) memory.logEpisode(tr("เล่นเกมด้วยกัน", "Played a game together"), turn.text.lines().last().take(80), importance = 1)
+            var out = turn.text
+            if (turn.finished && turn.event != null) {
+                memory.logEpisode(tr("เล่นเกมด้วยกัน", "Played a game together"), turn.text.lines().last().take(80), importance = 1)
+                wardrobe?.let { w ->
+                    // GAME_LOST means Kivo lost, so the user won
+                    val c = if (turn.event == EmotionEvent.GAME_LOST) com.livingai.core.personality.Wardrobe.GAME_WIN else com.livingai.core.personality.Wardrobe.GAME_PLAYED
+                    val total = w.earn(c)
+                    out += "\n" + tr("🪙 +$c เหรียญ (มี $total) เอาไปซื้อของแต่งตัวให้เราได้นะ", "🪙 +$c coins ($total total), spend them on outfits for me")
+                }
+            }
             inGame = true
-            return turn.text
+            return out
         }
+        if (wardrobe != null && listOf("เหรียญ", "coins", "มีกี่เหรียญ").any { text.lowercase().contains(it) } && text.length < 30) {
+            replyMood = Mood.HAPPY
+            return tr("ตอนนี้มี 🪙 ${wardrobe.coins} เหรียญ ได้จากเล่นเกม ทำงานที่ต้องทำเสร็จ และคุยกันทุกวัน ไปซื้อของแต่งตัวได้ที่หน้า \"ตัวละคร\"", "You have 🪙 ${wardrobe.coins} coins, earned from games, finished to-dos and chatting every day. Spend them on the Character tab.")
+        }
+        com.livingai.core.companion.Knowledge.answer(text)?.let { replyMood = Mood.HAPPY; return it }
         com.livingai.core.companion.Calculator.find(text)?.let { expr ->
             com.livingai.core.companion.Calculator.eval(expr)?.let { v -> replyMood = Mood.FOCUSED; return "$expr = ${com.livingai.core.companion.Calculator.format(v)}" }
         }
@@ -136,7 +159,13 @@ class KivoCore(
         val out = ArrayList<String>()
         for (step in LocalMind.steps(text)) {
             val line = runStep(step) ?: run {
-                // not a command Kivo knows: if nothing was done yet, this is conversation for the language model
+                // not a command Kivo knows: perhaps a request in other words (the model suggests, the user confirms) …
+                if (out.isEmpty()) interpret(text)?.let { cmd ->
+                    pendingCommand = cmd
+                    replyMood = Mood.CURIOUS
+                    return tr("หมายถึงให้ \"$cmd\" ใช่ไหม? ตอบ \"ใช่\" แล้วเราจะทำให้", "Do you mean \"$cmd\"? Say \"yes\" and I'll do it.")
+                }
+                // … otherwise this is conversation for the language model
                 if (out.isEmpty()) think(text)?.let { return it }
                 understood = false
                 return (out + lastHint).joinToString("\n")
@@ -147,13 +176,46 @@ class KivoCore(
         return out.joinToString("\n")
     }
 
+    /** Asks the model to turn a request into one of Kivo's commands, and keeps it only if the rule parser really understands it. */
+    private suspend fun interpret(text: String): String? {
+        val b = brain?.takeIf { it.isAvailable } ?: return null
+        if (!com.livingai.core.ai.ChatBrain.looksLikeRequest(text)) return null
+        listener.onStatus(AgentStatus.THINKING)
+        val cmd = b.toCommand(text) ?: return null
+        val plan = LocalBrain.plan(cmd, null)
+        return if (plan is LocalBrain.Plan.Unknown || plan == LocalBrain.Plan.Help) null else cmd
+    }
+
+    /** Reads the text on screen and sums it up (with the model when there is one, otherwise the first lines). */
+    private suspend fun summarizeScreen(): String {
+        val obs = vision.lookAuto()
+        if (obs.sensitive) return tr("หน้านี้มีข้อมูลลับ เราไม่อ่านนะ", "This screen holds secrets, so I won't read it.")
+        val lines = (obs.elements.map { it.label.replace('\n', ' ').trim() } + obs.ocrText.lines()).filter { it.length > 2 }.distinct()
+        if (lines.isEmpty()) return tr("บนจอไม่มีข้อความให้สรุป", "There is no text on screen to summarise.")
+        val text = lines.joinToString("\n").take(2500)
+        brain?.takeIf { it.isAvailable }?.let { b ->
+            listener.onStatus(AgentStatus.THINKING)
+            b.summarize(text) { listener.onPartial(it) }?.let { return tr("สรุปหน้าจอ:\n", "Summary:\n") + it }
+        }
+        return tr("บนจอมี (ข้อความแรกๆ):\n", "On screen (first lines):\n") + lines.take(6).joinToString("\n") { "• " + it.take(80) }
+    }
+
+    /** A free-form request the rules did not understand, rewritten by the model as a command; it runs only after the user says yes. */
+    private var pendingCommand: String? = null
+
+    private val yesWords = setOf("ใช่", "ใช่เลย", "ได้", "ได้เลย", "โอเค", "ok", "okay", "yes", "y", "เอา", "เอาเลย", "จัดไป", "ถูก", "ถูกต้อง")
+
     /** Lets the on-device model answer. Null when there is no model or it could not answer. */
     private suspend fun think(text: String): String? {
         val b = brain?.takeIf { it.isAvailable } ?: return null
         listener.onStatus(AgentStatus.THINKING)
         val reply = b.reply(
             text, context().copy(mood = emotion.state.mood), personality(),
-            history = memory.store.recentChat(12), memories = memory.relevant(text, 4),
+            history = memory.store.recentChat(12),
+            // what Kivo remembers about the user plus facts it knows for sure that fit the question
+            memories = memory.relevant(text, 4) + com.livingai.core.companion.Knowledge.find(text, 2).map {
+                Memory(kind = MemoryKind.KNOWLEDGE, title = tr("ข้อเท็จจริง", "fact"), content = tr(it.th, it.en))
+            },
             onPartial = { listener.onPartial(it) },
         ) ?: run {
             b.lastError?.let { lastHint = tr("ตอนนี้สมอง AI ในเครื่องตอบไม่ได้: $it", "The on-device AI brain cannot answer right now: $it") }
@@ -210,6 +272,18 @@ class KivoCore(
             LocalBrain.Plan.Describe -> { replyMood = Mood.CURIOUS; LocalBrain.describe(if (VisionAgent.isSparse(obs)) vision.lookAuto() else obs) }
             is LocalBrain.Plan.Remember -> memory.remember(plan.key, plan.value)
             is LocalBrain.Plan.Recall -> memory.recall(plan.query)
+            LocalBrain.Plan.Summarize -> { replyMood = Mood.FOCUSED; summarizeScreen() }
+            is LocalBrain.Plan.Habit -> {
+                val h = habits ?: return tr("ยังไม่ได้เปิดการติดตามนิสัย", "Habit tracking is not available")
+                if (plan.kind.isEmpty()) h.summary()
+                else {
+                    val (n, goal) = h.log(plan.kind)
+                    replyMood = Mood.HAPPY
+                    wardrobe?.earn(com.livingai.core.personality.Wardrobe.HABIT)
+                    "${h.name(plan.kind)} $n/${h.goal(plan.kind)} 🪙 +${com.livingai.core.personality.Wardrobe.HABIT}" +
+                        if (goal) tr("\nครบเป้าวันนี้แล้ว เก่งมาก! 🎉", "\nToday's goal reached! 🎉") else ""
+                }
+            }
             is LocalBrain.Plan.Note -> { memory.store.save(Memory(kind = MemoryKind.NOTE, title = plan.text.take(40), content = plan.text, importance = 2)); tr("จดไว้แล้ว: ${plan.text}", "Noted: ${plan.text}") }
             is LocalBrain.Plan.Todo -> { memory.store.save(Memory(kind = MemoryKind.TODO, title = plan.text.take(80), content = "", importance = 2)); tr("เพิ่มในสิ่งที่ต้องทำแล้ว: ${plan.text}", "Added to your to-do list: ${plan.text}") }
             is LocalBrain.Plan.ListNotes -> {
@@ -221,7 +295,11 @@ class KivoCore(
                 val open = memory.store.list(MemoryKind.TODO, 100).filter { !it.done }
                 val hit = open.firstOrNull { it.title.contains(plan.query, ignoreCase = true) } ?: memory.store.search(plan.query, 1, MemoryKind.TODO).firstOrNull { !it.done }
                 if (hit == null) { replyMood = Mood.CURIOUS; lastHint = tr("ไม่เจองาน \"${plan.query}\" ในสิ่งที่ต้องทำ", "I can't find \"${plan.query}\" on your to-do list"); null }
-                else { memory.store.save(hit.copy(done = true)); didAct = true; tr("ขีดออกแล้ว: ${hit.title} ✓ เก่งมาก", "Ticked off: ${hit.title} ✓ well done") }
+                else {
+                    memory.store.save(hit.copy(done = true)); didAct = true
+                    val coin = wardrobe?.let { it.earn(com.livingai.core.personality.Wardrobe.TODO_DONE); tr(" 🪙 +${com.livingai.core.personality.Wardrobe.TODO_DONE}", " 🪙 +${com.livingai.core.personality.Wardrobe.TODO_DONE}") } ?: ""
+                    tr("ขีดออกแล้ว: ${hit.title} ✓ เก่งมาก", "Ticked off: ${hit.title} ✓ well done") + coin
+                }
             }
             LocalBrain.Plan.Help -> LocalBrain.HELP
             is LocalBrain.Plan.Unknown -> { replyMood = Mood.CURIOUS; lastHint = plan.hint; null }
