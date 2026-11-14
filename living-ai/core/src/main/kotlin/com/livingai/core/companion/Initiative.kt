@@ -53,9 +53,9 @@ class Initiative(private val clock: Clock, private val kv: KeyValueStore, privat
         val today = now / day
         if (kv.getLong("ini_day", -1L) != today) { kv.putLong("ini_day", today); kv.putLong("ini_count", 0L) }
         val p = personality()
-        val cap = (4 + p.talkativeness * 16).toInt()
+        val cap = (10 + p.talkativeness * 30).toInt()
         if (kv.getLong("ini_count", 0L) >= cap) return false
-        val gap = p.initiativeGapMinutes * 60_000L * (1L shl ignored().coerceAtMost(3))
+        val gap = p.initiativeGapMinutes * 60_000L * (1L shl ignored().coerceAtMost(1))
         // a warning about the battery is useful, not chatter: it only needs a short gap
         val need = if (trigger == Trigger.BATTERY_LOW) 10 * 60_000L else if (trigger == Trigger.UNLOCKED) gap / 2 else gap
         return now - kv.getLong("ini_last", 0L) >= need
@@ -72,7 +72,7 @@ class Initiative(private val clock: Clock, private val kv: KeyValueStore, privat
     /** Call when the user talks to Kivo: the back-off is cleared. */
     fun userResponded() = kv.putLong("ini_ignored", 0L)
 
-    val backoffLevel: Int get() = ignored().coerceAtMost(3)
+    val backoffLevel: Int get() = ignored().coerceAtMost(1)
 
     /** The line for this moment, or null to stay quiet. Does not check [allowed]. */
     fun compose(trigger: Trigger, ctx: InitiativeContext, activitySuggestion: (Int) -> String): String? {
@@ -102,12 +102,13 @@ class Initiative(private val clock: Clock, private val kv: KeyValueStore, privat
                     else -> greeting
                 }
             }
-            Trigger.IDLE -> when (Math.floorMod(turn, 4)) {
-                0 -> activitySuggestion(turn / 4)
-                1 -> if (ctx.openTodos.isNotEmpty()) tr("อย่าลืมนะ: ${ctx.openTodos.first()} ยังไม่ได้ทำ", "Don't forget: ${ctx.openTodos.first()}") else activitySuggestion(turn / 4 + 1)
+            Trigger.IDLE -> when (Math.floorMod(turn, 5)) {
+                0 -> activitySuggestion(turn / 5)
+                1 -> if (ctx.openTodos.isNotEmpty()) tr("อย่าลืมนะ: ${ctx.openTodos.first()} ยังไม่ได้ทำ", "Don't forget: ${ctx.openTodos.first()}") else SmallTalk.musing(turn)
                 2 -> ctx.followUp?.let { tr("นึกขึ้นได้ เรื่อง \"${it.title}\" เป็นไงต่อ เล่าให้ฟังหน่อยสิ", "I was wondering, how did \"${it.title}\" turn out?") }
-                    ?: ctx.interests.firstOrNull()?.let { tr("ช่วงนี้มีเรื่อง$it อะไรสนุกๆ บ้างไหม เล่าให้ฟังหน่อย", "Anything fun about $it lately? Tell me.") }
-                else -> if (ctx.bondLevel >= 1) tr("เราเดินเล่นอยู่แถวนี้นะ มีอะไรเรียกได้เลย", "I'm strolling around here. Call me if you need anything.") else null
+                    ?: ctx.interests.getOrNull(Math.floorMod(turn / 5, ctx.interests.size.coerceAtLeast(1)))?.let { tr("ช่วงนี้มีเรื่อง$it อะไรสนุกๆ บ้างไหม เล่าให้ฟังหน่อย", "Anything fun about $it lately? Tell me.") }
+                    ?: SmallTalk.musing(turn)
+                else -> SmallTalk.musing(turn)
             }
         }
     }

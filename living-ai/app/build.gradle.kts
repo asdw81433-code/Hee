@@ -11,8 +11,8 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.2.0"
+        versionCode = 18
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // llama.cpp + Kivo's JNI bridge (app/src/main/cpp). 64-bit only: llama.cpp is not supported on 32-bit ARM.

@@ -29,7 +29,8 @@ object LocalBrain {
         /** "water", "eyes", "move" = log it; "" = show today's numbers. */
         data class Habit(val kind: String) : Plan
         data object Help : Plan
-        data class Unknown(val hint: String) : Plan
+        /** [generic]: nothing in the message looked like a command at all (as opposed to a command that could not be carried out). */
+        data class Unknown(val hint: String, val generic: Boolean = false) : Plan
     }
 
     private val tapWords = listOf("กดที่", "กดปุ่ม", "กด", "แตะที่", "แตะ", "เลือก", "คลิก", "tap on", "tap", "click on", "click", "press", "select")
@@ -198,7 +199,7 @@ object LocalBrain {
                 return Plan.Device(DeviceCommand.OpenApp(name))
             }
         }
-        return Plan.Unknown(tr("อันนี้เรายังไม่เข้าใจ ลองพิมพ์ \"ทำอะไรได้บ้าง\" หรือ \"คำสั่ง\" เพื่อดูสิ่งที่เราทำได้", "I didn't get that one. Try \"what can you do\" or \"help\" to see what I understand."))
+        return Plan.Unknown(tr("อันนี้เรายังไม่เข้าใจ ลองพิมพ์ \"ทำอะไรได้บ้าง\" หรือ \"คำสั่ง\" เพื่อดูสิ่งที่เราทำได้", "I didn't get that one. Try \"what can you do\" or \"help\" to see what I understand."), generic = true)
     }
 
     private fun matches(lower: String, vararg options: String) = options.any { lower == it }

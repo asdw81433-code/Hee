@@ -167,6 +167,14 @@ class KivoCore(
                 }
                 // … otherwise this is conversation for the language model
                 if (out.isEmpty()) think(text)?.let { return it }
+                // no model (or it failed): never "I don't understand" for ordinary talk, keep the conversation going
+                if (out.isEmpty() && lastGeneric) {
+                    val now = System.currentTimeMillis()
+                    val hint = brain?.isAvailable != true && now - modelHintGiven > 6 * 3_600_000L
+                    if (hint && com.livingai.core.companion.SmallTalk.questionWordsIn(text)) modelHintGiven = now
+                    replyMood = Mood.CURIOUS
+                    return com.livingai.core.companion.SmallTalk.reply(text, context().userName, hint)
+                }
                 understood = false
                 return (out + lastHint).joinToString("\n")
             }
@@ -202,6 +210,8 @@ class KivoCore(
 
     /** A free-form request the rules did not understand, rewritten by the model as a command; it runs only after the user says yes. */
     private var pendingCommand: String? = null
+    private var lastGeneric = false
+    private var modelHintGiven = 0L
 
     private val yesWords = setOf("ใช่", "ใช่เลย", "ได้", "ได้เลย", "โอเค", "ok", "okay", "yes", "y", "เอา", "เอาเลย", "จัดไป", "ถูก", "ถูกต้อง")
 
@@ -302,7 +312,7 @@ class KivoCore(
                 }
             }
             LocalBrain.Plan.Help -> LocalBrain.HELP
-            is LocalBrain.Plan.Unknown -> { replyMood = Mood.CURIOUS; lastHint = plan.hint; null }
+            is LocalBrain.Plan.Unknown -> { replyMood = Mood.CURIOUS; lastHint = plan.hint; lastGeneric = plan.generic; null }
         }
     }
 

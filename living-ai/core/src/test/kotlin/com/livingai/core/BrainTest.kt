@@ -135,8 +135,8 @@ class ChatBrainTest {
         val q = "พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน"
         val plain = core(null, InMemoryMemoryStore(), RecordingListener()).handleUserMessage(q)
         val failing = core(ScriptedGenerator(fail = true), InMemoryMemoryStore(), RecordingListener()).handleUserMessage(q)
-        assertTrue(plain.isNotBlank())
-        assertTrue(failing.contains("no memory"), failing)   // the reason is told instead of a silent failure
+        // never "I don't understand": the conversation goes on
+        for (r in listOf(plain, failing)) assertTrue(r.isNotBlank() && !r.contains("ไม่เข้าใจ"), r)
     }
 
     @Test

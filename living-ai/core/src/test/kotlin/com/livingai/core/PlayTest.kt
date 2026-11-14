@@ -209,8 +209,8 @@ class InitiativeTest {
         now += gap; assertFalse(ini.allowed(Trigger.IDLE, 14), "ignored once: the gap doubles")
         now += gap; assertTrue(ini.allowed(Trigger.IDLE, 14))
         ini.spoke(); ini.spoke()
-        assertEquals(3, ini.backoffLevel)
-        now += gap * 4; assertFalse(ini.allowed(Trigger.IDLE, 14))
+        assertEquals(1, ini.backoffLevel, "backing off never goes beyond twice the gap")
+        now += gap; assertFalse(ini.allowed(Trigger.IDLE, 14))
         ini.userResponded()
         assertTrue(ini.allowed(Trigger.IDLE, 14))
     }
@@ -221,7 +221,8 @@ class InitiativeTest {
         person = Personality.of(Preset.CALM)
         var spoken = 0
         repeat(200) { if (ini.allowed(Trigger.IDLE, 14)) { ini.spoke(); ini.userResponded(); spoken++ }; now += 5 * minute }   // 16 hours of the same day
-        assertTrue(spoken in 1..9, "calm personality spoke $spoken times")
+        assertTrue(spoken in 10..25, "calm personality spoke $spoken times")
+        assertFalse(ini.allowed(Trigger.IDLE, 14), "the daily cap is reached")
     }
 
     @Test
@@ -233,5 +234,7 @@ class InitiativeTest {
         assertTrue(ini.compose(Trigger.BATTERY_LOW, InitiativeContext(hour = 14, batteryPercent = 12), suggestion)!!.contains("12%"))
         assertNull(ini.compose(Trigger.BATTERY_LOW, InitiativeContext(hour = 14), suggestion))
         assertEquals("เล่นเกมไหม 0", ini.compose(Trigger.IDLE, InitiativeContext(hour = 14), suggestion))
+        // Kivo always has something to say when it is idle
+        repeat(10) { ini.spoke(); assertNotNull(ini.compose(Trigger.IDLE, InitiativeContext(hour = 14), suggestion)) }
     }
 }

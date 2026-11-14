@@ -31,7 +31,7 @@ data class Personality(
     }
 
     /** Minimum minutes between two things Kivo says on its own. */
-    val initiativeGapMinutes: Int get() = (30 - talkativeness * 26).toInt().coerceAtLeast(3)
+    val initiativeGapMinutes: Int get() = (14 - talkativeness * 11).toInt().coerceAtLeast(2)
 
     /** The same in English: far fewer tokens for the model to read, and small models follow it better. */
     fun promptLinesEn(): String = buildString {

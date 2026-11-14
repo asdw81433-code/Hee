@@ -87,7 +87,7 @@ class RobotPreviewTest {
             val x = (i % cols) * cell; val y = (i / cols) * cellH
             g.transform = AffineTransform(); g.clip = null
             g.paint = Color(bgs[i % bgs.size], true); g.fillRect(x, y, cell, cellH)
-            val anim = RobotAnimator(); val renderer = CartoonRenderer(); renderer.skin = skin
+            val anim = RobotAnimator(); val renderer = HoverBotRenderer(); renderer.skin = skin
             val at = setup(anim, 100_000L)
             // let the pose settle on the target, as it would after a moment on screen
             var pose = anim.update(at - 600)
@@ -138,7 +138,7 @@ class RobotPreviewTest {
             g.transform = AffineTransform(); g.clip = null
             g.paint = Color(if (i % 2 == 0) 0xFF141824.toInt() else 0xFF2B3550.toInt(), true); g.fillRect(x, y, cell, cellH)
             val anim = RobotAnimator(); anim.mood = Mood.HAPPY
-            val r = CartoonRenderer(); r.skin = RobotSkin.ALL[i % RobotSkin.ALL.size]; r.outfit = o
+            val r = HoverBotRenderer(); r.skin = RobotSkin.ALL[i % RobotSkin.ALL.size]; r.outfit = o
             var pose = anim.update(100_000L - 600); for (k in 1..20) pose = anim.update(100_000L - 600 + k * 30L)
             g.translate(x, y)
             r.draw(AwtPainter(g), pose, cell.toFloat(), cellH.toFloat() - 16, RobotAnimator.eyeColor(anim.status, anim.mood, r.skin), 100_000L)

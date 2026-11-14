@@ -15,7 +15,6 @@ import com.livingai.core.AgentStatus
 import com.livingai.core.Lang.tr
 import com.livingai.core.emotion.Mood
 import com.livingai.core.robot.Gesture
-import com.livingai.core.robot.CartoonRenderer
 import com.livingai.core.robot.Painter
 import com.livingai.core.robot.PathOp
 import com.livingai.core.robot.RobotAnimator
@@ -134,7 +133,7 @@ internal class CanvasPainter : Painter {
 class RobotView(context: Context) : View(context) {
 
     private val animator = RobotAnimator()
-    private val renderer = CartoonRenderer()
+    private val renderer = com.livingai.core.robot.HoverBotRenderer()
     private val painter = CanvasPainter()
     private val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val captionRect = RectF()

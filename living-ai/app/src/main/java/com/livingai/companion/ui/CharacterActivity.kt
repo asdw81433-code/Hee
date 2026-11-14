@@ -89,10 +89,10 @@ class CharacterActivity : Activity() {
         shop.addView(ui.label(tr("🪙 ${w.coins} เหรียญ • ได้จากเล่นเกม ทำงานที่ต้องทำเสร็จ และคุยกันทุกวัน", "🪙 ${w.coins} coins • from games, finished to-dos and daily chats"), 13f, ui.sub))
         fun itemName(e: Enum<*>): String = when (e) {
             Hat.NONE, Eyewear.NONE, Neckwear.NONE -> tr("ไม่ใส่", "None")
-            Hat.CAP -> tr("หมวกแก๊ป", "Cap"); Hat.BOW -> tr("โบว์", "Bow"); Hat.CAT_EARS -> tr("หูแมว", "Cat ears"); Hat.FLOWER -> tr("ดอกไม้", "Flower")
+            Hat.CAP -> tr("หมวกแก๊ป", "Cap"); Hat.BOW -> tr("โบว์", "Bow"); Hat.CAT_EARS -> tr("หูกระต่าย", "Bunny ears"); Hat.FLOWER -> tr("ดอกไม้", "Flower")
             Hat.BEANIE -> tr("หมวกไหมพรม", "Beanie"); Hat.CROWN -> tr("มงกุฎ", "Crown"); Hat.PARTY -> tr("หมวกปาร์ตี้", "Party hat")
             Eyewear.ROUND_GLASSES -> tr("แว่นกลม", "Round glasses"); Eyewear.SUNGLASSES -> tr("แว่นกันแดด", "Sunglasses"); Eyewear.STAR_GLASSES -> tr("แว่นดาว", "Star glasses")
-            Neckwear.SCARF -> tr("ผ้าพันคอ", "Scarf"); Neckwear.BOWTIE -> tr("หูกระต่าย", "Bow tie"); Neckwear.BELL -> tr("กระดิ่ง", "Bell")
+            Neckwear.SCARF -> tr("ผ้าพันคอ", "Scarf"); Neckwear.BOWTIE -> tr("โบว์ไทด์", "Bow tie"); Neckwear.BELL -> tr("กระดิ่ง", "Bell")
             else -> e.name
         }
         fun slot(title: String, items: List<Enum<*>>, worn: Enum<*>, wear: (Enum<*>) -> com.livingai.core.robot.Outfit) {

@@ -18,7 +18,6 @@ import com.livingai.core.Lang.tr
 import com.livingai.core.Persona
 import com.livingai.core.emotion.Mood
 import com.livingai.core.memory.MemoryKind
-import com.livingai.core.robot.CartoonRenderer
 import com.livingai.core.robot.RobotAnimator
 import com.livingai.core.robot.RobotSkin
 import kotlinx.coroutines.CoroutineScope
@@ -69,7 +68,7 @@ class KivoWidget : AppWidgetProvider() {
             val anim = RobotAnimator().apply { this.mood = mood }
             var pose = anim.update(10_000L)
             for (k in 1..20) pose = anim.update(10_000L + k * 30L)
-            val r = CartoonRenderer().apply { skin = RobotSkin.byName(skinName); this.outfit = outfit }
+            val r = com.livingai.core.robot.HoverBotRenderer().apply { skin = RobotSkin.byName(skinName); this.outfit = outfit }
             val p = CanvasPainter().apply { canvas = Canvas(bmp) }
             r.draw(p, pose, w.toFloat(), h.toFloat(), RobotAnimator.eyeColor(anim.status, mood, r.skin), 10_000L)
             return bmp
