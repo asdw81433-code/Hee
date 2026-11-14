@@ -225,6 +225,14 @@ class RobotOverlay(
         main.postDelayed(hideBubble, (2500L + text.length * 65L).coerceAtMost(14000L))
     }
 
+    /** The synthetic voice started / stopped: the mouth keeps moving while it is audible, also after the bubble has gone. */
+    fun setVoiceTalking(talking: Boolean) = main.post {
+        if (destroyed) return@post
+        voiceTalking = talking
+        robot.talking = talking || bubble != null
+    }
+    private var voiceTalking = false
+
     /** The reply so far while the model is still writing: the same bubble grows instead of being rebuilt. */
     fun sayPartial(text: String) = main.post {
         if (destroyed || text.isBlank()) return@post
@@ -257,7 +265,7 @@ class RobotOverlay(
     }
 
     private fun removeBubble() {
-        robot.talking = false
+        robot.talking = voiceTalking
         main.removeCallbacks(hideBubble)
         bubble?.let { v -> safe { wm.removeView(v) } }
         bubble = null

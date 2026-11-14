@@ -206,17 +206,21 @@ class DeviceE2ETest {
     }
 
     @Test
-    fun g_ocr_readsLatinTextOnDevice() = runBlocking {
-        val bmp = Bitmap.createBitmap(640, 240, Bitmap.Config.ARGB_8888)
+    fun g_ocr_readsThaiAndEnglishOnDevice() = runBlocking {
+        val bmp = Bitmap.createBitmap(900, 420, Bitmap.Config.ARGB_8888)
         Canvas(bmp).apply {
             drawColor(Color.WHITE)
-            drawText("LIVING AI 2026", 30f, 140f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 72f })
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 72f }
+            drawText("LIVING AI 2026", 40f, 130f, paint)
+            drawText("สวัสดีครับ ยินดีต้อนรับ", 40f, 300f, paint)
         }
-        val engine = OcrEngine()
+        val engine = OcrEngine(ctx)
         val text = engine.recognize(bmp)
         engine.close()
         bmp.recycle()
+        note = "OCR: " + text.replace("\n", " / ")
         assertTrue("OCR returned: \"$text\"", text.uppercase().contains("LIVING"))
+        assertTrue("OCR returned: \"$text\"", text.replace(" ", "").contains("สวัสดี") || text.replace(" ", "").contains("ยินดี"))
     }
 
     @Test
@@ -255,7 +259,8 @@ class DeviceE2ETest {
         assertFalse(onMain { graph.floating.isShowing })
         graph.prefs.overlayEnabled = true
         instr.runOnMainSync { graph.floating.apply() }
-        assertTrue(onMain { graph.floating.isShowing })
+        // the window is added on the next main-loop pass (and via the service when the app is in the background)
+        waitUntil("the robot is back after re-enabling", 10_000) { onMain { graph.floating.isShowing } }
 
         // Without accessibility it can still look and chat; actions report honestly that control is off.
         val reply = ask("กลับ")
@@ -306,7 +311,7 @@ class DeviceE2ETest {
             assertTrue(c.llm.isAvailable); assertFalse(c.llm.isLoaded)
             val direct = c.llm.generate(com.livingai.core.ai.GenRequest(
                 listOf(com.livingai.core.ai.ChatMessage(com.livingai.core.ai.ChatMessage.Role.USER, "สวัสดี")),
-                maxTokens = 12, grammar = "root ::= \"สวัสดีครับ 😀\"",
+                maxTokens = 60, grammar = "root ::= \"สวัสดีครับ 😀\"",
             ))
             assertEquals("สวัสดีครับ 😀", direct.text)
             assertTrue(c.llm.isLoaded)

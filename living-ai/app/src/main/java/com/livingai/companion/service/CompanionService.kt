@@ -41,6 +41,13 @@ class CompanionService : Service() {
                 running = false
                 return START_NOT_STICKY
             }
+            ACTION_QUIT -> if (!graph.prefs.overlayEnabled) {
+                // the robot was switched off in the app; if it was switched on again before this arrived, keep running
+                stopForegroundCompat()
+                stopSelf()
+                running = false
+                return START_NOT_STICKY
+            }
             ACTION_HIDE -> graph.floating.setMinimized(true)
             ACTION_SHOW -> graph.floating.setMinimized(false)
         }
@@ -95,6 +102,7 @@ class CompanionService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.livingai.companion.companion.STOP"
+        private const val ACTION_QUIT = "com.livingai.companion.companion.QUIT"
         const val ACTION_HIDE = "com.livingai.companion.companion.HIDE"
         const val ACTION_SHOW = "com.livingai.companion.companion.SHOW"
         private const val CHANNEL_ID = "kivo_companion"
@@ -116,7 +124,7 @@ class CompanionService : Service() {
 
         fun stop(context: Context) {
             if (!running) return
-            try { context.startService(Intent(context, CompanionService::class.java).setAction(ACTION_STOP)) } catch (e: Exception) { }
+            try { context.startService(Intent(context, CompanionService::class.java).setAction(ACTION_QUIT)) } catch (e: Exception) { }
         }
     }
 }

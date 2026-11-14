@@ -19,6 +19,11 @@ sealed interface DeviceCommand {
     data class SetTimer(val seconds: Int, val label: String = "") : DeviceCommand
     /** A drafted message handed to the share sheet: the user picks the app and presses send. */
     data class ShareText(val text: String) : DeviceCommand
+    /** Kivo itself reminds the user at [atMs] (notification, speech bubble and voice). */
+    data class Remind(val atMs: Long, val text: String) : DeviceCommand
+    data object ListReminders : DeviceCommand
+    /** Cancels the reminders whose text contains [query]; all of them when it is empty. */
+    data class CancelReminders(val query: String) : DeviceCommand
 
     fun describe(): String = when (this) {
         is OpenApp -> tr("เปิดแอป", "Open") + " \"$name\""
@@ -27,6 +32,9 @@ sealed interface DeviceCommand {
         is SetAlarm -> tr("ตั้งปลุก %d:%02d".format(hour, minute), "Set an alarm for %d:%02d".format(hour, minute))
         is SetTimer -> tr("ตั้งเวลา $seconds วินาที", "Set a $seconds s timer")
         is ShareText -> tr("ร่างข้อความ", "Draft a message")
+        is Remind -> tr("ตั้งเตือน: $text", "Set a reminder: $text")
+        ListReminders -> tr("ดูรายการเตือน", "List reminders")
+        is CancelReminders -> tr("ยกเลิกการเตือน", "Cancel reminders")
     }
 }
 

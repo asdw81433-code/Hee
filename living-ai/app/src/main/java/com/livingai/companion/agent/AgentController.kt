@@ -75,7 +75,8 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         listener = this,
         targetLeadMs = 230L,
     )
-    val devicePort = AndroidDevicePort(context)
+    val reminders = com.livingai.companion.tools.ReminderScheduler(context, com.livingai.core.tools.ReminderBook(prefs))
+    val devicePort = AndroidDevicePort(context, reminders)
 
     /** Decides what may be in memory at the same time; see core.resource.ResourceManager. */
     val resources = ResourceManager(AndroidMemoryProbe(context), { SystemClock.elapsedRealtime() })
@@ -146,7 +147,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     private val proactive = ProactivePolicy({ SystemClock.elapsedRealtime() }, cooldownMs = { prefs.proactiveCooldownSec * 1000L })
 
-    val speaker = Speaker(context)
+    val speaker = Speaker(context, prefs).also { sp -> sp.onSpeaking = { talking -> overlay?.setVoiceTalking(talking) } }
 
     /** Set by the accessibility service while the floating robot exists. */
     @Volatile var overlay: RobotOverlay? = null
@@ -309,6 +310,13 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     /** The robot was touched / dragged: that is an event for the emotion engine too. */
     fun onTouched() = emotion.onEvent(EmotionEvent.TOUCHED)
     fun onPickedUp() = emotion.onEvent(EmotionEvent.PICKED_UP)
+
+    /** A reminder is due: say it like any other thing Kivo says on its own (the notification is posted by the receiver). */
+    fun announceReminder(text: String) {
+        emotion.onEvent(EmotionEvent.TASK_STARTED)
+        onSay(tr("⏰ ถึงเวลาแล้ว: $text", "⏰ Reminder: $text"), proactive = true)
+        scope.launch { memory.logEpisode(tr("เตือน: $text", "Reminded: $text")) }
+    }
 
     override fun onPartial(text: String) {
         LivingState.partial.value = text

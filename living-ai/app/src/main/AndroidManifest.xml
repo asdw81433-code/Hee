@@ -3,6 +3,13 @@
 
     <!-- Talk to the LLM / Vision API. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- hand an alarm / timer to the clock app -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <!-- Kivo's own reminders: on time when the user allows "Alarms & reminders", and set again after a reboot -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- asked only when the user presses the microphone button -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Screen capture must run in a foreground service of type mediaProjection (Android 14+). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
@@ -59,14 +66,20 @@
         <activity android:name=".ui.ModelActivity" android:exported="false" />
         <activity android:name=".ui.MemoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
 
-        <!-- Invisible screen that only runs the system speech recogniser, also from the floating orb. -->
+        <!-- Small listening card over whatever is on screen (voice input), also opened from the floating robot. -->
         <activity
             android:name=".ui.VoiceActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <receiver android:name=".tools.ReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".vision.ScreenCaptureService"

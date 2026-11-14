@@ -10,7 +10,9 @@ import com.livingai.core.emotion.Sentiment
 import com.livingai.core.personality.Bond
 import com.livingai.core.personality.Personality
 import com.livingai.core.personality.Stylist
+import com.livingai.core.memory.Memory
 import com.livingai.core.memory.MemoryAgent
+import com.livingai.core.memory.MemoryKind
 import com.livingai.core.perception.ScreenObservation
 import com.livingai.core.perception.VisionAgent
 import com.livingai.core.tools.ActionAgent
@@ -190,6 +192,19 @@ class KivoCore(
             LocalBrain.Plan.Describe -> { replyMood = Mood.CURIOUS; LocalBrain.describe(if (VisionAgent.isSparse(obs)) vision.lookAuto() else obs) }
             is LocalBrain.Plan.Remember -> memory.remember(plan.key, plan.value)
             is LocalBrain.Plan.Recall -> memory.recall(plan.query)
+            is LocalBrain.Plan.Note -> { memory.store.save(Memory(kind = MemoryKind.NOTE, title = plan.text.take(40), content = plan.text, importance = 2)); tr("จดไว้แล้ว: ${plan.text}", "Noted: ${plan.text}") }
+            is LocalBrain.Plan.Todo -> { memory.store.save(Memory(kind = MemoryKind.TODO, title = plan.text.take(80), content = "", importance = 2)); tr("เพิ่มในสิ่งที่ต้องทำแล้ว: ${plan.text}", "Added to your to-do list: ${plan.text}") }
+            is LocalBrain.Plan.ListNotes -> {
+                val items = memory.store.list(if (plan.todos) MemoryKind.TODO else MemoryKind.NOTE, 30).let { l -> if (plan.todos) l.filter { !it.done } else l }
+                if (items.isEmpty()) (if (plan.todos) tr("ไม่มีงานค้างเลย เยี่ยม!", "Nothing left to do. Nice!") else tr("ยังไม่มีโน้ต", "No notes yet"))
+                else (if (plan.todos) tr("สิ่งที่ต้องทำ:\n", "To do:\n") else tr("โน้ต:\n", "Notes:\n")) + items.take(10).joinToString("\n") { "• " + (if (plan.todos) it.title else it.content.ifBlank { it.title }) }
+            }
+            is LocalBrain.Plan.DoneTodo -> {
+                val open = memory.store.list(MemoryKind.TODO, 100).filter { !it.done }
+                val hit = open.firstOrNull { it.title.contains(plan.query, ignoreCase = true) } ?: memory.store.search(plan.query, 1, MemoryKind.TODO).firstOrNull { !it.done }
+                if (hit == null) { replyMood = Mood.CURIOUS; lastHint = tr("ไม่เจองาน \"${plan.query}\" ในสิ่งที่ต้องทำ", "I can't find \"${plan.query}\" on your to-do list"); null }
+                else { memory.store.save(hit.copy(done = true)); didAct = true; tr("ขีดออกแล้ว: ${hit.title} ✓ เก่งมาก", "Ticked off: ${hit.title} ✓ well done") }
+            }
             LocalBrain.Plan.Help -> LocalBrain.HELP
             is LocalBrain.Plan.Unknown -> { replyMood = Mood.CURIOUS; lastHint = plan.hint; null }
         }

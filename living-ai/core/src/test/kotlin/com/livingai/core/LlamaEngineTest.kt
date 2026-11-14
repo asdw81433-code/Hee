@@ -89,6 +89,19 @@ class LlamaEngineTest {
     }
 
     @Test
+    fun `the script grammar keeps Chinese and other scripts out`() = runBlocking {
+        val e = engine()
+        // without the grammar the random model produces every script there is
+        val free = e.generate(GenRequest(chat("x"), maxTokens = 120, temperature = 1.0f))
+        val kept = e.generate(GenRequest(chat("x"), maxTokens = 120, temperature = 1.0f, grammar = com.livingai.core.ai.ChatBrain.SCRIPT_GRAMMAR))
+        fun foreign(s: String) = s.count { it in '\u0370'..'\u0DFF' || it in '\u2E80'..'\uA7FF' || it in '\uAC00'..'\uD7FF' }
+        assertTrue(foreign(free.text) > 0, "the control run was expected to contain other scripts: ${free.text}")
+        assertEquals(0, foreign(kept.text), kept.text)
+        assertTrue(kept.generatedTokens > 20)
+        e.unloadAndWait()
+    }
+
+    @Test
     fun `stop strings end the reply and are not part of it`() = runBlocking {
         val e = engine()
         // the random model is steered by a grammar so that the stop string certainly appears
@@ -128,31 +141,37 @@ class LlamaEngineTest {
     }
 }
 
-/** Runs only with a real model file: shows what the model actually says and how fast. */
+/** Runs only with real model files: shows what each model actually says through Kivo's own prompt, and how fast. */
 class RealModelTest {
     @Test
-    fun `real model answers in Thai`() = runBlocking {
-        val path = System.getProperty("kivo.real.model")
-        assumeTrue(System.getProperty("kivo.llama.lib") != null && path != null && File(path).isFile, "real model not provided")
-        val e = LlamaEngine({ File(path!!) }, { LlamaConfig(contextTokens = 2048, threads = 4, seed = 1) })
-        val system = ChatMessage(Role.SYSTEM, "คุณคือ Kivo หุ่นยนต์ตัวจิ๋วเพื่อนคู่ใจที่อยู่ในมือถือ ตอบเป็นภาษาไทย สั้น กระชับ เป็นกันเอง ไม่เกิน 2 ประโยค")
-        val history = ArrayList<ChatMessage>().apply { add(system) }
-        for (q in listOf("สวัสดี เธอชื่ออะไร", "วันนี้เราเหนื่อยมากเลย", "ช่วยแนะนำวิธีพักผ่อนหน่อย", "ประเทศไทยมีเมืองหลวงชื่ออะไร")) {
-            history.add(ChatMessage(Role.USER, q))
-            val r = e.generate(GenRequest(history, maxTokens = 80, temperature = 0.6f))
-            history.add(ChatMessage(Role.ASSISTANT, r.text))
-            println("REAL-MODEL Q: $q")
-            println("REAL-MODEL A: ${r.text}")
-            println("REAL-MODEL    prompt=${r.promptTokens} cached=${r.cachedTokens} out=${r.generatedTokens} promptMs=${r.promptMs} genMs=${r.generationMs} tok/s=${"%.1f".format(r.tokensPerSecond)} stop=${r.stopReason}")
-            assertTrue(r.text.any { it in '฀'..'๿' }, "no Thai in: ${r.text}")
+    fun `real models answer in Thai through the chat pipeline`() = runBlocking {
+        val paths = System.getProperty("kivo.real.model")?.split(',')?.map { it.trim() }?.filter { File(it).isFile } ?: emptyList()
+        assumeTrue(System.getProperty("kivo.llama.lib") != null && paths.isNotEmpty(), "real model not provided")
+        for (path in paths) {
+            val name = File(path).name
+            val e = LlamaEngine({ File(path) }, { LlamaConfig(contextTokens = 2048, threads = 4, seed = 1) })
+            val brain = com.livingai.core.ai.ChatBrain(e)
+            val ctx = com.livingai.core.companion.LocalMind.Context(hour = 20, minute = 15, dateText = "วันเสาร์", batteryPercent = 64, userName = "ต้น", mood = com.livingai.core.emotion.Mood.HAPPY)
+            val memories = listOf(com.livingai.core.memory.Memory(kind = com.livingai.core.memory.MemoryKind.FACT, title = "อาหารที่ชอบ", content = "ส้มตำ"))
+            val history = ArrayList<com.livingai.core.memory.ChatLine>()
+            var thai = 0
+            var foreign = 0
+            val questions = listOf("เธอชื่ออะไร แล้วเป็นใคร", "วันนี้เราเหนื่อยมากเลย", "ช่วยแนะนำวิธีพักผ่อนหน่อย", "ประเทศไทยมีเมืองหลวงชื่ออะไร", "เย็นนี้กินอะไรดี", "เล่าเรื่องตลกสั้นๆ หน่อย", "1 สัปดาห์มีกี่วัน")
+            for (q in questions) {
+                history.add(com.livingai.core.memory.ChatLine(0, true, q))
+                val a = brain.reply(q, ctx, com.livingai.core.personality.Personality(), history, if (q.contains("กิน")) memories else emptyList()) ?: "(no reply: ${brain.lastError})"
+                history.add(com.livingai.core.memory.ChatLine(0, false, a))
+                val r = brain.lastResult
+                println("REAL-MODEL [$name] Q: $q")
+                println("REAL-MODEL [$name] A: ${a.replace("\n", " / ")}")
+                if (r != null) println("REAL-MODEL [$name]    prompt=${r.promptTokens} cached=${r.cachedTokens} out=${r.generatedTokens} promptMs=${r.promptMs} genMs=${r.generationMs} tok/s=${"%.1f".format(r.tokensPerSecond)} stop=${r.stopReason}")
+                if (a.any { it in '\u0E00'..'\u0E7F' }) thai++
+                if (a.any { it in '\u2E80'..'\u9FFF' || it in '\uAC00'..'\uD7FF' }) foreign++
+            }
+            println("REAL-MODEL [$name] SUMMARY: thai answers $thai/${questions.size}, answers with Chinese/Korean characters $foreign")
+            e.unloadAndWait()
+            assertTrue(thai >= questions.size - 1, "$name: only $thai Thai answers")
+            assertEquals(0, foreign, "$name drifted into another script")
         }
-        val grammar = "root ::= \"{\\\"intent\\\": \\\"\" (\"chat\" | \"open_app\" | \"set_alarm\" | \"remember\") \"\\\"}\""
-        for (q in listOf("เปิดยูทูบให้หน่อย", "ตั้งปลุกหกโมงเช้า", "จำไว้นะว่าเราชอบกินส้มตำ", "เล่าเรื่องตลกหน่อย")) {
-            val r = e.generate(GenRequest(listOf(
-                ChatMessage(Role.SYSTEM, "จำแนกคำสั่งของผู้ใช้เป็น intent หนึ่งใน: chat (คุยทั่วไป), open_app (เปิดแอป), set_alarm (ตั้งปลุก), remember (ให้จำข้อมูล) ตอบเป็น JSON เท่านั้น"),
-                ChatMessage(Role.USER, q)), maxTokens = 20, temperature = 0f, grammar = grammar))
-            println("REAL-MODEL INTENT: $q -> ${r.text}  (${r.generationMs} ms)")
-        }
-        e.unloadAndWait()
     }
 }

@@ -21,12 +21,12 @@ import java.io.ByteArrayOutputStream
  * Screen Vision pipeline, cheapest source first:
  *  1. accessibility node tree  – exact text + real UI elements, no pixels;
  *  2. MediaProjection frame    – only when the tree is sparse or an image was asked for;
- *  3. ML Kit OCR on that frame – only when the tree is sparse and the frame changed.
+ *  3. Tesseract OCR (Thai + English) on that frame – only when the tree is sparse and the frame changed.
  * Secret-entry screens are detected from the tree BEFORE any pixel is captured.
  */
 class AndroidScreenSource(private val context: Context, private val prefs: Prefs) : ScreenSource {
 
-    val ocr = OcrEngine()
+    val ocr = OcrEngine(context)
     /** True once the OCR recogniser has been created and until it is released. */
     @Volatile var ocrLoaded = false
         private set

@@ -41,6 +41,9 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
     var llmThreads: Int get() = sp.getInt("llm_threads", 0); set(v) = sp.edit().putInt("llm_threads", v).apply()
     /** Best measured speed of the model on this phone, tokens per second × 10. */
     var llmSpeedX10: Int get() = sp.getInt("llm_speed", 0); set(v) = sp.edit().putInt("llm_speed", v).apply()
+    /** Speech rate and pitch of the voice (1.0 = the engine's normal). */
+    var ttsRate: Float get() = sp.getFloat("tts_rate", 1.05f); set(v) = sp.edit().putFloat("tts_rate", v).apply()
+    var ttsPitch: Float get() = sp.getFloat("tts_pitch", 1.25f); set(v) = sp.edit().putFloat("tts_pitch", v).apply()
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

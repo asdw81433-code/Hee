@@ -40,22 +40,27 @@ jobs:
           cmake --build "$RUNNER_TEMP/native-host" -j"$(nproc)" --target kivo_llama | tail -3
           pip install --quiet numpy
           python3 scripts/make_tiny_gguf.py "$RUNNER_TEMP/llama.cpp" "$RUNNER_TEMP/tiny.gguf"
-      - name: Cache the real test model
+      - name: Cache the real test models
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/models
-          key: qwen2.5-0.5b-instruct-q4_k_m-74a4da8c
-      - name: Download the real model (Qwen2.5 0.5B, Apache-2.0) for the quality test
+          key: kivo-test-models-v2
+      - name: Download the real models (Qwen2.5 0.5B and 1.5B, Apache-2.0) for the quality test
         continue-on-error: true
         run: |
           mkdir -p "$RUNNER_TEMP/models"; cd "$RUNNER_TEMP/models"
-          F=qwen2.5-0.5b-instruct-q4_k_m.gguf
-          [ -f "$F" ] || curl -sSL --retry 3 -m 600 -o "$F" "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/$F"
-          echo "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db  $F" | sha256sum -c - || rm -f "$F"
-      - name: Unit tests (core, native engine with tiny model, real model if downloaded)
+          get() { # repo file sha256
+            [ -f "$2" ] || curl -sSL --retry 3 -m 900 -o "$2" "https://huggingface.co/$1/resolve/main/$2" || true
+            echo "$3  $2" | sha256sum -c - || rm -f "$2"
+          }
+          get Qwen/Qwen2.5-0.5B-Instruct-GGUF qwen2.5-0.5b-instruct-q4_k_m.gguf 74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
+          get Qwen/Qwen2.5-1.5B-Instruct-GGUF qwen2.5-1.5b-instruct-q4_k_m.gguf 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
+          ls -l
+      - name: Unit tests (core, native engine with tiny model, real models if downloaded)
         run: |
           ARGS="-PllamaLib=$RUNNER_TEMP/native-host/libkivo_llama.so -PtinyModel=$RUNNER_TEMP/tiny.gguf"
-          [ -f "$RUNNER_TEMP/models/qwen2.5-0.5b-instruct-q4_k_m.gguf" ] && ARGS="$ARGS -PrealModel=$RUNNER_TEMP/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+          REAL=$(ls "$RUNNER_TEMP"/models/*.gguf 2>/dev/null | paste -sd, -)
+          [ -n "$REAL" ] && ARGS="$ARGS -PrealModel=$REAL"
           (./gradlew :core:test $ARGS || ./gradlew :core:test $ARGS) 2>&1 | tee "$RUNNER_TEMP/core-test.log" | grep -v -E "^(llama|ggml|graph_compute|process_ubatch)" | tail -150
           exit ${PIPESTATUS[0]}
       - name: Build APKs (debug for tests, release for installing)
@@ -102,6 +107,23 @@ jobs:
           PY
           echo "== real model on the CI machine ($(nproc) cores; a phone is slower)"
           grep "REAL-MODEL" "$RUNNER_TEMP/core-test.log" || echo "real model test did not run"
+          echo "== other small models that might speak Thai better (information only)"
+          for r in ggml-org/gemma-3-1b-it-GGUF bartowski/google_gemma-3-1b-it-GGUF unsloth/gemma-3-1b-it-GGUF bartowski/Qwen_Qwen3-0.6B-GGUF unsloth/Qwen3-1.7B-GGUF bartowski/SmolLM2-1.7B-Instruct-GGUF; do
+            echo "-- $r"
+            curl -sS -m 30 "https://huggingface.co/api/models/$r/tree/main" | python3 -c "import sys,json
+          try:
+              d=json.load(sys.stdin)
+              [print('  ', f['path'], f.get('size'), (f.get('lfs') or {}).get('oid','')) for f in d if isinstance(f,dict) and 'q4_k_m' in f['path'].lower()] if isinstance(d,list) else print('  ', str(d)[:120])
+          except Exception as e: print('  error', e)" || true
+            curl -sS -m 30 "https://huggingface.co/api/models/$r" | python3 -c "import sys,json
+          try:
+              d=json.load(sys.stdin); print('   gated:', d.get('gated'), 'license:', (d.get('cardData') or {}).get('license'))
+          except Exception as e: print('  error', e)" || true
+          done
+          curl -sS -m 30 "https://huggingface.co/api/models?search=typhoon&filter=gguf&limit=30" | python3 -c "import sys,json
+          try:
+              [print('  typhoon:', m['id'], m.get('downloads')) for m in json.load(sys.stdin)]
+          except Exception as e: print('  error', e)" || true
           echo "== APK"
           ls -l app/build/outputs/apk/release/*.apk app/build/outputs/apk/debug/*.apk
           unzip -l app/build/outputs/apk/release/app-release.apk | grep -E "\.so$|tessdata" || true

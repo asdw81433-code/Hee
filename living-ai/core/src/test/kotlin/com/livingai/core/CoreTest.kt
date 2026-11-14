@@ -162,7 +162,7 @@ class CoreTest {
         Lang.thai = false
         try {
             assertEquals("Tap at (1, 2)", AgentAction.TapPoint(1, 2).describe(null))
-            assertTrue(LocalBrain.HELP.startsWith("Basic commands"))
+            assertTrue(LocalBrain.HELP.startsWith("You can say"))
         } finally {
             Lang.thai = true
         }

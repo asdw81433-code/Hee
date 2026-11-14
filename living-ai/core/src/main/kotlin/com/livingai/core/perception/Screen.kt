@@ -47,7 +47,7 @@ data class ScreenObservation(
     val packageName: String,
     val appLabel: String,
     val elements: List<UiElement> = emptyList(),
-    /** Text recognised from pixels (ML Kit). Only filled when the node tree is too sparse. */
+    /** Text recognised from pixels (on-device OCR). Only filled when the node tree is too sparse. */
     val ocrText: String = "",
     /** Down-scaled JPEG, base64 (no line breaks). Null when not captured / not allowed. */
     val imageJpegBase64: String? = null,

@@ -55,14 +55,15 @@ class ChatBrainTest {
         val history = listOf(ChatLine(1, true, "สวัสดี"), ChatLine(2, false, "หวัดดี!"), ChatLine(3, true, "กินอะไรดี"))
         val memories = listOf(Memory(kind = MemoryKind.FACT, title = "อาหารที่ชอบ", content = "ส้มตำ"))
         val a = brain.buildMessages("กินอะไรดี", ctx, Personality(), history, memories)
-        assertEquals(listOf(Role.SYSTEM, Role.USER, Role.ASSISTANT, Role.USER), a.map { it.role })
+        // system, two fixed example exchanges, then the real conversation
+        assertEquals(listOf(Role.SYSTEM, Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT, Role.USER), a.map { it.role })
         assertTrue(a.first().content.contains("Kivo") && a.first().content.contains("ไม่ใช่มนุษย์"))
         assertFalse(a.first().content.contains("14:05"), "the clock must not be in the cached system prompt")
         val last = a.last().content
         assertTrue(last.contains("14:05") && last.contains("ส้มตำ") && last.contains("ต้น") && last.endsWith("กินอะไรดี"), last)
         // one turn later the earlier messages are unchanged → the engine can reuse its cache
         val b = brain.buildMessages("ขอบคุณ", ctx.copy(minute = 9), Personality(), history + ChatLine(4, false, "ส้มตำไหม") + ChatLine(5, true, "ขอบคุณ"), emptyList())
-        assertEquals(a.take(3), b.take(3))
+        assertEquals(a.take(7), b.take(7))
     }
 
     @Test

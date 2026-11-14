@@ -21,6 +21,10 @@ object LocalBrain {
         data object Describe : Plan
         data class Remember(val key: String, val value: String) : Plan
         data class Recall(val query: String) : Plan
+        data class Note(val text: String) : Plan
+        data class Todo(val text: String) : Plan
+        data class ListNotes(val todos: Boolean) : Plan
+        data class DoneTodo(val query: String) : Plan
         data object Help : Plan
         data class Unknown(val hint: String) : Plan
     }
@@ -29,7 +33,70 @@ object LocalBrain {
     private val typeWords = listOf("พิมพ์ว่า", "พิมพ์", "type", "write", "enter")
     private val openWords = listOf("เปิดแอป", "เปิด", "open app", "open", "launch")
 
-    fun plan(input: String, obs: ScreenObservation?): Plan {
+    private val settingsPages = listOf(
+        SettingsPage.WIFI to listOf("wifi", "wi-fi", "ไวไฟ", "วายฟาย", "อินเทอร์เน็ต", "อินเตอร์เน็ต", "เน็ต", "internet"),
+        SettingsPage.BLUETOOTH to listOf("bluetooth", "บลูทูธ", "บลูทูท"),
+        SettingsPage.SOUND to listOf("เสียง", "ระดับเสียง", "sound", "volume"),
+        SettingsPage.DISPLAY to listOf("จอภาพ", "หน้าจอ", "ความสว่าง", "display", "brightness"),
+        SettingsPage.BATTERY to listOf("แบตเตอรี่", "แบต", "ประหยัดพลังงาน", "battery"),
+        SettingsPage.DATA_USAGE to listOf("ดาต้า", "ข้อมูลมือถือ", "เน็ตมือถือ", "data usage", "mobile data"),
+        SettingsPage.NOTIFICATIONS to listOf("การแจ้งเตือน", "notification"),
+        SettingsPage.DATE_TIME to listOf("วันที่", "วันและเวลา", "นาฬิกา", "date"),
+        SettingsPage.STORAGE to listOf("พื้นที่เก็บข้อมูล", "ที่เก็บข้อมูล", "storage"),
+        SettingsPage.LOCATION to listOf("ตำแหน่ง", "โลเคชัน", "gps", "location"),
+        SettingsPage.ACCESSIBILITY to listOf("การช่วยเหลือพิเศษ", "การช่วยเข้าถึง", "accessibility"),
+        SettingsPage.SECURITY to listOf("ความปลอดภัย", "security"),
+        SettingsPage.APPS to listOf("จัดการแอป", "แอปทั้งหมด", "apps"),
+        SettingsPage.ABOUT to listOf("เกี่ยวกับโทรศัพท์", "เกี่ยวกับเครื่อง", "about phone"),
+    )
+
+    /** Commands for the phone itself (settings pages, alarm, timer, reminders, notes). They never need the screen. */
+    private fun phonePlan(text: String, lower: String, obs: ScreenObservation?, nowMs: Long): Plan? {
+        fun after(vararg words: String): String? = words.firstOrNull { lower.startsWith(it) }?.let { text.substring(it.length).trim().trim('"', '“', '”', ':') }
+
+        // reminders: "เตือนเราอีก 10 นาที ว่ากินยา", "เตือน 2 ทุ่ม ให้โทรหาแม่"
+        if (listOf("ดูการเตือน", "ดูเตือน", "มีเตือนอะไร", "รายการเตือน", "list reminders", "my reminders").any { lower.contains(it) }) return Plan.Device(DeviceCommand.ListReminders)
+        after("ยกเลิกการเตือน", "ยกเลิกเตือน", "ลบการเตือน", "ลบเตือน", "cancel reminders", "cancel reminder")?.let { return Plan.Device(DeviceCommand.CancelReminders(it)) }
+        after("ช่วยเตือน", "เตือนความจำ", "เตือนเรา", "เตือนฉัน", "เตือนผม", "เตือนหน่อย", "เตือน", "remind me", "remind")?.let { rest ->
+            val at = TimeParser.whenMs(rest, nowMs)
+                ?: return Plan.Unknown(tr("จะให้เตือนตอนไหนดี เช่น \"เตือนอีก 10 นาที ว่ากินยา\" หรือ \"เตือน 2 ทุ่ม ให้โทรหาแม่\"", "When should I remind you? e.g. \"remind me in 10 minutes to take medicine\""))
+            return Plan.Device(DeviceCommand.Remind(at, TimeParser.stripTime(rest).ifBlank { tr("ถึงเวลาแล้ว", "It's time") }))
+        }
+        // alarm: "ตั้งปลุก 6 โมงเช้า"
+        after("ตั้งนาฬิกาปลุก", "ตั้งปลุก", "ปลุกเรา", "ปลุกฉัน", "ปลุก", "set an alarm", "set alarm", "wake me")?.let { rest ->
+            val c = TimeParser.clock(rest) ?: return Plan.Unknown(tr("จะให้ปลุกกี่โมงดี เช่น \"ตั้งปลุก 6 โมงเช้า\"", "What time? e.g. \"set an alarm for 6:30\""))
+            return Plan.Device(DeviceCommand.SetAlarm(c.hour, c.minute))
+        }
+        // timer: "จับเวลา 5 นาที"
+        after("จับเวลา", "ตั้งเวลา", "นับถอยหลัง", "set a timer", "set timer", "timer")?.let { rest ->
+            val d = TimeParser.duration(rest) ?: return Plan.Unknown(tr("จับเวลานานเท่าไหร่ดี เช่น \"จับเวลา 5 นาที\"", "For how long? e.g. \"timer 5 minutes\""))
+            return Plan.Device(DeviceCommand.SetTimer(d))
+        }
+        // notes and to-dos
+        if (listOf("ดูโน้ต", "โน้ตทั้งหมด", "มีโน้ตอะไร", "show notes", "my notes").any { lower.contains(it) }) return Plan.ListNotes(todos = false)
+        if (listOf("ต้องทำอะไรบ้าง", "มีอะไรต้องทำ", "ดูสิ่งที่ต้องทำ", "รายการที่ต้องทำ", "to-do list", "todo list", "my todos").any { lower.contains(it) }) return Plan.ListNotes(todos = true)
+        after("จดโน้ตว่า", "จดโน้ต", "จดไว้ว่า", "จดว่า", "โน้ตว่า", "โน้ต", "บันทึกว่า", "take a note", "note that", "note")?.let { if (it.isNotEmpty()) return Plan.Note(it) }
+        after("เพิ่มสิ่งที่ต้องทำ", "เพิ่มงาน", "ต้องทำ", "อย่าลืม", "add todo", "todo", "to-do")?.let { if (it.isNotEmpty()) return Plan.Todo(it) }
+        Regex("^(?:ทำ)?(.+?)\\s*(?:เสร็จแล้ว|เรียบร้อยแล้ว)$").find(text)?.let { m -> if (m.groupValues[1].length >= 2) return Plan.DoneTodo(m.groupValues[1].trim()) }
+        after("เสร็จแล้ว", "ทำเสร็จแล้ว", "done with", "finished")?.let { if (it.isNotEmpty()) return Plan.DoneTodo(it) }
+        // drafting a message: Kivo prepares it, the user chooses the app and presses send
+        after("ร่างข้อความว่า", "ร่างข้อความ", "เขียนข้อความว่า", "ส่งข้อความว่า", "แชร์ข้อความ", "draft a message", "draft message", "share text")?.let { if (it.isNotEmpty()) return Plan.Device(DeviceCommand.ShareText(it)) }
+        if (listOf("มีแอปอะไรบ้าง", "รายชื่อแอป", "list apps", "what apps").any { lower.contains(it) }) return Plan.Device(DeviceCommand.ListApps)
+
+        // settings pages: "เปิด wifi", "ตั้งค่าบลูทูธ", "ปรับเสียง"
+        val settingsVerb = listOf("เปิดการตั้งค่า", "เปิดตั้งค่า", "ไปที่ตั้งค่า", "ไปตั้งค่า", "การตั้งค่า", "ตั้งค่า", "เปิด", "ปิด", "ปรับ", "open settings", "settings", "open", "turn on", "turn off")
+            .firstOrNull { lower.startsWith(it) }
+        if (settingsVerb != null) {
+            val rest = lower.substring(settingsVerb.length).trim()
+            // something with that name is on screen right now: that is what the user means
+            if (rest.isNotEmpty() && findElement(rest, obs, clickableOnly = true) != null) return null
+            if (rest.isEmpty() && settingsVerb.contains("ตั้งค่า") || rest == "settings" || rest == "การตั้งค่า" || rest == "ตั้งค่า") return Plan.Device(DeviceCommand.OpenSettings(SettingsPage.MAIN))
+            for ((page, words) in settingsPages) if (words.any { rest == it || rest.startsWith("$it ") || (it.length >= 4 && rest.startsWith(it)) }) return Plan.Device(DeviceCommand.OpenSettings(page))
+        }
+        return null
+    }
+
+    fun plan(input: String, obs: ScreenObservation?, nowMs: Long = System.currentTimeMillis()): Plan {
         val text = input.trim()
         val lower = text.lowercase()
         if (text.isEmpty()) return Plan.Help
@@ -60,6 +127,8 @@ object LocalBrain {
                 return if (parts.size == 2 && parts[0].isNotBlank()) Plan.Remember(parts[0], parts[1]) else Plan.Remember(rest.take(30), rest)
             }
         }
+
+        phonePlan(text, lower, obs, nowMs)?.let { return it }
 
         // Typing: "พิมพ์ สวัสดี"
         for (w in typeWords) {
@@ -144,7 +213,11 @@ object LocalBrain {
 
     val HELP: String
         get() = tr(
-            "คำสั่งพื้นฐาน:\n• ดูหน้าจอ\n• กด <ชื่อปุ่ม>\n• พิมพ์ <ข้อความ>\n• เลื่อนลง / เลื่อนขึ้น\n• กลับ / โฮม / แจ้งเตือน\n• เปิด <ชื่อแอป>\n• จำ <หัวข้อ> = <เนื้อหา> / จำอะไรได้บ้าง",
-            "Basic commands:\n• look\n• tap <button name>\n• type <text>\n• scroll down / scroll up\n• back / home / notifications\n• open <app name>\n• remember <topic> = <text> / recall",
+            "สิ่งที่สั่งได้:\n• เปิด <ชื่อแอป> • เปิด wifi / บลูทูธ / เสียง / แบต (เปิดหน้าตั้งค่าให้)\n• ตั้งปลุก 6 โมงเช้า • จับเวลา 5 นาที\n• เตือนอีก 10 นาที ว่ากินยา • ดูการเตือน\n" +
+                "• จดโน้ต <ข้อความ> • ต้องทำ <งาน> • ต้องทำอะไรบ้าง • <งาน> เสร็จแล้ว\n• ร่างข้อความ <ข้อความ> (เราเตรียมให้ เธอกดส่งเอง)\n• จำไว้ว่า <เรื่อง> • จำอะไรได้บ้าง\n" +
+                "• ดูหน้าจอ • อ่านหน้าจอ • กด <ชื่อปุ่ม> • พิมพ์ <ข้อความ> • เลื่อนลง/ขึ้น • กลับ • โฮม\n• เล่นเกม (ทายคำ, ควิซ, จับคู่, เอ็กซ์โอ) • คุยเล่นเรื่องอะไรก็ได้",
+            "You can say:\n• open <app> • open wifi / bluetooth / sound / battery (opens the settings page)\n• set an alarm for 6:30 • timer 5 minutes\n• remind me in 10 minutes to take medicine • list reminders\n" +
+                "• note <text> • todo <task> • todo list • finished <task>\n• draft a message <text> (I prepare it, you press send)\n• remember that <fact> • recall\n" +
+                "• look • read the screen • tap <button> • type <text> • scroll down/up • back • home\n• play a game (word guess, quiz, memory, tic-tac-toe) • or just chat",
         )
 }

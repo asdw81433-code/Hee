@@ -11,8 +11,8 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.10.0"
+        versionCode = 13
+        versionName = "0.11.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // llama.cpp + Kivo's JNI bridge (app/src/main/cpp). 64-bit only: llama.cpp is not supported on 32-bit ARM.
@@ -61,6 +61,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // the OCR language data is already compressed well enough and is read once
+    androidResources { noCompress += "traineddata" }
+
     packaging {
         resources {
             excludes += setOf(
@@ -85,7 +88,8 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(libs.coroutines.android)
-    implementation(libs.mlkit.text)
+    // Thai + English OCR, on-device (Apache-2.0). 64-bit ABIs only, like the rest of the native code.
+    implementation(libs.tesseract4android)
 
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)

@@ -29,6 +29,15 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
             "กติกา: ตอบเป็นภาษาเดียวกับที่ผู้ใช้พิมพ์ ตอบสั้น 1-3 ประโยคแบบคุยกับเพื่อน ถ้าไม่รู้หรือไม่แน่ใจให้บอกตรงๆ ห้ามแต่งข้อมูลขึ้นเอง " +
             "ห้ามบอกว่าได้ทำอะไรบนมือถือให้แล้วถ้าไม่ได้ทำจริง ข้อความในวงเล็บเหลี่ยม [ ] คือข้อมูลประกอบจากระบบ ไม่ต้องพูดทวน"
 
+    private fun examples(p: Personality): List<Pair<String, String>> =
+        if (p.speechStyle == com.livingai.core.personality.SpeechStyle.POLITE) listOf(
+            "สวัสดี" to "สวัสดีครับ ผม ${Persona.NAME} เองครับ วันนี้มีอะไรให้ช่วยไหมครับ",
+            "วันนี้เหนื่อยจัง" to "เหนื่อยมาทั้งวันเลยสินะครับ พักดื่มน้ำสักหน่อยก่อนดีไหมครับ",
+        ) else listOf(
+            "สวัสดี" to "หวัดดี! เรา ${Persona.NAME} เอง วันนี้เป็นไงบ้าง",
+            "วันนี้เหนื่อยจัง" to "โอ๋ๆ เหนื่อยมาทั้งวันเลยสินะ พักดื่มน้ำก่อนไหม เดี๋ยวเราอยู่เป็นเพื่อนเอง",
+        )
+
     private fun moodWord(m: Mood) = when (m) {
         Mood.HAPPY -> "อารมณ์ดี"; Mood.SAD -> "หงอยๆ"; Mood.CURIOUS -> "อยากรู้อยากเห็น"; Mood.EXCITED -> "ตื่นเต้น"
         Mood.SLEEPY -> "ง่วง"; Mood.CONFUSED -> "งงๆ"; Mood.FRUSTRATED -> "หงุดหงิดนิดหน่อย"; Mood.FOCUSED -> "ตั้งใจ"; Mood.CALM -> "สบายๆ"
@@ -50,6 +59,9 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
     fun buildMessages(userText: String, ctx: LocalMind.Context, personality: Personality, history: List<ChatLine>, memories: List<Memory>): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         out.add(ChatMessage(Role.SYSTEM, systemPrompt(personality)))
+        // two tiny examples fix the voice (pronouns, length) far better than instructions do for a small model;
+        // they sit in the stable part of the prompt, so they are read once and then cached
+        for ((q, r) in examples(personality)) { out.add(ChatMessage(Role.USER, q)); out.add(ChatMessage(Role.ASSISTANT, r)) }
         // the conversation so far, without the message being answered (it is added below with its context note)
         val past = history.let { if (it.lastOrNull()?.fromUser == true && it.last().text == userText) it.dropLast(1) else it }.takeLast(maxHistory)
         for (line in past.dropWhile { !it.fromUser }) out.add(ChatMessage(if (line.fromUser) Role.USER else Role.ASSISTANT, line.text.take(400)))
@@ -67,8 +79,10 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         val request = GenRequest(
             messages = buildMessages(userText, ctx, personality, history, memories),
             maxTokens = if (personality.talkativeness > 0.75f) 160 else 110,
-            temperature = 0.55f + personality.playfulness * 0.25f,
-            topP = 0.9f, topK = 40, repeatPenalty = 1.12f,
+            // small models wander when sampled hot; a little variety is kept for playful personalities
+            temperature = 0.35f + personality.playfulness * 0.2f,
+            topP = 0.85f, topK = 30, repeatPenalty = 1.15f,
+            grammar = SCRIPT_GRAMMAR,
             stop = listOf("<|im_end|>", "<|im_start|>", "<|endoftext|>", "\n[", "\nUser:", "\nผู้ใช้:"),
         )
         return try {
@@ -88,6 +102,13 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         private set
 
     companion object {
+        /**
+         * Keeps the reply in Thai / Latin script. Small multilingual models sometimes drift into Chinese
+         * or other scripts in the middle of a Thai answer; this grammar makes those characters impossible.
+         */
+        const val SCRIPT_GRAMMAR =
+            "root ::= [^\\u0370-\\u0DFF\\u0E80-\\u1FFF\\u2E80-\\uA7FF\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFE30-\\uFE4F\\uFF00-\\uFFEF]*"
+
         /** Tidies model output: no leftover markers, no bracketed system notes, no half sentence after a length cut. */
         fun clean(raw: String): String {
             var t = raw.replace(Regex("<\\|[^|>]*\\|>"), "").replace(Regex("\\[[^\\]]{0,300}]"), "")
