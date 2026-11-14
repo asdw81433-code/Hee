@@ -57,7 +57,7 @@ class ChatBrainTest {
         val a = brain.buildMessages("กินอะไรดี", ctx, Personality(), history, memories)
         // system, two fixed example exchanges, then the real conversation
         assertEquals(listOf(Role.SYSTEM, Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT, Role.USER, Role.ASSISTANT, Role.USER), a.map { it.role })
-        assertTrue(a.first().content.contains("Kivo") && a.first().content.contains("ไม่ใช่มนุษย์"))
+        assertTrue(a.first().content.contains("Kivo") && a.first().content.contains("not a human"))
         assertFalse(a.first().content.contains("14:05"), "the clock must not be in the cached system prompt")
         val last = a.last().content
         assertTrue(last.contains("14:05") && last.contains("ส้มตำ") && last.contains("ต้น") && last.endsWith("กินอะไรดี"), last)

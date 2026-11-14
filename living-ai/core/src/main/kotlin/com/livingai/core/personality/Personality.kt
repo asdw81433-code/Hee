@@ -33,6 +33,15 @@ data class Personality(
     /** Minimum minutes between two things Kivo says on its own. */
     val initiativeGapMinutes: Int get() = (30 - talkativeness * 26).toInt().coerceAtLeast(3)
 
+    /** The same in English: far fewer tokens for the model to read, and small models follow it better. */
+    fun promptLinesEn(): String = buildString {
+        append(if (playfulness > 0.6f) "playful, with a sense of humour" else if (seriousness > 0.7f) "serious, polite, to the point" else "calm and friendly")
+        if (curiosity > 0.6f) append(", curious (often asks a short follow-up question)")
+        append(if (talkativeness > 0.75f) ", talkative" else if (talkativeness < 0.4f) ", a robot of few words" else "")
+        append(if (speechStyle == SpeechStyle.POLITE) ". In Thai you call yourself ผม, call the user คุณ, and end sentences with ครับ" else ". In Thai you call yourself เรา and call the user เธอ, like a close friend, without ครับ/ค่ะ")
+        if (interests.isNotEmpty()) append(". You like: ").append(interests.joinToString(", "))
+    }
+
     /** Lines for the local model's system prompt. */
     fun promptLines(): String = buildString {
         append(if (playfulness > 0.6f) "ขี้เล่น มีอารมณ์ขัน" else if (seriousness > 0.7f) "จริงจัง สุภาพ ตรงประเด็น" else "ใจเย็น เป็นกันเอง")

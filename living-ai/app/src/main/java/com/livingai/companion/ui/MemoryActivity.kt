@@ -80,11 +80,11 @@ class MemoryActivity : Activity() {
         val manage = ui.card(root, tr("จัดการข้อมูล", "Manage data"))
         manage.addView(ui.button(tr("ส่งออกเป็นไฟล์ JSON", "Export as a JSON file"), ui.grey) { export() })
         manage.addView(ui.button(tr("ลบประวัติแชท", "Delete chat history"), ui.grey) {
-            confirm(tr("ลบประวัติแชททั้งหมด?", "Delete the whole chat history?")) { scope.launch { graph.memoryStore.clearChat(); toast(tr("ลบแล้ว", "Deleted")) } }
+            confirm(tr("ลบประวัติแชททั้งหมด?", "Delete the whole chat history?")) { scope.launch { graph.memoryStore.clearChat(); com.livingai.companion.LivingState.chat.value = emptyList(); toast(tr("ลบแล้ว", "Deleted")) } }
         }, ui.matchWrap(top = 8))
         manage.addView(ui.button(tr("ลบความจำทั้งหมด", "Delete all memories"), ui.red) {
             confirm(tr("ลบความจำและประวัติแชททั้งหมด? กู้คืนไม่ได้", "Delete every memory and the chat history? This cannot be undone.")) {
-                scope.launch { graph.memoryStore.clearAll(); reload(); toast(tr("ลบทั้งหมดแล้ว", "Everything deleted")) }
+                scope.launch { graph.memoryStore.clearAll(); com.livingai.companion.LivingState.chat.value = emptyList(); reload(); toast(tr("ลบทั้งหมดแล้ว", "Everything deleted")) }
             }
         }, ui.matchWrap(top = 8))
         manage.addView(ui.label(tr("ความจำเก็บในเครื่องนี้เท่านั้น ไม่สำรองขึ้นคลาวด์", "Memories are stored on this phone only and are not backed up to the cloud."), 12f, ui.sub).apply { setPadding(0, ui.dp(8), 0, 0) })

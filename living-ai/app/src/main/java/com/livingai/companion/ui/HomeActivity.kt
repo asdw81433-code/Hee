@@ -222,6 +222,8 @@ class HomeActivity : Activity() {
             background = round(bubbleTheirs, 22f)
             setPadding(14.dp, 10.dp, 14.dp, 10.dp)
             setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(text.toString()); true } else false }
+            // starting to type: get the on-device model ready in the background
+            setOnFocusChangeListener { _, focused -> if (focused) graph.controller.warmUp() }
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

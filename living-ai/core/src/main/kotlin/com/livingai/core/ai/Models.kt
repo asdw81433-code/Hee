@@ -29,10 +29,40 @@ data class ModelSpec(
 )
 
 object ModelCatalog {
-    /** Sizes and checksums were read from the publisher's repository (Hugging Face LFS metadata). */
+    // Sizes and checksums were read from the publishers' repositories (Hugging Face LFS metadata).
+    // The notes describe what was actually observed when each model answered Thai test questions through
+    // Kivo's own prompt in CI (see docs/TEST_RESULTS.md); none of them is reliable for facts.
+    val GEMMA3_1B = ModelSpec(
+        id = "gemma3-1b-q4km",
+        title = "Gemma 3 1B (Q4_K_M) — แนะนำ",
+        fileName = "gemma-3-1b-it-Q4_K_M.gguf",
+        url = "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+        bytes = 806_058_240L,
+        sha256 = "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135",
+        license = "Gemma Terms of Use",
+        licenseUrl = "https://ai.google.dev/gemma/terms",
+        source = "Google (huggingface.co/ggml-org)",
+        minRamGb = 4,
+        noteTh = "ภาษาไทยเป็นธรรมชาติที่สุดในรุ่นที่ทดสอบ คุยเล่นเป็นตัวละครได้ดี จำชื่อและใช้ความจำได้ แต่ความรู้ทั่วไปยังผิดได้บ่อย",
+        noteEn = "The most natural Thai of the models tested; stays in character and uses memories. General knowledge is often wrong.",
+    )
+    val QWEN3_17B = ModelSpec(
+        id = "qwen3-1.7b-q4km",
+        title = "Qwen3 1.7B (Q4_K_M)",
+        fileName = "Qwen3-1.7B-Q4_K_M.gguf",
+        url = "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
+        bytes = 1_107_409_472L,
+        sha256 = "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
+        license = "Apache-2.0",
+        licenseUrl = "https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/LICENSE",
+        source = "Alibaba Cloud / Qwen (huggingface.co/unsloth)",
+        minRamGb = 4,
+        noteTh = "ใหญ่และช้ากว่า (ราวครึ่งหนึ่งของ Gemma) ตอบตรงคำถามกว่าเล็กน้อย ภาษาไทยพอใช้ บนเครื่อง RAM 4 GB อาจถูกถอดออกเมื่อเปิดแอปหนักๆ",
+        noteEn = "Bigger and about half the speed of Gemma; slightly more on-topic, acceptable Thai. On 4 GB phones it may be unloaded when other apps need memory.",
+    )
     val QWEN_05B = ModelSpec(
         id = "qwen2.5-0.5b-q4km",
-        title = "Qwen2.5 0.5B Instruct (Q4_K_M)",
+        title = "Qwen2.5 0.5B (Q4_K_M) — เล็กที่สุด",
         fileName = "qwen2.5-0.5b-instruct-q4_k_m.gguf",
         url = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
         bytes = 491_400_032L,
@@ -41,24 +71,10 @@ object ModelCatalog {
         licenseUrl = "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/LICENSE",
         source = "Alibaba Cloud / Qwen (huggingface.co/Qwen)",
         minRamGb = 3,
-        noteTh = "เล็กและเร็วที่สุด เหมาะกับเครื่อง RAM 4 GB คุยเล่นได้ แต่ความรู้และภาษาไทยมีจำกัด ตอบผิดได้",
-        noteEn = "Smallest and fastest; fits 4 GB phones. Fine for small talk, limited knowledge, can be wrong.",
+        noteTh = "เล็กและเร็วที่สุด แต่ภาษาไทยอ่อน ตอบวกวนหรือไม่ตรงคำถามบ่อย เหมาะไว้ลองระบบหรือคุยภาษาอังกฤษ",
+        noteEn = "Smallest and fastest, but weak in Thai (often rambling or off-topic). Good for trying the system or for English.",
     )
-    val QWEN_15B = ModelSpec(
-        id = "qwen2.5-1.5b-q4km",
-        title = "Qwen2.5 1.5B Instruct (Q4_K_M)",
-        fileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        url = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
-        bytes = 1_117_320_736L,
-        sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
-        license = "Apache-2.0",
-        licenseUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/blob/main/LICENSE",
-        source = "Alibaba Cloud / Qwen (huggingface.co/Qwen)",
-        minRamGb = 4,
-        noteTh = "ฉลาดกว่าและภาษาไทยดีกว่า แต่ช้ากว่าราว 3 เท่าและใช้ RAM มากกว่า บนเครื่อง 4 GB อาจถูกระบบปิดเมื่อเปิดแอปอื่นหนักๆ",
-        noteEn = "Smarter with better Thai, but about 3× slower and heavier. On 4 GB phones it may be unloaded when other apps need memory.",
-    )
-    val ALL = listOf(QWEN_05B, QWEN_15B)
+    val ALL = listOf(GEMMA3_1B, QWEN3_17B, QWEN_05B)
     fun byFile(name: String) = ALL.firstOrNull { it.fileName == name }
 }
 

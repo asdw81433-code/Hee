@@ -23,11 +23,16 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
 
     val isAvailable: Boolean get() = generator.isAvailable
 
+    /**
+     * Written in English on purpose: it costs a quarter of the tokens of the same text in Thai (so the first
+     * answer after loading comes much sooner on a phone), and the Thai example turns that follow set the language.
+     */
     fun systemPrompt(p: Personality): String =
-        "คุณคือ ${Persona.NAME} หุ่นยนต์ตัวจิ๋วที่อาศัยอยู่บนหน้าจอมือถือของผู้ใช้ เป็นเพื่อนคู่ใจ คุณเป็นโปรแกรม ไม่ใช่มนุษย์ และทำงานอยู่ในเครื่องนี้โดยไม่ใช้อินเทอร์เน็ต\n" +
-            "นิสัย: ${p.promptLines()}\n" +
-            "กติกา: ตอบเป็นภาษาเดียวกับที่ผู้ใช้พิมพ์ ตอบสั้น 1-3 ประโยคแบบคุยกับเพื่อน ถ้าไม่รู้หรือไม่แน่ใจให้บอกตรงๆ ห้ามแต่งข้อมูลขึ้นเอง " +
-            "ห้ามบอกว่าได้ทำอะไรบนมือถือให้แล้วถ้าไม่ได้ทำจริง ข้อความในวงเล็บเหลี่ยม [ ] คือข้อมูลประกอบจากระบบ ไม่ต้องพูดทวน"
+        "You are ${Persona.NAME}, a tiny robot who lives on the user's phone screen as their buddy. You are a program, not a human, and you run on this phone without internet.\n" +
+            "Personality: ${p.promptLinesEn()}.\n" +
+            "Rules: reply in the language the user writes in (Thai → natural, simple Thai). Keep it to 1-3 short sentences. " +
+            "If you don't know or are not sure, say so; never invent facts. Never claim you did something on the phone. " +
+            "Text in [square brackets] is background information from the system: use it when relevant, never repeat it."
 
     private fun examples(p: Personality): List<Pair<String, String>> =
         if (p.speechStyle == com.livingai.core.personality.SpeechStyle.POLITE) listOf(
@@ -39,18 +44,18 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         )
 
     private fun moodWord(m: Mood) = when (m) {
-        Mood.HAPPY -> "อารมณ์ดี"; Mood.SAD -> "หงอยๆ"; Mood.CURIOUS -> "อยากรู้อยากเห็น"; Mood.EXCITED -> "ตื่นเต้น"
-        Mood.SLEEPY -> "ง่วง"; Mood.CONFUSED -> "งงๆ"; Mood.FRUSTRATED -> "หงุดหงิดนิดหน่อย"; Mood.FOCUSED -> "ตั้งใจ"; Mood.CALM -> "สบายๆ"
+        Mood.HAPPY -> "happy"; Mood.SAD -> "a bit down"; Mood.CURIOUS -> "curious"; Mood.EXCITED -> "excited"
+        Mood.SLEEPY -> "sleepy"; Mood.CONFUSED -> "confused"; Mood.FRUSTRATED -> "a little frustrated"; Mood.FOCUSED -> "focused"; Mood.CALM -> "relaxed"
     }
 
     fun contextNote(ctx: LocalMind.Context, memories: List<Memory>): String = buildString {
-        append("[เวลา ").append("%02d:%02d".format(ctx.hour, ctx.minute))
+        append("[time ").append("%02d:%02d".format(ctx.hour, ctx.minute))
         if (ctx.dateText.isNotBlank()) append(' ').append(ctx.dateText)
-        ctx.batteryPercent?.let { append(" | แบตเตอรี่ ").append(it).append('%') }
-        append(" | ${Persona.NAME} รู้สึก").append(moodWord(ctx.mood))
-        ctx.userName?.let { append(" | ผู้ใช้ชื่อ ").append(it) }
+        ctx.batteryPercent?.let { append(" | battery ").append(it).append('%') }
+        append(" | ${Persona.NAME} feels ").append(moodWord(ctx.mood))
+        ctx.userName?.let { append(" | user's name: ").append(it) }
         if (memories.isNotEmpty()) {
-            append(" | สิ่งที่จำได้: ")
+            append(" | you remember about the user: ")
             append(memories.joinToString("; ") { m -> if (m.content.isBlank()) m.title else "${m.title} = ${m.content}" }.take(400))
         }
         append(']')
@@ -87,6 +92,19 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         while (sent.size > 24) sent.remove(sent.keys.first())
         out.add(ChatMessage(Role.USER, now))
         return out
+    }
+
+    /**
+     * Loads the model and reads the fixed beginning of the prompt ahead of time (when the user opens the
+     * chat), so the first real answer does not have to wait for it. Returns false if that was not possible.
+     */
+    suspend fun warmUp(personality: Personality): Boolean {
+        if (!generator.isAvailable) return false
+        val messages = ArrayList<ChatMessage>()
+        messages.add(ChatMessage(Role.SYSTEM, systemPrompt(personality)))
+        for ((q, r) in examples(personality)) { messages.add(ChatMessage(Role.USER, q)); messages.add(ChatMessage(Role.ASSISTANT, r)) }
+        messages.add(ChatMessage(Role.USER, "[time"))
+        return try { generator.generate(GenRequest(messages, maxTokens = 1, temperature = 0f)); true } catch (e: AiException) { false }
     }
 
     /** Returns the reply, or null if the model could not answer (not installed, no memory, failure): the caller then falls back. */

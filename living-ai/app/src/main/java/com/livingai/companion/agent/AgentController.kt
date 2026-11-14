@@ -61,7 +61,7 @@ import kotlinx.coroutines.withTimeout
  * Wires the four agents to Android and owns their lifecycle:
  * one user task at a time, event-driven proactive remarks, stop / emergency stop, memory pressure.
  */
-class AgentController(private val context: Context, val prefs: Prefs, memoryStore: MemoryStore) : AgentListener {
+class AgentController(private val context: Context, val prefs: Prefs, private val memoryStore: MemoryStore) : AgentListener {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -132,6 +132,11 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     init {
         resources.register(ocrResource, ResourceMode.VISION)
         resources.register(llm, ResourceMode.CONVERSATION)
+        // the conversation from before the app was closed is shown again
+        scope.launch {
+            val old = runCatching { memoryStore.recentChat(60) }.getOrDefault(emptyList())
+            if (old.isNotEmpty() && LivingState.chat.value.isEmpty()) LivingState.chat.value = old
+        }
         // feelings fade and idle resources are released, once a minute
         scope.launch {
             while (true) {
@@ -390,6 +395,17 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         } else if (!music) {
             speakUp(Trigger.IDLE) // the policy decides whether enough time has passed
         }
+    }
+
+    private var warmJob: Job? = null
+
+    /**
+     * The user opened the chat: get the language model ready so the first answer is not slow.
+     * Skipped when memory is tight; the model is unloaded again by the resource manager when idle.
+     */
+    fun warmUp() {
+        if (!managedLlm.isAvailable || llm.isLoaded || resources.lowRam || warmJob?.isActive == true || isBusy) return
+        warmJob = scope.launch { brain.warmUp(personalityStore.load()) }
     }
 
     /** A picture the user attached in the chat: its text is read on the device (OCR). The language model cannot see images. */

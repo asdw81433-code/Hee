@@ -49,14 +49,13 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p "$RUNNER_TEMP/models"; cd "$RUNNER_TEMP/models"
+          rm -f qwen2.5-1.5b-instruct-q4_k_m.gguf Qwen_Qwen3-0.6B-Q4_K_M.gguf   # compared earlier and not offered in the app
           get() { # repo file sha256
             [ -f "$2" ] || curl -sSL --retry 3 -m 900 -o "$2" "https://huggingface.co/$1/resolve/main/$2" || true
             echo "$3  $2" | sha256sum -c - || rm -f "$2"
           }
           get Qwen/Qwen2.5-0.5B-Instruct-GGUF qwen2.5-0.5b-instruct-q4_k_m.gguf 74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db
-          get Qwen/Qwen2.5-1.5B-Instruct-GGUF qwen2.5-1.5b-instruct-q4_k_m.gguf 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e
           get ggml-org/gemma-3-1b-it-GGUF gemma-3-1b-it-Q4_K_M.gguf 8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135
-          get bartowski/Qwen_Qwen3-0.6B-GGUF Qwen_Qwen3-0.6B-Q4_K_M.gguf 9acfc1e001311f34b4252001b626f2e466d592a42065f66571bff3790d4e1b14
           get unsloth/Qwen3-1.7B-GGUF Qwen3-1.7B-Q4_K_M.gguf b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897
           ls -l
       - name: Unit tests (core, native engine with tiny model, real models if downloaded)

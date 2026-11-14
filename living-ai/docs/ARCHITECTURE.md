@@ -26,7 +26,7 @@ on a plain JVM.
 | Module (spec name) | Package | Responsibility | Main interfaces |
 |---|---|---|---|
 | Core | `core` | `KivoCore`: receives a message or a phone event, decides, drives the other modules | `AgentListener`, `KeyValueStore`, `Clock` |
-| AI Engine | `core.ai` | local text generation (llama.cpp + GGUF), prompts, intent classification | `TextGenerator` |
+| AI Engine | `core.ai` | local text generation (llama.cpp + GGUF), chat prompt with cached prefix, model catalog / download / import | `TextGenerator`, `LlamaEngine`, `ChatBrain`, `ModelFiles`, `ModelDownloader` |
 | Memory | `core.memory` | short-term, long-term, episodic, knowledge; relevance search; export | `MemoryStore` |
 | Personality | `core.personality` | persistent traits, speech style, interests, bond level | `Personality` |
 | Emotion | `core.emotion` | simulated mood state machine driven by events | `EmotionEngine`, `Mood` |
@@ -34,8 +34,8 @@ on a plain JVM.
 | Tools | `core.tools` | acting on the screen and on the phone; command parsing; safety | `ActionPort`, `DevicePort`, `ConfirmationPort`, `SafetyPolicy` |
 | Robot | `core.robot` | 3D rig, animation state machine, renderer | `Painter` |
 | Resource Manager | `core.resource` | what may be in memory at once; idle unload; memory pressure | `ResourceManager`, `ManagedResource`, `MemoryProbe` |
-| Privacy | `core.privacy` | redaction of secrets, permission gate, data wipe | `Redactor`, `PermissionGate` |
-| Companion | `core.companion` | on-device conversation, initiative, activities and games | `LocalMind`, `InitiativePolicy` |
+| Privacy | `core.privacy` | redaction of secrets before anything is stored or shown | `Redactor` (the action gate is `tools.SafetyPolicy`; data wipe is `AgentController.deleteAllData`) |
+| Companion | `core.companion` | built-in conversation, initiative, activities and games | `LocalMind`, `Initiative`, `ActivityHub`, `Activity` |
 
 Android implementations (`:app`, package `com.livingai.companion`):
 
@@ -44,7 +44,10 @@ Android implementations (`:app`, package `com.livingai.companion`):
 | `ScreenSource` | `vision.AndroidScreenSource` (accessibility tree → capture → OCR) |
 | `ActionPort` | `control.A11yActionPort` (AccessibilityService) |
 | `DevicePort` | `tools.AndroidDevicePort` (intents, package manager) |
-| `MemoryStore` | SQLite store |
+| `MemoryStore` | `memory.SqliteMemoryStore` (SQLiteOpenHelper, n-gram index) |
+| reminders | `tools.ReminderScheduler` + `ReminderReceiver` (AlarmManager) |
+| OCR | `vision.OcrEngine` (Tesseract, Thai + English) |
+| voice | `agent.Speaker` (system TTS), `ui.VoiceActivity` (system recogniser, on-device first) |
 | `MemoryProbe` | `resource.AndroidMemoryProbe` (ActivityManager) |
 | `TextGenerator` | llama.cpp through JNI (`core.ai.LlamaEngine` + `app/src/main/cpp`) |
 
@@ -64,17 +67,38 @@ app the user is actually using. `ResourceManager` therefore:
 No RAM number is guaranteed in advance; the manager works from what `MemoryProbe` reports
 on the actual device at that moment.
 
-## 4. Migration plan (order of work)
+## 4. How a message is handled
 
-1. Architecture, module split, resource manager, cloud AI removed. ← verified by unit tests,
-   the JVM typecheck of the app sources, and the emulator tests in CI
+```
+user text ─► KivoCore
+              1. a game in progress / a request to play     → ActivityHub        (no model)
+              2. arithmetic                                  → Calculator         (no model)
+              3. small talk, time, battery, name             → LocalMind          (no model, instant)
+              4. commands, possibly chained with "แล้ว"       → LocalBrain → ActionAgent (SafetyPolicy, confirmation) / DevicePort / memory
+              5. anything else                               → ChatBrain → LlamaEngine (streamed), if a model is installed and RAM allows
+           emotion events, memory extraction and the speech style are applied around all of them
+```
+
+The language model never produces actions. Only the rule parser does, and every screen action
+passes the safety policy. This keeps behaviour predictable and makes prompt injection through
+on-screen text harmless.
+
+Prompt layout for step 5: English system prompt (few tokens), two Thai example turns, the
+anchored conversation window, then the new message with a bracketed context note (time, mood,
+user name, relevant memories). Everything before the new message is identical from turn to
+turn, so llama.cpp's KV cache is reused (measured: 90 %+ of prompt tokens cached in a running
+conversation). A GBNF grammar keeps the output in Thai / Latin script.
+
+## 5. Work order (all eight phases are done)
+
+1. Architecture, module split, resource manager, cloud AI removed
 2. Robot (3D rig, animation state machine) and overlay service
-3. Memory (SQLite, four kinds, relevance search), personality, emotion
-4. Local AI engine (llama.cpp, GGUF Q4 0.5B first) and Thai conversation
-5. Voice (offline TTS / STT) and vision (Thai OCR)
+3. Memory (SQLite, relevance search), personality, emotion
+4. Local AI engine (llama.cpp, GGUF) and Thai conversation
+5. Voice (system TTS / STT, offline first) and vision (Thai OCR)
 6. Android tools (apps, settings, alarms, reminders, notes)
 7. Active companion (initiative, activities, quiet mode)
-8. Optimisation, benchmarks, release APK
+8. UI pages, performance read-outs, documentation, release APK
 
 Existing user data is kept: the old memory database is imported into the new store on first
-start, and settings keys are unchanged.
+start, and settings keys are unchanged. Test evidence: `docs/TEST_RESULTS.md`.
