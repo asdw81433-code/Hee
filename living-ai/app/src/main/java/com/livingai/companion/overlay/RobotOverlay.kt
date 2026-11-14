@@ -204,7 +204,8 @@ class RobotOverlay(
             this.text = text
             textSize = 14f
             setTextColor(0xFF10171C.toInt())
-            background = GradientDrawable().apply { setColor(0xFAFFFFFF.toInt()); cornerRadius = 16 * dp; setStroke((1.2f * dp).toInt(), 0xFF5AB8FF.toInt()) }
+            background = GradientDrawable().apply { setColor(0xFFFFFFFF.toInt()); cornerRadius = 18 * dp; setStroke((2f * dp).toInt(), 0xFF2A2633.toInt()) }
+            typeface = com.livingai.companion.ui.Theme.medium(ctx)
             setPadding((12 * dp).toInt(), (8 * dp).toInt(), (12 * dp).toInt(), (8 * dp).toInt())
             maxWidth = (size.x * 0.66f).toInt()
             maxLines = 8
@@ -313,15 +314,15 @@ class RobotOverlay(
         val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = (6 * dp).toInt() }
-            addView(btn(tr("ส่ง", "Send"), 0xFF1565C0.toInt()) { submit() }, lp)
-            addView(btn("🎤", 0xFF455A64.toInt()) { hidePanel(); com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) }, lp)
-            addView(btn(tr("👁 ดูจอ", "👁 Look"), 0xFF455A64.toInt()) { hidePanel(); controller.submit(tr("ดูหน้าจอ", "look"), fromOverlay = true) }, lp)
-            addView(btn(tr("⏹ หยุด", "⏹ Stop"), 0xFFC62828.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
-            addView(btn(tr("ปิด", "Close"), 0xFF455A64.toInt()) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
+            addView(btn(tr("ส่ง", "Send"), 0xFF7C6CFF.toInt()) { submit() }, lp)
+            addView(btn("🎤", 0x33FFFFFF) { hidePanel(); com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) }, lp)
+            addView(btn(tr("👁 ดูจอ", "👁 Look"), 0x33FFFFFF) { hidePanel(); controller.submit(tr("ดูหน้าจอ", "look"), fromOverlay = true) }, lp)
+            addView(btn(tr("⏹ หยุด", "⏹ Stop"), 0xFFFF5A6E.toInt()) { hidePanel(); controller.stopCurrent(userInitiated = true) }, lp)
+            addView(btn(tr("ปิด", "Close"), 0x33FFFFFF) { hidePanel() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.7f))
         }
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            background = card(0xF5263238.toInt(), 18f)
+            background = card(0xF2161A2E.toInt(), 18f)
             setPadding(pad, pad, pad, pad)
             val recent = LivingState.chat.value.takeLast(5)
             if (recent.isNotEmpty()) addView(TextView(ctx).apply {
@@ -342,7 +343,7 @@ class RobotOverlay(
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE
         }
         safe {
-            wm.addView(root, lp); panel = root
+            com.livingai.companion.ui.Theme.applyFonts(root); wm.addView(root, lp); panel = root
             input.requestFocus()
             main.postDelayed({
                 (ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(input, 0)
@@ -375,7 +376,7 @@ class RobotOverlay(
             }
             val root = LinearLayout(ctx).apply {
                 orientation = LinearLayout.VERTICAL
-                background = card(0xFA1B2A30.toInt(), 18f)
+                background = card(0xF5161A2E.toInt(), 18f)
                 setPadding(pad, pad, pad, pad)
                 addView(TextView(ctx).apply {
                     text = tr("${Persona.NAME} ขออนุญาต", "${Persona.NAME} asks permission")
@@ -396,7 +397,7 @@ class RobotOverlay(
                 width = (size.x * 0.9f).toInt()
                 gravity = Gravity.CENTER
             }
-            safe { wm.addView(root, lp); confirmView = root }
+            com.livingai.companion.ui.Theme.applyFonts(root); safe { wm.addView(root, lp); confirmView = root }
             if (confirmView == null) result.complete(false)
         }
         val answer = try {
@@ -433,7 +434,7 @@ class RobotOverlay(
         }
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            background = card(0xF51B2A30.toInt(), 16f)
+            background = card(0xF2161A2E.toInt(), 16f)
             setPadding(0, pad / 2, 0, pad / 2)
             addView(item(tr("💬 คุยกับ ${Persona.NAME}", "💬 Talk to ${Persona.NAME}")) { togglePanel() })
             addView(item(tr("🎤 พูด", "🎤 Speak")) { com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) })
@@ -453,7 +454,7 @@ class RobotOverlay(
             x = (robotLp.x - (150 * dp).toInt()).coerceIn(0, (size.x - (230 * dp).toInt()).coerceAtLeast(0))
             y = (robotLp.y - (40 * dp).toInt()).coerceIn(0, (size.y - (260 * dp).toInt()).coerceAtLeast(0))
         }
-        safe { wm.addView(root, lp); menu = root }
+        com.livingai.companion.ui.Theme.applyFonts(root); safe { wm.addView(root, lp); menu = root }
     }
 
     /** Tucks the robot away as a small dot on the screen edge; a tap on the dot brings it back. */

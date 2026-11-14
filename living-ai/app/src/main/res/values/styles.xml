@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.LivingAI" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:colorAccent">#2F7DF6</item>
+    <!-- Kivo is always dark: the screens draw their own gradient background. -->
+    <style name="Theme.LivingAI" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#8B5CFF</item>
+        <item name="android:colorPrimary">#171230</item>
+        <item name="android:colorPrimaryDark">#0B0D1A</item>
+        <item name="android:windowBackground">@drawable/bg_kivo</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#0B1628</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

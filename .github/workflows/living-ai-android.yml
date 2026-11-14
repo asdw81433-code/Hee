@@ -80,12 +80,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
-          cp app/build/outputs/apk/release/app-release.apk living-ai.apk
           cp app/build/outputs/apk/release/app-release.apk "kivo-$VERSION.apk"
           gh release delete living-ai-latest --cleanup-tag --yes || true
-          gh release create living-ai-latest living-ai.apk "kivo-$VERSION.apk" --prerelease --target "$GITHUB_SHA" \
+          gh release create living-ai-latest "kivo-$VERSION.apk" --prerelease --target "$GITHUB_SHA" \
             --title "Kivo $VERSION" \
-            --notes "เวอร์ชัน $VERSION — ดาวน์โหลด kivo-$VERSION.apk (หรือ living-ai.apk ซึ่งเป็นไฟล์เดียวกัน) แล้วแตะเพื่อติดตั้งทับของเดิม ดูเลขเวอร์ชันได้ข้างชื่อ Kivo ในหน้าแรกของแอป (สร้างจาก $GITHUB_SHA)"
+            --notes "เวอร์ชัน $VERSION — โหลดไฟล์เดียวนี้ kivo-$VERSION.apk แล้วแตะเพื่อติดตั้งทับของเดิม ดูเลขเวอร์ชันได้ข้างชื่อ Kivo ในหน้าแรกของแอป (สร้างจาก $GITHUB_SHA)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -150,7 +149,7 @@ jobs:
           script: |
             adb push "$RUNNER_TEMP/tiny.gguf" /data/local/tmp/kivo-tiny.gguf
             ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp" || ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"; R=$?; mkdir -p app/build/screenshots; for f in $(adb shell ls /data/local/tmp/ | grep kivo-shot | tr -d '\r'); do adb pull "/data/local/tmp/$f" app/build/screenshots/ || true; done; exit $R
       - name: Device test summary
         if: always()
         run: |
@@ -173,4 +172,5 @@ jobs:
           path: |
             living-ai/app/build/reports/androidTests
             living-ai/app/build/outputs/androidTest-results
+            living-ai/app/build/screenshots
           if-no-files-found: ignore

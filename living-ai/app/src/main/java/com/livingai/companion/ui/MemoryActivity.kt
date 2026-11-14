@@ -51,7 +51,7 @@ class MemoryActivity : Activity() {
         super.onCreate(savedInstanceState)
         graph = LivingApp.graph(this)
         ui = Ui(this)
-        val root = ui.page(tr("ความจำ", "Memory"))
+        val root = ui.page(tr("ความจำ", "Memory"), Theme.TAB_MEMORY, tr("ทุกอย่างที่ ${Persona.NAME} จำไว้ อยู่ในเครื่องนี้เท่านั้น", "Everything ${Persona.NAME} remembers, on this phone only"))
 
         val top = ui.card(root)
         val search = ui.input(tr("🔎 ค้นหาความจำ", "🔎 Search memories"))
@@ -90,6 +90,7 @@ class MemoryActivity : Activity() {
         manage.addView(ui.label(tr("ความจำเก็บในเครื่องนี้เท่านั้น ไม่สำรองขึ้นคลาวด์", "Memories are stored on this phone only and are not backed up to the cloud."), 12f, ui.sub).apply { setPadding(0, ui.dp(8), 0, 0) })
 
         buildTabs()
+        ui.finish()
         scope.launch { reload() }
     }
 

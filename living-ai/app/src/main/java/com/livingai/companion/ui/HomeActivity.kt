@@ -59,32 +59,25 @@ class HomeActivity : Activity() {
     private lateinit var input: EditText
     private var shownLines = -1
 
-    private var dark = false
-    private var bg = 0
-    private var colorText = 0
-    private var colorSub = 0
-    private var bubbleMine = 0
-    private var bubbleTheirs = 0
-    private val accent = 0xFF2F7DF6.toInt()
-    private val grey = 0xFF5B6B79.toInt()
-    private val red = 0xFFD03A3A.toInt()
-    private val green = 0xFF2E9D5B.toInt()
+    private var bg = Theme.BG_TOP
+    private val colorText = Theme.TEXT
+    private val colorSub = Theme.SUB
+    private val bubbleTheirs = Theme.CARD
+    private val accent = Theme.ACCENT
+    private val grey = 0x29FFFFFF
+    private val red = Theme.RED
+    private val green = Theme.GREEN
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         graph = LivingApp.graph(this)
-        dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        bg = if (dark) 0xFF0F151A.toInt() else 0xFFEEF2F6.toInt()
-        colorText = if (dark) 0xFFF1F4F7.toInt() else 0xFF141B22.toInt()
-        colorSub = if (dark) 0xFFA3B0BC.toInt() else 0xFF5B6B79.toInt()
-        bubbleMine = accent
-        bubbleTheirs = if (dark) 0xFF1E2830.toInt() else 0xFFFFFFFF.toInt()
+        Theme.window(this)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bg)
+            background = Theme.background()
             setOnApplyWindowInsetsListener { v, insets ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     val i = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
@@ -98,27 +91,33 @@ class HomeActivity : Activity() {
         }
         setContentView(root)
 
-        root.addView(header(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(header(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(12.dp, 8.dp, 12.dp, 6.dp)
+        })
         root.addView(setupBanner(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             setMargins(12.dp, 0, 12.dp, 6.dp)
         })
 
-        chatList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12.dp, 6.dp, 12.dp, 12.dp) }
+        chatList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(14.dp, 6.dp, 14.dp, 12.dp) }
         chatScroll = ScrollView(this).apply {
             isFillViewport = true
+            isVerticalScrollBarEnabled = false
             addView(chatList, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         root.addView(chatScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         root.addView(quickActions(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         root.addView(inputBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(Theme.bottomNav(this, Theme.TAB_CHAT), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        Theme.applyFonts(root)
     }
 
     // ---------- parts ----------
 
+    /** Hero card: Kivo itself, its status and mood, and the two main switches. */
     private fun header(): View {
-        orb = RobotView(this).apply { showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin); setOnClickListener { startActivity(Intent(this@HomeActivity, CharacterActivity::class.java)) } }
+        orb = RobotView(this).apply { showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin); setOnClickListener { poke() } }
         statusText = label("", 13f, colorSub)
-        moodText = label("", 12f, colorSub)
+        moodText = label("", 12.5f, colorSub)
         val version = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
         showButton = smallButton("", accent) {
             if (graph.prefs.overlayEnabled && graph.floating.isShowing) FloatingUi.hide(graph) else FloatingUi.show(this, graph)
@@ -129,33 +128,30 @@ class HomeActivity : Activity() {
         }
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14.dp, 10.dp, 14.dp, 10.dp)
+            background = Theme.glass(this@HomeActivity, 26f)
+            setPadding(12.dp, 10.dp, 14.dp, 14.dp)
             addView(LinearLayout(this@HomeActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                addView(orb, LinearLayout.LayoutParams(92.dp, 108.dp))
+                addView(orb, LinearLayout.LayoutParams(104.dp, 116.dp))
                 addView(LinearLayout(this@HomeActivity).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(10.dp, 0, 0, 0)
+                    setPadding(8.dp, 0, 0, 0)
                     addView(LinearLayout(this@HomeActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.BOTTOM
-                        addView(label(Persona.NAME, 24f, colorText, bold = true))
-                        addView(label("  v$version", 12f, colorSub))
+                        addView(label(Persona.NAME, 28f, colorText, bold = true))
+                        addView(label("  v$version", 11.5f, Theme.MUTED))
                     })
-                    addView(statusText)
-                    addView(moodText)
+                    addView(statusText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 2.dp })
+                    addView(moodText, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 6.dp })
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-                addView(smallButton("🧠", grey) { startActivity(Intent(this@HomeActivity, MemoryActivity::class.java)) },
-                    LinearLayout.LayoutParams(46.dp, 42.dp).apply { marginEnd = 6.dp })
-                addView(smallButton("⚙", grey) { startActivity(Intent(this@HomeActivity, SettingsActivity::class.java)) },
-                    LinearLayout.LayoutParams(46.dp, 42.dp))
             })
             addView(LinearLayout(this@HomeActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
-                addView(showButton, LinearLayout.LayoutParams(0, 42.dp, 1.4f).apply { marginEnd = 8.dp })
-                addView(stopButton, LinearLayout.LayoutParams(0, 42.dp, 1f))
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 10.dp })
+                addView(showButton, LinearLayout.LayoutParams(0, 46.dp, 1.5f).apply { marginEnd = 8.dp })
+                addView(stopButton, LinearLayout.LayoutParams(0, 46.dp, 1f))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 8.dp })
         }
     }
 
@@ -164,7 +160,7 @@ class HomeActivity : Activity() {
         banner = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = round(if (dark) 0xFF2A2416.toInt() else 0xFFFFF4D6.toInt(), 14f)
+            background = Theme.glass(this@HomeActivity, 18f, 0x26FFB547, 0x55FFB547)
             setPadding(12.dp, 10.dp, 10.dp, 10.dp)
             addView(bannerText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
             addView(smallButton(tr("ตั้งค่าต่อ", "Finish setup"), accent) { startActivity(Intent(this@HomeActivity, SettingsActivity::class.java)) })
@@ -182,29 +178,18 @@ class HomeActivity : Activity() {
             tr("📝 วางแผนวันนี้", "📝 Plan my day") to tr("วางแผนวันนี้", "plan my day"),
             tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
         )
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 2.dp, 12.dp, 2.dp) }
-        fun nav(label: String, target: Class<*>) = row.addView(TextView(this).apply {
-            text = label; textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
-            background = GradientDrawable().apply { cornerRadius = 18f * resources.displayMetrics.density; setColor(grey) }
-            setPadding(12.dp, 7.dp, 12.dp, 7.dp)
-            setOnClickListener { startActivity(Intent(this@HomeActivity, target)) }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
-        nav(tr("🎨 ตัวละคร", "🎨 Character"), CharacterActivity::class.java)
-        nav(tr("🧠 ความจำ", "🧠 Memory"), MemoryActivity::class.java)
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 4.dp, 12.dp, 4.dp) }
         row.addView(TextView(this).apply {
             text = tr("🤖 สมอง AI", "🤖 AI brain"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
-            background = GradientDrawable().apply { cornerRadius = 18f * resources.displayMetrics.density; setColor(accent) }
-            setPadding(12.dp, 7.dp, 12.dp, 7.dp)
+            background = Theme.gradient(this@HomeActivity, 18f)
+            setPadding(14.dp, 8.dp, 14.dp, 8.dp)
             setOnClickListener { startActivity(Intent(this@HomeActivity, ModelActivity::class.java)) }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
         for ((title, text) in chips) {
             row.addView(TextView(this).apply {
                 this.text = title; textSize = 13f; setTextColor(colorText)
-                background = GradientDrawable().apply {
-                    cornerRadius = 18f * resources.displayMetrics.density
-                    setColor(bubbleTheirs); setStroke(1.dp, if (dark) 0xFF33404B.toInt() else 0xFFD5DDE4.toInt())
-                }
-                setPadding(12.dp, 7.dp, 12.dp, 7.dp)
+                background = Theme.glass(this@HomeActivity, 18f, Theme.FIELD)
+                setPadding(14.dp, 8.dp, 14.dp, 8.dp)
                 setOnClickListener { send(text) }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
         }
@@ -215,12 +200,12 @@ class HomeActivity : Activity() {
         input = EditText(this).apply {
             hint = tr("พิมพ์คุยกับ ${Persona.NAME}…", "Message ${Persona.NAME}…")
             textSize = 15f
-            setTextColor(colorText); setHintTextColor(colorSub)
+            setTextColor(colorText); setHintTextColor(Theme.MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             maxLines = 4
             imeOptions = EditorInfo.IME_ACTION_SEND
-            background = round(bubbleTheirs, 22f)
-            setPadding(14.dp, 10.dp, 14.dp, 10.dp)
+            background = Theme.glass(this@HomeActivity, 24f, Theme.FIELD)
+            setPadding(16.dp, 11.dp, 16.dp, 11.dp)
             setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(text.toString()); true } else false }
             // starting to type: get the on-device model ready in the background
             setOnFocusChangeListener { _, focused -> if (focused) graph.controller.warmUp() }
@@ -228,7 +213,7 @@ class HomeActivity : Activity() {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(10.dp, 6.dp, 10.dp, 10.dp)
+            setPadding(10.dp, 6.dp, 10.dp, 8.dp)
             addView(roundButton("🎤", grey) { VoiceActivity.start(this@HomeActivity, fromOverlay = false) }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
             addView(roundButton("📎", grey) {
                 // a picture is read for its text on the device (OCR)
@@ -236,7 +221,7 @@ class HomeActivity : Activity() {
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }, REQ_IMAGE)
             }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
             addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
-            addView(roundButton("➤", accent) { send(input.text.toString()) }, LinearLayout.LayoutParams(46.dp, 46.dp))
+            addView(roundButton("➤", accent) { send(input.text.toString()) }, LinearLayout.LayoutParams(48.dp, 48.dp))
         }
     }
 
@@ -308,8 +293,10 @@ class HomeActivity : Activity() {
                 val r = 18f * resources.displayMetrics.density
                 val s = 5f * resources.displayMetrics.density
                 cornerRadii = if (mine) floatArrayOf(r, r, r, r, s, s, r, r) else floatArrayOf(r, r, r, r, r, r, s, s)
-                setColor(if (mine) bubbleMine else bubbleTheirs)
+                if (mine) { orientation = GradientDrawable.Orientation.TL_BR; colors = intArrayOf(Theme.ACCENT1, Theme.ACCENT2) }
+                else { setColor(bubbleTheirs); setStroke(1, Theme.CARD_BORDER) }
             }
+            typeface = Theme.regular(this@HomeActivity)
             maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
         }
         return LinearLayout(this).apply {
@@ -338,7 +325,7 @@ class HomeActivity : Activity() {
                         AgentStatus.PAUSED -> tr("⏸ หยุดอยู่", "⏸ Paused")
                     }
                     stopButton.text = if (paused) tr("▶ ทำงานต่อ", "▶ Resume") else tr("⏹ หยุด", "⏹ Stop")
-                    stopButton.background = round(if (paused) green else red, 12f)
+                    stopButton.background = if (paused) round(green, 16f) else Theme.glass(this@HomeActivity, 16f, 0x33FF5A6E, 0x66FF5A6E)
                 }
             }
             launch { LivingState.mood.collect { orb.mood = it; moodText.text = moodLabel(it) } }
@@ -368,7 +355,7 @@ class HomeActivity : Activity() {
     private fun refresh() {
         val showing = graph.prefs.overlayEnabled && graph.floating.isShowing
         showButton.text = if (showing) tr("ซ่อน ${Persona.NAME}", "Hide ${Persona.NAME}") else tr("✨ แสดง ${Persona.NAME} บนจอ", "✨ Show ${Persona.NAME} on screen")
-        showButton.background = round(if (showing) grey else accent, 12f)
+        showButton.background = if (showing) Theme.glass(this, 16f, Theme.FIELD) else Theme.gradient(this, 16f)
 
         val notif = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -403,13 +390,14 @@ class HomeActivity : Activity() {
 
     private fun label(text: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
         this.text = text; textSize = size; setTextColor(color)
-        if (bold) setTypeface(typeface, Typeface.BOLD)
+        typeface = if (bold) Theme.bold(this@HomeActivity) else Theme.regular(this@HomeActivity)
     }
 
     private fun smallButton(text: String, color: Int, onClick: () -> Unit) = Button(this).apply {
-        this.text = text; isAllCaps = false; textSize = 14f
+        this.text = text; isAllCaps = false; textSize = 14.5f
         setTextColor(0xFFFFFFFF.toInt())
-        background = round(color, 12f)
+        typeface = Theme.medium(this@HomeActivity)
+        background = if (color == accent) Theme.gradient(this@HomeActivity, 16f) else round(color, 16f)
         stateListAnimator = null
         minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
         setPadding(12.dp, 6.dp, 12.dp, 6.dp)
@@ -419,7 +407,7 @@ class HomeActivity : Activity() {
     private fun roundButton(text: String, color: Int, onClick: () -> Unit) = Button(this).apply {
         this.text = text; textSize = 18f
         setTextColor(0xFFFFFFFF.toInt())
-        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
+        background = if (color == accent) Theme.gradientCircle() else Theme.circle(Theme.FIELD, Theme.CARD_BORDER, 1)
         stateListAnimator = null
         minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
         setPadding(0, 0, 0, 0)

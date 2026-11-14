@@ -67,33 +67,35 @@ class SettingsActivity : Activity() {
     private lateinit var debugText: TextView
     private lateinit var debugImage: ImageView
 
-    private var dark = false
-    private var colorText = 0
-    private var colorSub = 0
-    private var colorCard = 0
-    private val accent = 0xFF2F7DF6.toInt()
-    private val green = 0xFF2E9D5B.toInt()
-    private val grey = 0xFF5B6B79.toInt()
-    private val red = 0xFFD03A3A.toInt()
+    private val colorText = Theme.TEXT
+    private val colorSub = Theme.SUB
+    private val colorCard = Theme.CARD
+    private val accent = Theme.ACCENT
+    private val green = Theme.GREEN
+    private val grey = 0x29FFFFFF
+    private val red = Theme.RED
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         graph = LivingApp.graph(this)
-        dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        colorText = if (dark) 0xFFF1F4F7.toInt() else 0xFF141B22.toInt()
-        colorSub = if (dark) 0xFFA3B0BC.toInt() else 0xFF5B6B79.toInt()
-        colorCard = if (dark) 0xFF1B232B.toInt() else 0xFFFFFFFF.toInt()
+        Theme.window(this)
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14.dp, 10.dp, 14.dp, 36.dp)
+            setPadding(16.dp, 12.dp, 16.dp, 28.dp)
         }
-        val scroll = ScrollView(this).apply {
+        val scrollView = ScrollView(this).apply {
             isFillViewport = true
-            setBackgroundColor(if (dark) 0xFF0F151A.toInt() else 0xFFEEF2F6.toInt())
+            isVerticalScrollBarEnabled = false
             addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        val scroll = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = Theme.background()
+            addView(scrollView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(Theme.bottomNav(this@SettingsActivity, Theme.TAB_SETTINGS), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             // Android 15+ draws edge-to-edge: keep content clear of the system bars and the keyboard.
             setOnApplyWindowInsetsListener { v, insets ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -115,6 +117,7 @@ class SettingsActivity : Activity() {
         buildPerformance(content)
         buildVisionTest(content)
         buildPrivacy(content)
+        Theme.applyFonts(scroll)
     }
 
     // ---------- cards ----------
@@ -123,8 +126,7 @@ class SettingsActivity : Activity() {
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(button("←", grey) { finish() }, LinearLayout.LayoutParams(48.dp, 44.dp).apply { marginEnd = 12.dp })
-            addView(label(tr("ตั้งค่า", "Settings"), 24f, colorText, bold = true))
+            addView(label(tr("ตั้งค่า", "Settings"), 26f, colorText, bold = true))
         }, matchWrap(top = 4))
     }
 
@@ -146,7 +148,7 @@ class SettingsActivity : Activity() {
         // Shown only while step 2 is not done: Android blocks this permission for sideloaded apps at first.
         a11yHelp = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = round(if (dark) 0xFF2A2416.toInt() else 0xFFFFF4D6.toInt(), 12f)
+            background = Theme.glass(this@SettingsActivity, 16f, 0x26FFB547, 0x55FFB547)
             setPadding(12.dp, 10.dp, 12.dp, 10.dp)
             addView(label(tr("ขึ้นว่า \"แอปถูกปฏิเสธไม่ให้เข้าถึง\" ใช่ไหม", "Seeing \"App was denied access\"?"), 14f, colorText, bold = true))
             addView(label(
@@ -440,7 +442,7 @@ class SettingsActivity : Activity() {
     private fun card(root: LinearLayout, title: String? = null): LinearLayout {
         val c = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = round(colorCard, 18f)
+            background = Theme.glass(this@SettingsActivity, 22f)
             setPadding(16.dp, 14.dp, 16.dp, 16.dp)
         }
         if (title != null) c.addView(label(title, 17f, colorText, bold = true).apply { setPadding(0, 0, 0, 8.dp) })
@@ -455,9 +457,9 @@ class SettingsActivity : Activity() {
     }
 
     private fun button(text: String, color: Int, onClick: () -> Unit) = Button(this).apply {
-        this.text = text; isAllCaps = false; textSize = 14f
+        this.text = text; isAllCaps = false; textSize = 14.5f
         setTextColor(0xFFFFFFFF.toInt())
-        background = round(color, 12f)
+        background = when (color) { accent -> Theme.gradient(this@SettingsActivity, 16f); grey -> Theme.glass(this@SettingsActivity, 16f, Theme.FIELD); else -> round(color, 16f) }
         stateListAnimator = null
         minHeight = 44.dp; minimumHeight = 44.dp
         setPadding(14.dp, 8.dp, 14.dp, 8.dp)
@@ -467,7 +469,8 @@ class SettingsActivity : Activity() {
     private fun toggle(title: String, subtitle: String, initial: Boolean, onChange: (Boolean) -> Unit): View {
         val sw = Switch(this).apply {
             isChecked = initial
-            thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(accent, 0xFFB0BEC5.toInt()))
+            thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFFFFFFF.toInt(), 0xFFB9BDD6.toInt()))
+            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(accent, 0x40FFFFFF))
             setOnCheckedChangeListener { _, checked -> onChange(checked) }
         }
         return LinearLayout(this).apply {
@@ -519,9 +522,9 @@ class SettingsActivity : Activity() {
 
         fun set(ok: Boolean, buttonText: String, enabled: Boolean) {
             badge.text = if (ok) "✓" else number
-            badge.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (ok) green else 0xFFE08A1E.toInt()) }
+            badge.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (ok) green else Theme.AMBER) }
             action.text = buttonText
-            action.background = round(if (ok) grey else accent, 12f)
+            action.background = if (ok) Theme.glass(this@SettingsActivity, 16f, Theme.FIELD) else Theme.gradient(this@SettingsActivity, 16f)
             action.isEnabled = enabled
             action.alpha = if (enabled) 1f else 0.55f
         }

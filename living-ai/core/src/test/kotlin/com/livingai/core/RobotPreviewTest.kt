@@ -53,6 +53,21 @@ class AwtPainter(private val g: Graphics2D) : Painter {
     override fun roundRect(left: Float, top: Float, right: Float, bottom: Float, radius: Float, color: Int) {
         g.paint = c(color); g.fill(RoundRectangle2D.Float(left, top, right - left, bottom - top, radius * 2, radius * 2))
     }
+    override fun shape(cmds: FloatArray, count: Int, fill: Int, stroke: Int, strokeWidth: Float) {
+        val p = java.awt.geom.Path2D.Float()
+        var i = 0
+        while (i < count) {
+            when (cmds[i]) {
+                PathOp.MOVE -> { p.moveTo(cmds[i + 1], cmds[i + 2]); i += 3 }
+                PathOp.LINE -> { p.lineTo(cmds[i + 1], cmds[i + 2]); i += 3 }
+                PathOp.QUAD -> { p.quadTo(cmds[i + 1], cmds[i + 2], cmds[i + 3], cmds[i + 4]); i += 5 }
+                PathOp.CUBIC -> { p.curveTo(cmds[i + 1], cmds[i + 2], cmds[i + 3], cmds[i + 4], cmds[i + 5], cmds[i + 6]); i += 7 }
+                else -> { p.closePath(); i += 1 }
+            }
+        }
+        if ((fill ushr 24) != 0) { g.paint = c(fill); g.fill(p) }
+        if (strokeWidth > 0f && (stroke ushr 24) != 0) { g.paint = c(stroke); g.stroke = BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND); g.draw(p) }
+    }
     override fun text(s: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean) {
         g.paint = c(color); g.font = Font(Font.SANS_SERIF, if (bold) Font.BOLD else Font.PLAIN, 1).deriveFont(size); g.drawString(s, x - size * 0.25f, y)
     }
@@ -67,12 +82,12 @@ class RobotPreviewTest {
         val img = BufferedImage(cols * cell, rows * cellH, BufferedImage.TYPE_INT_ARGB)
         val g = img.createGraphics()
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        val bgs = listOf(0xFFF4F6F8.toInt(), 0xFF20242B.toInt(), 0xFF7FB07F.toInt())
+        val bgs = listOf(0xFFF4F6F8.toInt(), 0xFF141824.toInt(), 0xFF2B3550.toInt())
         cells.forEachIndexed { i, (label, skin, setup) ->
             val x = (i % cols) * cell; val y = (i / cols) * cellH
             g.transform = AffineTransform(); g.clip = null
             g.paint = Color(bgs[i % bgs.size], true); g.fillRect(x, y, cell, cellH)
-            val anim = RobotAnimator(); val renderer = RobotRenderer(); renderer.skin = skin
+            val anim = RobotAnimator(); val renderer = CartoonRenderer(); renderer.skin = skin
             val at = setup(anim, 100_000L)
             // let the pose settle on the target, as it would after a moment on screen
             var pose = anim.update(at - 600)
@@ -106,6 +121,7 @@ class RobotPreviewTest {
             Triple("listen", s) { a, t -> a.status = AgentStatus.LISTENING; t },
             Triple("off", s) { a, t -> a.status = AgentStatus.PAUSED; t },
         ))
+        sheet("skins", 6, RobotSkin.ALL.map { sk -> Triple(sk.name, sk) { a: RobotAnimator, t: Long -> a.mood = Mood.HAPPY; t } })
         sheet("gestures", 5, Gesture.entries.map { gst -> Triple(gst.name, s) { a: RobotAnimator, t: Long -> a.play(gst, t - gst.ms / 2); t } })
     }
 

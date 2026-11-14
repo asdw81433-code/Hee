@@ -242,6 +242,7 @@ class DeviceE2ETest {
         robot.pointAt(300, 600)
         robot.say("สวัสดี ทดสอบกล่องคำพูด")
         SystemClock.sleep(1200)
+        shell("screencap -p /data/local/tmp/kivo-shot-0-overlay.png")
         assertTrue(onMain { graph.floating.isShowing })
         // Small talk is answered by the built-in mind at once, with no AI key at all.
         val hello = ask("สวัสดี")
@@ -279,19 +280,23 @@ class DeviceE2ETest {
         // Chat through the home screen's own input box.
         val reply = ask("ดูหน้าจอ")
         assertTrue(reply, reply.contains("Kivo"))
+        SystemClock.sleep(800); shell("screencap -p /data/local/tmp/kivo-shot-1-home.png")
 
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("สิทธิ์ที่ใช้") } }
+        SystemClock.sleep(600); shell("screencap -p /data/local/tmp/kivo-shot-2-settings.png")
         shell("input keyevent KEYCODE_BACK")
 
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.CharacterActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitUntil("the character screen is in front", 20_000) { observe().elements.any { it.label.contains("นิสัย") } }
+        SystemClock.sleep(900); shell("screencap -p /data/local/tmp/kivo-shot-3-character.png")
         shell("input keyevent KEYCODE_BACK")
 
         // The memory manager shows what is in the database.
         runBlocking { graph.memoryStore.save(Memory(kind = MemoryKind.KNOWLEDGE, title = "ทดสอบหน้าความจำ", content = "ข้อมูลตัวอย่าง")) }
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.MemoryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitUntil("the memory screen lists the saved memory", 20_000) { observe().elements.any { it.label.contains("ทดสอบหน้าความจำ") } }
+        SystemClock.sleep(600); shell("screencap -p /data/local/tmp/kivo-shot-4-memory.png")
         shell("input keyevent KEYCODE_BACK")
         runBlocking { graph.memoryStore.clearAll() }
     }

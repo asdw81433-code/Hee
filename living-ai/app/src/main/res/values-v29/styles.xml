@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Follows the system light/dark setting. -->
-    <style name="Theme.LivingAI" parent="android:Theme.DeviceDefault.DayNight">
-        <item name="android:windowActionBar">false</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:colorAccent">#2F7DF6</item>
-    </style>
-</resources>

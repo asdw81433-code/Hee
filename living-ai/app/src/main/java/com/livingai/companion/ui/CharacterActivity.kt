@@ -35,7 +35,7 @@ class CharacterActivity : Activity() {
     }
 
     private fun build() {
-        root = ui.page(tr("ตัวละคร", "Character"))
+        root = ui.page(tr("ตัวละคร", "Character"), Theme.TAB_CHARACTER, tr("หน้าตาและนิสัยของ ${Persona.NAME}", "How ${Persona.NAME} looks and behaves"))
         val p = graph.controller.personalityStore.load()
         val bond = graph.controller.bond
 
@@ -47,7 +47,7 @@ class CharacterActivity : Activity() {
             setOnClickListener { poke() }
         }
         preview.gravity = Gravity.CENTER_HORIZONTAL
-        preview.addView(robot, LinearLayout.LayoutParams(ui.dp(170), ui.dp(200)))
+        preview.addView(robot, LinearLayout.LayoutParams(ui.dp(190), ui.dp(210)))
         preview.addView(ui.label(
             tr("ความสนิท: ${bond.title} (ระดับ ${bond.level}/4) • คุยกัน ${bond.interactions} ครั้ง • รู้จักกัน ${bond.daysKnown} วัน",
                 "Bond: ${bond.title} (level ${bond.level}/4) • ${bond.interactions} chats • ${bond.daysKnown} days"),
@@ -68,7 +68,7 @@ class CharacterActivity : Activity() {
                 addView(View(this@CharacterActivity).apply {
                     background = GradientDrawable().apply {
                         shape = GradientDrawable.OVAL; setColor(s.body)
-                        setStroke(ui.dp(if (selected) 4 else 2), if (selected) ui.accent else s.accent)
+                        setStroke(ui.dp(if (selected) 4 else 2), if (selected) 0xFFFFFFFF.toInt() else s.accent)
                     }
                     contentDescription = s.name
                     setOnClickListener {
@@ -114,6 +114,7 @@ class CharacterActivity : Activity() {
                 "${Persona.NAME} is a program. Its moods are simulated from what happens in the app; they are not real human feelings."),
             12.5f, ui.sub,
         ))
+        ui.finish()
     }
 
     private fun load() = graph.controller.personalityStore.load()

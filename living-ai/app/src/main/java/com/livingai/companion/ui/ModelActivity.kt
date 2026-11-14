@@ -123,6 +123,7 @@ class ModelActivity : Activity() {
             12f, ui.sub,
         ).apply { setPadding(0, ui.dp(8), 0, 0) })
         refreshStatus(); onDownloads()
+        ui.finish()
     }
 
     private fun gap() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = ui.dp(8) }

@@ -27,6 +27,21 @@ interface Painter {
     fun arc(startDeg: Float, sweepDeg: Float, width: Float, color: Int)
     fun roundRect(left: Float, top: Float, right: Float, bottom: Float, radius: Float, color: Int)
     fun text(s: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean)
+    /**
+     * A path in the current transform: [cmds] holds [count] floats of commands — [PathOp.MOVE] x y,
+     * [PathOp.LINE] x y, [PathOp.QUAD] cx cy x y, [PathOp.CUBIC] c1x c1y c2x c2y x y, [PathOp.CLOSE].
+     * Filled with [fill] unless it is fully transparent, then outlined with [stroke] (round caps and joins)
+     * unless [strokeWidth] is 0.
+     */
+    fun shape(cmds: FloatArray, count: Int, fill: Int, stroke: Int, strokeWidth: Float)
+}
+
+object PathOp {
+    const val MOVE = 0f
+    const val LINE = 1f
+    const val QUAD = 2f
+    const val CUBIC = 3f
+    const val CLOSE = 4f
 }
 
 /** Colours of the robot; all of them can be changed by the user. */

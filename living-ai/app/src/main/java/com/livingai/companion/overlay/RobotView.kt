@@ -15,9 +15,10 @@ import com.livingai.core.AgentStatus
 import com.livingai.core.Lang.tr
 import com.livingai.core.emotion.Mood
 import com.livingai.core.robot.Gesture
+import com.livingai.core.robot.CartoonRenderer
 import com.livingai.core.robot.Painter
+import com.livingai.core.robot.PathOp
 import com.livingai.core.robot.RobotAnimator
-import com.livingai.core.robot.RobotRenderer
 import com.livingai.core.robot.RobotSkin
 
 /** [Painter] on an Android Canvas. Shaders and helper objects are cached, so drawing a frame allocates nothing. */
@@ -99,6 +100,25 @@ private class CanvasPainter : Painter {
         canvas!!.drawRoundRect(rect, radius, radius, fill)
     }
 
+    private val shapeFill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val shapeStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+
+    override fun shape(cmds: FloatArray, count: Int, fill: Int, stroke: Int, strokeWidth: Float) {
+        path.rewind()
+        var i = 0
+        while (i < count) {
+            when (cmds[i]) {
+                PathOp.MOVE -> { path.moveTo(cmds[i + 1], cmds[i + 2]); i += 3 }
+                PathOp.LINE -> { path.lineTo(cmds[i + 1], cmds[i + 2]); i += 3 }
+                PathOp.QUAD -> { path.quadTo(cmds[i + 1], cmds[i + 2], cmds[i + 3], cmds[i + 4]); i += 5 }
+                PathOp.CUBIC -> { path.cubicTo(cmds[i + 1], cmds[i + 2], cmds[i + 3], cmds[i + 4], cmds[i + 5], cmds[i + 6]); i += 7 }
+                else -> { path.close(); i += 1 }
+            }
+        }
+        if ((fill ushr 24) != 0) { shapeFill.color = fill; canvas!!.drawPath(path, shapeFill) }
+        if (strokeWidth > 0f && (stroke ushr 24) != 0) { shapeStroke.color = stroke; shapeStroke.strokeWidth = strokeWidth; canvas!!.drawPath(path, shapeStroke) }
+    }
+
     override fun text(s: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean) {
         textPaint.color = color; textPaint.textSize = size
         textPaint.typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -107,14 +127,14 @@ private class CanvasPainter : Painter {
 }
 
 /**
- * Kivo on screen. The body is the 3D rig from core.robot (skeleton → perspective → lit parts);
+ * Kivo on screen: the cartoon renderer from core.robot draws the pose the animator produces;
  * this view only feeds it facts, paints it on a Canvas and paces the frames:
  * about 30 FPS while something moves, slower in low-RAM mode, and almost nothing while asleep.
  */
 class RobotView(context: Context) : View(context) {
 
     private val animator = RobotAnimator()
-    private val renderer = RobotRenderer()
+    private val renderer = CartoonRenderer()
     private val painter = CanvasPainter()
     private val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val captionRect = RectF()
