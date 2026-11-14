@@ -13,7 +13,7 @@ class AppGraph(context: Context) {
     val memoryStore = SqliteMemoryStore(context)
     val controller = AgentController(context, prefs, memoryStore)
     val floating = com.livingai.companion.overlay.FloatingOrbManager(context, prefs, controller)
-    val models = com.livingai.companion.ai.ModelManager(controller).also { it.resumeWatching() }
+    val models = com.livingai.companion.ai.ModelManager(controller).also { it.resumeWatching(); it.installBundled() }
 }
 
 class LivingApp : Application() {

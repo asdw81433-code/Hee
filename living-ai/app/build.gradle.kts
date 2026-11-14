@@ -11,8 +11,8 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "2.1.1"
+        versionCode = 22
+        versionName = "2.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // llama.cpp + Kivo's JNI bridge (app/src/main/cpp). 64-bit only: llama.cpp is not supported on 32-bit ARM.
@@ -62,7 +62,12 @@ android {
     }
 
     // the OCR language data is already compressed well enough and is read once
-    androidResources { noCompress += "traineddata" }
+    androidResources { noCompress += listOf("traineddata", "gguf") }
+
+    // The release APK can carry the AI brain: -PbundleModelDir=<dir with brain/<model>.gguf>
+    (project.findProperty("bundleModelDir") as String?)?.let { dir ->
+        sourceSets.getByName("release").assets.srcDir(dir)
+    }
 
     packaging {
         resources {

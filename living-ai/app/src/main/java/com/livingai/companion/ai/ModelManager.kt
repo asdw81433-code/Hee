@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
  */
 class ModelManager(private val controller: AgentController) {
 
-    data class Download(val doneBytes: Long, val totalBytes: Long, val verifying: Boolean = false, val error: String? = null, val running: Boolean = true, val note: String? = null)
+    data class Download(val doneBytes: Long, val totalBytes: Long, val verifying: Boolean = false, val error: String? = null, val running: Boolean = true, val note: String? = null, val bundled: Boolean = false)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val jobs = HashMap<String, Job>()
@@ -159,6 +159,51 @@ class ModelManager(private val controller: AgentController) {
         tmpFile(spec).delete()
         update(spec.id, null)
     }
+
+    /**
+     * The release APK carries the AI brain in assets/brain/. On first start it is unpacked once into
+     * the models folder (llama.cpp needs a real file), checked, and made the active model.
+     */
+    fun installBundled() {
+        val names = runCatching { context.assets.list("brain")?.toList() }.getOrNull().orEmpty().filter { it.endsWith(".gguf") }
+        for (name in names) {
+            val spec = com.livingai.core.ai.ModelCatalog.byFile(name) ?: continue
+            if (controller.models.isInstalled(spec) || jobs[spec.id]?.isActive == true) continue
+            val note = tr("กำลังติดตั้งสมอง AI ที่มากับแอป (ครั้งแรกครั้งเดียว)…", "Installing the built-in AI brain (first start only)…")
+            update(spec.id, Download(0, spec.bytes, note = note, bundled = true))
+            jobs[spec.id] = scope.launch(Dispatchers.IO) {
+                val tmp = tmpFile(spec)
+                try {
+                    val md = java.security.MessageDigest.getInstance("SHA-256")
+                    context.assets.open("brain/$name").use { input ->
+                        tmp.outputStream().use { out ->
+                            val buf = ByteArray(1 shl 20)
+                            var done = 0L; var last = 0L
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n); md.update(buf, 0, n); done += n
+                                if (done - last > 8_000_000) { last = done; update(spec.id, Download(done, spec.bytes, note = note, bundled = true)) }
+                            }
+                        }
+                    }
+                    val sum = md.digest().joinToString("") { "%02x".format(it) }
+                    if (tmp.length() != spec.bytes || !sum.equals(spec.sha256, ignoreCase = true)) throw java.io.IOException("checksum mismatch")
+                    val target = controller.models.file(spec)
+                    target.delete()
+                    if (!tmp.renameTo(target)) throw java.io.IOException("rename failed")
+                    controller.models.setActive(target)
+                    update(spec.id, null)
+                } catch (e: Exception) {
+                    tmp.delete()
+                    update(spec.id, Download(0, spec.bytes, error = tr("ติดตั้งสมอง AI ไม่สำเร็จ: ${e.message} (พื้นที่ในเครื่องอาจไม่พอ ต้องว่าง ~900 MB)", "Could not install the AI brain: ${e.message} (free ~900 MB of storage)"), running = false, bundled = true))
+                }
+            }
+        }
+    }
+
+    /** True when this APK carries the AI brain. */
+    val hasBundledBrain: Boolean get() = runCatching { context.assets.list("brain")?.any { it.endsWith(".gguf") } == true }.getOrDefault(false)
 
     /** After the app restarts, picks up downloads that the system kept running. */
     fun resumeWatching() {

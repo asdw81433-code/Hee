@@ -166,6 +166,7 @@ class HomeActivity : Activity() {
     private fun brainCard(): View {
         brainText = label("", 13f, colorText)
         brainButton = smallButton("", accent) {
+            if (graph.models.downloads.value.values.any { it.bundled && it.error != null }) { graph.models.installBundled(); return@smallButton }
             val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
             if (graph.models.downloads.value[spec.id]?.running == true) { graph.models.cancel(spec); return@smallButton }
             if (filesDir.usableSpace < spec.bytes + 60_000_000L) { android.widget.Toast.makeText(this, tr("พื้นที่ในเครื่องไม่พอ (ต้องการ ~850 MB)", "Not enough storage (~850 MB needed)"), android.widget.Toast.LENGTH_LONG).show(); return@smallButton }
@@ -201,6 +202,9 @@ class HomeActivity : Activity() {
             else -> (d.note?.let { "$it\n" } ?: "") + tr("กำลังโหลดสมอง AI ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%) ปิดแอปได้ ดูความคืบหน้าในแถบแจ้งเตือน", "Downloading the AI brain ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)")
         }
         brainButton.text = if (d?.running == true) tr("ยกเลิก", "Cancel") else if (d?.error != null) tr("ลองใหม่", "Try again") else tr("ติดตั้ง", "Install")
+        // the built-in brain unpacks by itself: nothing to press
+        brainButton.visibility = if (d?.bundled == true && d.error == null) View.GONE else View.VISIBLE
+        if (d?.bundled == true && d.error == null) brainText.text = (d.note ?: "") + " ${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%"
     }
 
     private fun setupBanner(): View {
