@@ -291,6 +291,43 @@ class DeviceE2ETest {
         runBlocking { graph.memoryStore.clearAll() }
     }
 
+    @Test
+    fun j_localModel_loadsAndGeneratesOnDevice() = runBlocking {
+        // CI pushes a tiny random-weight GGUF (scripts/make_tiny_gguf.py). It proves the native engine
+        // works on Android; it says nothing about answer quality.
+        val pushed = "/data/local/tmp/kivo-tiny.gguf"
+        org.junit.Assume.assumeTrue("no test model pushed", shell("ls $pushed").trim() == pushed)
+        val c = graph.controller
+        assertEquals("native library must load", null, com.livingai.core.ai.LlamaNative.loadError)
+        val file = ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand("cat $pushed")).use { c.models.import("kivo-tiny.gguf", it) }
+        try {
+            c.models.setActive(file)
+            c.llm.unloadAndWait()
+            assertTrue(c.llm.isAvailable); assertFalse(c.llm.isLoaded)
+            val direct = c.llm.generate(com.livingai.core.ai.GenRequest(
+                listOf(com.livingai.core.ai.ChatMessage(com.livingai.core.ai.ChatMessage.Role.USER, "สวัสดี")),
+                maxTokens = 12, grammar = "root ::= \"สวัสดีครับ 😀\"",
+            ))
+            assertEquals("สวัสดีครับ 😀", direct.text)
+            assertTrue(c.llm.isLoaded)
+            assertEquals(151936, c.llm.info!!.vocabulary)
+
+            // the whole path: a message that is neither small talk nor a command goes to the model
+            ask("พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน")
+            val r = c.llm.lastResult!!
+            assertTrue("tokens generated: ${r.generatedTokens}", r.generatedTokens >= 1)
+            assertTrue(c.resources.snapshot().loaded.toString(), c.resources.snapshot().loaded.any { it.contains("llm") })
+            note = "tiny model on device: ${r.generatedTokens} tokens, %.1f tok/s".format(r.tokensPerSecond)
+
+            // memory pressure unloads it
+            c.onLowMemory(critical = true)
+            waitUntil("the model is unloaded under memory pressure", 10_000) { !c.llm.isLoaded }
+        } finally {
+            c.llm.unloadAndWait()
+            c.models.delete(file)
+        }
+    }
+
     private fun <T> onMain(block: () -> T): T {
         var out: T? = null
         instr.runOnMainSync { out = block() }

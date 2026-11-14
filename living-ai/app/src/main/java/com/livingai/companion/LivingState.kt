@@ -14,6 +14,8 @@ object LivingState {
     /** Emergency stop: nothing looks at or touches the screen until the user resumes. */
     val paused = MutableStateFlow(false)
     val chat = MutableStateFlow<List<ChatLine>>(emptyList())
+    /** The reply being written by the language model right now ("" = none). */
+    val partial = MutableStateFlow("")
 
     fun appendChat(line: ChatLine) {
         chat.value = (chat.value + line).takeLast(80)

@@ -22,7 +22,7 @@ jobs:
   build:
     name: Unit tests + APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write   # publish the APK as a release asset (direct download link)
     steps:
@@ -32,10 +32,34 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit tests (agents, safety, redaction)
-        run: ./gradlew :core:test || ./gradlew :core:test  # retry once: Maven Central is occasionally flaky
+      - name: Get llama.cpp (pinned) and build the native engine for this machine
+        run: |
+          TAG=$(sed -n 's/^set(LLAMA_TAG "\(.*\)")/\1/p' app/src/main/cpp/CMakeLists.txt)
+          git clone --depth 1 --branch "$TAG" https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S app/src/main/cpp -B "$RUNNER_TEMP/native-host" -DLLAMA_DIR="$RUNNER_TEMP/llama.cpp" -DCMAKE_BUILD_TYPE=Release > /dev/null
+          cmake --build "$RUNNER_TEMP/native-host" -j"$(nproc)" --target kivo_llama | tail -3
+          pip install --quiet numpy
+          python3 scripts/make_tiny_gguf.py "$RUNNER_TEMP/llama.cpp" "$RUNNER_TEMP/tiny.gguf"
+      - name: Cache the real test model
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: qwen2.5-0.5b-instruct-q4_k_m-74a4da8c
+      - name: Download the real model (Qwen2.5 0.5B, Apache-2.0) for the quality test
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/models"; cd "$RUNNER_TEMP/models"
+          F=qwen2.5-0.5b-instruct-q4_k_m.gguf
+          [ -f "$F" ] || curl -sSL --retry 3 -m 600 -o "$F" "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/$F"
+          echo "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db  $F" | sha256sum -c - || rm -f "$F"
+      - name: Unit tests (core, native engine with tiny model, real model if downloaded)
+        run: |
+          ARGS="-PllamaLib=$RUNNER_TEMP/native-host/libkivo_llama.so -PtinyModel=$RUNNER_TEMP/tiny.gguf"
+          [ -f "$RUNNER_TEMP/models/qwen2.5-0.5b-instruct-q4_k_m.gguf" ] && ARGS="$ARGS -PrealModel=$RUNNER_TEMP/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+          (./gradlew :core:test $ARGS || ./gradlew :core:test $ARGS) 2>&1 | tee "$RUNNER_TEMP/core-test.log" | grep -v -E "^(llama|ggml|graph_compute|process_ubatch)" | tail -150
+          exit ${PIPESTATUS[0]}
       - name: Build APKs (debug for tests, release for installing)
-        run: ./gradlew :app:assembleDebug :app:assembleRelease || ./gradlew :app:assembleDebug :app:assembleRelease
+        run: ./gradlew :app:assembleDebug :app:assembleRelease -PllamaDir="$RUNNER_TEMP/llama.cpp" || ./gradlew :app:assembleDebug :app:assembleRelease -PllamaDir="$RUNNER_TEMP/llama.cpp"
       - name: Lint
         run: ./gradlew :app:lintDebug
         continue-on-error: true
@@ -63,25 +87,29 @@ jobs:
             living-ai/core/build/reports/tests
             living-ai/app/build/reports
           if-no-files-found: ignore
-      - name: Probe model and library sources (information only)
+      - name: Report (read from the end of the log)
         if: always()
         continue-on-error: true
-        working-directory: .
         run: |
-          for r in Qwen/Qwen2.5-0.5B-Instruct-GGUF Qwen/Qwen2.5-1.5B-Instruct-GGUF; do
-            echo "== $r"
-            curl -sS -m 30 "https://huggingface.co/api/models/$r/tree/main" | python3 -c "import sys,json; [print(f['path'], f.get('size'), (f.get('lfs') or {}).get('oid','')) for f in json.load(sys.stdin) if 'q4' in f['path'].lower() or 'LICENSE' in f['path']]" || true
-          done
-          for u in https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.7.0/tesseract4android-4.7.0.pom https://jitpack.io/cz/adaptech/tesseract4android/tesseract4android/4.9.0/tesseract4android-4.9.0.pom https://jitpack.io/com/github/adaptech-cz/Tesseract4Android/4.7.0/Tesseract4Android-4.7.0.pom; do
-            echo "$(curl -sS -o /dev/null -w '%{http_code}' -m 120 -L "$u") $u"
-          done
-          curl -sS -m 30 https://jitpack.io/api/builds/com.github.adaptech-cz/Tesseract4Android | head -c 600 || true
-          echo; ls "$ANDROID_HOME/ndk" 2>/dev/null; ls "$ANDROID_HOME/cmake" 2>/dev/null; nproc; free -g | sed -n 2p
+          echo "== core tests"
+          python3 - <<'PY'
+          import glob, re
+          t = f = sk = 0
+          for x in glob.glob('core/build/test-results/test/*.xml'):
+              m = re.search(r'tests="(\d+)" skipped="(\d+)" failures="(\d+)" errors="(\d+)"', open(x).read())
+              t += int(m[1]); sk += int(m[2]); f += int(m[3]) + int(m[4])
+          print('tests', t, 'skipped', sk, 'failed', f)
+          PY
+          echo "== real model on the CI machine ($(nproc) cores; a phone is slower)"
+          grep "REAL-MODEL" "$RUNNER_TEMP/core-test.log" || echo "real model test did not run"
+          echo "== APK"
+          ls -l app/build/outputs/apk/release/*.apk app/build/outputs/apk/debug/*.apk
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep -E "\.so$|tessdata" || true
 
   device-tests:
     name: Android 16 emulator E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -89,6 +117,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Get llama.cpp (pinned) and make the tiny test model
+        run: |
+          TAG=$(sed -n 's/^set(LLAMA_TAG "\(.*\)")/\1/p' app/src/main/cpp/CMakeLists.txt)
+          git clone --depth 1 --branch "$TAG" https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          pip install --quiet numpy
+          python3 scripts/make_tiny_gguf.py "$RUNNER_TEMP/llama.cpp" "$RUNNER_TEMP/tiny.gguf"
       - name: Enable KVM
         working-directory: .
         run: |
@@ -106,7 +140,10 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           working-directory: living-ai
-          script: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest || ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest; ./gradlew :app:connectedDebugAndroidTest
+          script: |
+            adb push "$RUNNER_TEMP/tiny.gguf" /data/local/tmp/kivo-tiny.gguf
+            ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp" || ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.injected.build.abi=x86_64 -PllamaDir="$RUNNER_TEMP/llama.cpp"
       - name: Device test summary
         if: always()
         run: |

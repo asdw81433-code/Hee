@@ -24,4 +24,11 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Native engine tests run only when a host build of the library is given:
+    //   -PllamaLib=/path/libkivo_llama.so -PtinyModel=/path/tiny.gguf [-PrealModel=/path/model.gguf]
+    listOf("llamaLib" to "kivo.llama.lib", "tinyModel" to "kivo.tiny.model", "realModel" to "kivo.real.model").forEach { (prop, sys) ->
+        (project.findProperty(prop) as String?)?.let { systemProperty(sys, it) }
+    }
+    testLogging { showStandardStreams = project.hasProperty("llamaLib") }
+    maxHeapSize = "1g"
 }

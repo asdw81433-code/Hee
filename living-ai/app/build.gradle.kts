@@ -11,9 +11,25 @@ android {
         applicationId = "com.livingai.companion"
         minSdk = 26
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.9.0"
+        versionCode = 12
+        versionName = "0.10.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // llama.cpp + Kivo's JNI bridge (app/src/main/cpp). 64-bit only: llama.cpp is not supported on 32-bit ARM.
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=c++_static", "-DCMAKE_BUILD_TYPE=Release")
+                (project.findProperty("llamaDir") as String?)?.let { arguments += "-DLLAMA_DIR=$it" }
+            }
+        }
+    }
+
+    ndkVersion = "27.3.13750724"
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.31.5"
+        }
     }
 
     signingConfigs {
@@ -29,14 +45,14 @@ android {
 
     buildTypes {
         debug {
-            // includes x86_64 so the emulator tests can load ML Kit
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+            // includes x86_64 so the emulator tests can load the native code
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         }
         release {
-            // The APK people install: not debuggable, phone ABIs only (Galaxy A07 = Helio G99, arm).
+            // The APK people install: not debuggable, 64-bit ARM phones (Galaxy A07 = Helio G99).
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("sideload")
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            ndk { abiFilters += listOf("arm64-v8a") }
         }
     }
 

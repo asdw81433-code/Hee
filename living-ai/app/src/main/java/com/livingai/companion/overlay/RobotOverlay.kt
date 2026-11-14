@@ -225,6 +225,24 @@ class RobotOverlay(
         main.postDelayed(hideBubble, (2500L + text.length * 65L).coerceAtMost(14000L))
     }
 
+    /** The reply so far while the model is still writing: the same bubble grows instead of being rebuilt. */
+    fun sayPartial(text: String) = main.post {
+        if (destroyed || text.isBlank()) return@post
+        val shown = if (text.length > 220) "…" + text.takeLast(220) else text
+        val tv = bubble
+        if (tv == null) { say(shown); return@post }
+        tv.text = shown
+        val size = ScreenMetrics.realSize(ctx)
+        tv.measure(
+            View.MeasureSpec.makeMeasureSpec((size.x * 0.66f).toInt(), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        placeBubble()
+        robot.talking = true
+        main.removeCallbacks(hideBubble)
+        main.postDelayed(hideBubble, 15000L)
+    }
+
     /** Keeps the bubble centred over the head while the robot moves. */
     private fun placeBubble() {
         val tv = bubble ?: return

@@ -35,6 +35,12 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
         set(v) = sp.edit().putString("skin", v).apply()
     /** Kivo may save things the user says about themselves without being told to. */
     var autoMemory: Boolean get() = bool("auto_memory", true); set(v) = put("auto_memory", v)
+    /** Use the on-device language model for free conversation (when one is installed). */
+    var llmEnabled: Boolean get() = bool("llm_enabled", true); set(v) = put("llm_enabled", v)
+    /** CPU threads for the model; 0 = not tuned yet (4 is used). */
+    var llmThreads: Int get() = sp.getInt("llm_threads", 0); set(v) = sp.edit().putInt("llm_threads", v).apply()
+    /** Best measured speed of the model on this phone, tokens per second × 10. */
+    var llmSpeedX10: Int get() = sp.getInt("llm_speed", 0); set(v) = sp.edit().putInt("llm_speed", v).apply()
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

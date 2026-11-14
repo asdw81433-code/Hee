@@ -42,6 +42,8 @@ class KivoCore(
     val emotion: EmotionEngine = EmotionEngine({ System.currentTimeMillis() }),
     private val personality: () -> Personality = { Personality() },
     private val bond: Bond? = null,
+    /** Free conversation with the on-device language model; null = rules only. */
+    private val brain: com.livingai.core.ai.ChatBrain? = null,
 ) {
     init {
         emotion.onChange = { listener.onMood(it.mood) }
@@ -113,11 +115,32 @@ class KivoCore(
         }
         val out = ArrayList<String>()
         for (step in LocalMind.steps(text)) {
-            val line = runStep(step) ?: run { understood = false; return (out + lastHint).joinToString("\n") }
+            val line = runStep(step) ?: run {
+                // not a command Kivo knows: if nothing was done yet, this is conversation for the language model
+                if (out.isEmpty()) think(text)?.let { return it }
+                understood = false
+                return (out + lastHint).joinToString("\n")
+            }
             out.add(line)
             if (anyActionFailed) break
         }
         return out.joinToString("\n")
+    }
+
+    /** Lets the on-device model answer. Null when there is no model or it could not answer. */
+    private suspend fun think(text: String): String? {
+        val b = brain?.takeIf { it.isAvailable } ?: return null
+        listener.onStatus(AgentStatus.THINKING)
+        val reply = b.reply(
+            text, context().copy(mood = emotion.state.mood), personality(),
+            history = memory.store.recentChat(12), memories = memory.relevant(text, 4),
+            onPartial = { listener.onPartial(it) },
+        ) ?: run {
+            b.lastError?.let { lastHint = tr("ตอนนี้สมอง AI ในเครื่องตอบไม่ได้: $it", "The on-device AI brain cannot answer right now: $it") }
+            return null
+        }
+        replyMood = null
+        return reply
     }
 
     /** One command. Returns null (and sets [lastHint]) when it was not understood. */

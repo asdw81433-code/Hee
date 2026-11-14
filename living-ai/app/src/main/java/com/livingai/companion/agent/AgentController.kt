@@ -13,6 +13,15 @@ import com.livingai.companion.resource.AndroidMemoryProbe
 import com.livingai.companion.tools.AndroidDevicePort
 import com.livingai.core.AgentListener
 import com.livingai.core.KivoCore
+import com.livingai.core.ai.AiException
+import com.livingai.core.ai.ChatBrain
+import com.livingai.core.ai.GenRequest
+import com.livingai.core.ai.GenResult
+import com.livingai.core.ai.LlamaConfig
+import com.livingai.core.ai.LlamaEngine
+import com.livingai.core.ai.ModelFiles
+import com.livingai.core.ai.TextGenerator
+import com.livingai.core.resource.Admission
 import com.livingai.core.resource.ManagedResource
 import com.livingai.core.resource.Pressure
 import com.livingai.core.resource.ResourceManager
@@ -67,13 +76,37 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         targetLeadMs = 230L,
     )
     val devicePort = AndroidDevicePort(context)
-    private val mainAgent = KivoCore(
-        vision, actions, devicePort, memory, this, localContext = ::deviceContext,
-        emotion = emotion, personality = { personalityStore.load() }, bond = bond,
-    )
 
     /** Decides what may be in memory at the same time; see core.resource.ResourceManager. */
     val resources = ResourceManager(AndroidMemoryProbe(context), { SystemClock.elapsedRealtime() })
+
+    // ---------- the on-device language model ----------
+    val models = ModelFiles(java.io.File(context.filesDir, "models"), prefs)
+    val llm = LlamaEngine(
+        modelFile = { models.active() },
+        // a smaller context in low-RAM mode: less memory, shorter conversations
+        config = { LlamaConfig(contextTokens = if (resources.lowRam) 1024 else 2048, threads = prefs.llmThreads.takeIf { it > 0 } ?: 4, batch = 256) },
+    )
+
+    /** The model as the rest of the app uses it: asks the resource manager before loading, and can be switched off. */
+    private val managedLlm = object : TextGenerator {
+        override val isAvailable get() = prefs.llmEnabled && llm.isAvailable
+        override val isLoaded get() = llm.isLoaded
+        override val modelName get() = llm.modelName
+        override suspend fun generate(request: GenRequest, onText: (String) -> Unit): GenResult {
+            when (val a = resources.acquire(llm)) {
+                is Admission.Denied -> throw AiException(a.reason)
+                else -> Unit
+            }
+            try { return llm.generate(request, onText) } finally { resources.release(llm) }
+        }
+    }
+    val brain = ChatBrain(managedLlm)
+
+    private val mainAgent = KivoCore(
+        vision, actions, devicePort, memory, this, localContext = ::deviceContext,
+        emotion = emotion, personality = { personalityStore.load() }, bond = bond, brain = brain,
+    )
 
     private val ocrResource = object : ManagedResource {
         override val name = "OCR"
@@ -84,6 +117,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
 
     init {
         resources.register(ocrResource, ResourceMode.VISION)
+        resources.register(llm, ResourceMode.CONVERSATION)
         // feelings fade and idle resources are released, once a minute
         scope.launch {
             while (true) {
@@ -276,7 +310,13 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     fun onTouched() = emotion.onEvent(EmotionEvent.TOUCHED)
     fun onPickedUp() = emotion.onEvent(EmotionEvent.PICKED_UP)
 
+    override fun onPartial(text: String) {
+        LivingState.partial.value = text
+        overlay?.sayPartial(text)
+    }
+
     override fun onSay(text: String, proactive: Boolean) {
+        LivingState.partial.value = ""
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, text))
         overlay?.say(text)
         if (prefs.speakReplies && !LivingState.paused.value) speaker.say(text)

@@ -181,6 +181,12 @@ class HomeActivity : Activity() {
             tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
         )
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 2.dp, 12.dp, 2.dp) }
+        row.addView(TextView(this).apply {
+            text = tr("🤖 สมอง AI", "🤖 AI brain"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            background = GradientDrawable().apply { cornerRadius = 18f * resources.displayMetrics.density; setColor(accent) }
+            setPadding(12.dp, 7.dp, 12.dp, 7.dp)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, ModelActivity::class.java)) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
         for ((title, text) in chips) {
             row.addView(TextView(this).apply {
                 this.text = title; textSize = 13f; setTextColor(colorText)
@@ -230,6 +236,7 @@ class HomeActivity : Activity() {
         if (lines.size == shownLines) return
         shownLines = lines.size
         chatList.removeAllViews()
+        partialView = null
         if (lines.isEmpty()) {
             chatList.addView(bubble(
                 tr(
@@ -241,6 +248,17 @@ class HomeActivity : Activity() {
         } else {
             for (line in lines.takeLast(60)) chatList.addView(bubble(line.text, line.fromUser))
         }
+        chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private var partialView: View? = null
+
+    /** The reply while the on-device model is still writing it. */
+    private fun showPartial(text: String) {
+        partialView?.let { chatList.removeView(it) }
+        partialView = null
+        if (text.isBlank()) return
+        partialView = bubble("$text ▌", mine = false).also { chatList.addView(it) }
         chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
@@ -291,6 +309,7 @@ class HomeActivity : Activity() {
             }
             launch { LivingState.mood.collect { orb.mood = it; moodText.text = moodLabel(it) } }
             launch { LivingState.chat.collect { renderChat(it) } }
+            launch { LivingState.partial.collect { showPartial(it) } }
             launch { LivingState.accessibilityConnected.collect { refresh() } }
             launch { LivingState.captureActive.collect { refresh() } }
         }
