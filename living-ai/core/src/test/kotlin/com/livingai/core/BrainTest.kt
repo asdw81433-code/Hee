@@ -67,6 +67,29 @@ class ChatBrainTest {
     }
 
     @Test
+    fun `a long conversation keeps its beginning for many turns so the cache stays useful`() {
+        val brain = ChatBrain(ScriptedGenerator(), maxHistory = 8)
+        val history = ArrayList<ChatLine>()
+        var previous: List<com.livingai.core.ai.ChatMessage> = emptyList()
+        var kept = 0
+        var turns = 0
+        for (i in 1..30) {
+            val q = "คำถามที่ $i"
+            history.add(ChatLine(i * 10L, true, q))
+            val m = brain.buildMessages(q, ctx.copy(minute = i), Personality(), history.takeLast(16), emptyList())
+            if (i > 1) {
+                turns++
+                // everything sent last time (including that turn's context note) is the start of this prompt
+                if (m.size > previous.size && m.take(previous.size) == previous) kept++
+            }
+            assertTrue(m.size <= 5 + 8 + ChatBrain.WINDOW_STEP + 1, "window grew to ${m.size}")
+            history.add(ChatLine(i * 10L + 1, false, "คำตอบที่ $i"))
+            previous = m
+        }
+        assertTrue(kept >= turns * 0.75, "prefix kept in only $kept of $turns turns")
+    }
+
+    @Test
     fun `reply is streamed, cleaned and null on failure`() = runBlocking {
         val gen = ScriptedGenerator("[เวลา 14:05] ลองส้มตำไหม<|im_end|>")
         val brain = ChatBrain(gen)

@@ -178,9 +178,19 @@ class HomeActivity : Activity() {
             tr("👁 ดูหน้าจอ", "👁 Look at the screen") to tr("ดูหน้าจอ", "look"),
             tr("❓ ทำอะไรได้บ้าง", "❓ What can you do") to tr("คุณทำอะไรได้บ้าง", "What can you do?"),
             tr("🧠 จำอะไรได้บ้าง", "🧠 What do you remember") to tr("จำอะไรเกี่ยวกับเราได้บ้าง", "What do you remember about me?"),
+            tr("🎮 เล่นเกม", "🎮 Play") to tr("เล่นเกม", "play a game"),
+            tr("📝 วางแผนวันนี้", "📝 Plan my day") to tr("วางแผนวันนี้", "plan my day"),
             tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
         )
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 2.dp, 12.dp, 2.dp) }
+        fun nav(label: String, target: Class<*>) = row.addView(TextView(this).apply {
+            text = label; textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            background = GradientDrawable().apply { cornerRadius = 18f * resources.displayMetrics.density; setColor(grey) }
+            setPadding(12.dp, 7.dp, 12.dp, 7.dp)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, target)) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
+        nav(tr("🎨 ตัวละคร", "🎨 Character"), CharacterActivity::class.java)
+        nav(tr("🧠 ความจำ", "🧠 Memory"), MemoryActivity::class.java)
         row.addView(TextView(this).apply {
             text = tr("🤖 สมอง AI", "🤖 AI brain"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
             background = GradientDrawable().apply { cornerRadius = 18f * resources.displayMetrics.density; setColor(accent) }
@@ -218,6 +228,11 @@ class HomeActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(10.dp, 6.dp, 10.dp, 10.dp)
             addView(roundButton("🎤", grey) { VoiceActivity.start(this@HomeActivity, fromOverlay = false) }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
+            addView(roundButton("📎", grey) {
+                // a picture is read for its text on the device (OCR)
+                @Suppress("DEPRECATION")
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }, REQ_IMAGE)
+            }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
             addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
             addView(roundButton("➤", accent) { send(input.text.toString()) }, LinearLayout.LayoutParams(46.dp, 46.dp))
         }
@@ -249,6 +264,23 @@ class HomeActivity : Activity() {
             for (line in lines.takeLast(60)) chatList.addView(bubble(line.text, line.fromUser))
         }
         chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    @Deprecated("Framework Activity API; fine without AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data ?: return
+        if (requestCode != REQ_IMAGE || resultCode != RESULT_OK) return
+        val bitmap = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) }
+        }.getOrNull()
+        if (bitmap == null) android.widget.Toast.makeText(this, tr("เปิดรูปนี้ไม่ได้", "Could not open that picture"), android.widget.Toast.LENGTH_SHORT).show()
+        else graph.controller.readImage(bitmap)
     }
 
     private var partialView: View? = null
@@ -391,4 +423,6 @@ class HomeActivity : Activity() {
         setPadding(0, 0, 0, 0)
         setOnClickListener { onClick() }
     }
+
+    private companion object { const val REQ_IMAGE = 8101 }
 }

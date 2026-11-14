@@ -56,6 +56,13 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         append(']')
     }
 
+    // What was really sent for earlier user messages (text → text with its context note), and where the
+    // history window starts. Both exist so that the prompt of the next turn begins with exactly the same
+    // tokens as this one: the engine then only has to read the new message instead of the whole conversation.
+    private val sent = LinkedHashMap<String, String>()
+    private var anchorMs = -1L
+
+    @Synchronized
     fun buildMessages(userText: String, ctx: LocalMind.Context, personality: Personality, history: List<ChatLine>, memories: List<Memory>): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         out.add(ChatMessage(Role.SYSTEM, systemPrompt(personality)))
@@ -63,9 +70,22 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         // they sit in the stable part of the prompt, so they are read once and then cached
         for ((q, r) in examples(personality)) { out.add(ChatMessage(Role.USER, q)); out.add(ChatMessage(Role.ASSISTANT, r)) }
         // the conversation so far, without the message being answered (it is added below with its context note)
-        val past = history.let { if (it.lastOrNull()?.fromUser == true && it.last().text == userText) it.dropLast(1) else it }.takeLast(maxHistory)
-        for (line in past.dropWhile { !it.fromUser }) out.add(ChatMessage(if (line.fromUser) Role.USER else Role.ASSISTANT, line.text.take(400)))
-        out.add(ChatMessage(Role.USER, contextNote(ctx, memories) + "\n" + userText.take(1200)))
+        var past = history.let { if (it.lastOrNull()?.fromUser == true && it.last().text == userText) it.dropLast(1) else it }
+        // the window does not slide one line per turn (that would invalidate the cache every time):
+        // it stays anchored and jumps forward by a block when it has grown too long
+        val fromAnchor = past.dropWhile { it.timestampMs < anchorMs }
+        past = if (anchorMs >= 0 && fromAnchor.isNotEmpty() && fromAnchor.size <= maxHistory + WINDOW_STEP) fromAnchor else past.takeLast(maxHistory)
+        past = past.dropWhile { !it.fromUser }
+        anchorMs = past.firstOrNull()?.timestampMs ?: -1L
+        for (line in past) {
+            val content = if (line.fromUser) sent[line.text] ?: line.text.take(1200) else line.text.take(400)
+            out.add(ChatMessage(if (line.fromUser) Role.USER else Role.ASSISTANT, content))
+        }
+        val noThink = if (generator.modelName.contains("qwen3", ignoreCase = true)) " /no_think" else ""
+        val now = contextNote(ctx, memories) + "\n" + userText.take(1200) + noThink
+        sent[userText] = now
+        while (sent.size > 24) sent.remove(sent.keys.first())
+        out.add(ChatMessage(Role.USER, now))
         return out
     }
 
@@ -83,7 +103,7 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
             temperature = 0.35f + personality.playfulness * 0.2f,
             topP = 0.85f, topK = 30, repeatPenalty = 1.15f,
             grammar = SCRIPT_GRAMMAR,
-            stop = listOf("<|im_end|>", "<|im_start|>", "<|endoftext|>", "\n[", "\nUser:", "\nผู้ใช้:"),
+            stop = listOf("<|im_end|>", "<|im_start|>", "<|endoftext|>", "<end_of_turn>", "<start_of_turn>", "\n[", "\nUser:", "\nผู้ใช้:"),
         )
         return try {
             lastError = null
@@ -106,12 +126,13 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
          * Keeps the reply in Thai / Latin script. Small multilingual models sometimes drift into Chinese
          * or other scripts in the middle of a Thai answer; this grammar makes those characters impossible.
          */
+        const val WINDOW_STEP = 6
         const val SCRIPT_GRAMMAR =
             "root ::= [^\\u0370-\\u0DFF\\u0E80-\\u1FFF\\u2E80-\\uA7FF\\uA960-\\uA97F\\uAC00-\\uD7FF\\uF900-\\uFAFF\\uFE30-\\uFE4F\\uFF00-\\uFFEF]*"
 
         /** Tidies model output: no leftover markers, no bracketed system notes, no half sentence after a length cut. */
         fun clean(raw: String): String {
-            var t = raw.replace(Regex("<\\|[^|>]*\\|>"), "").replace(Regex("\\[[^\\]]{0,300}]"), "")
+            var t = raw.replace(Regex("(?s)<think>.*?(</think>|$)"), "").replace(Regex("<\\|[^|>]*\\|>"), "").replace(Regex("<(start|end)_of_turn>"), "").replace(Regex("\\[[^\\]]{0,300}]"), "")
                 .replace(Regex("<\\|[^>]*$|<$"), "").replace(Regex("^\\s*\\[[^\\]]*$"), "").trim()
             t = t.removePrefix("${Persona.NAME}:").removePrefix("Assistant:").trim()
             t = t.replace(Regex("\n{2,}"), "\n")

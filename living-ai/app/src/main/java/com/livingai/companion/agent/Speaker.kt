@@ -20,6 +20,9 @@ class Speaker(private val context: Context, private val prefs: Prefs) {
 
     /** Called with true when a sentence starts sounding and false when the voice goes quiet. */
     @Volatile var onSpeaking: (Boolean) -> Unit = {}
+    /** The voice is audible right now. */
+    @Volatile var isSpeaking = false
+        private set
     /** What the last attempt found out about the voice, for the settings screen. */
     @Volatile var voiceInfo: String = ""
         private set
@@ -45,10 +48,10 @@ class Speaker(private val context: Context, private val prefs: Prefs) {
         val engine = tts ?: return
         if (!ok) { voiceInfo = "no text-to-speech engine"; release(); return }
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) = onSpeaking(true)
-            override fun onDone(utteranceId: String?) = onSpeaking(false)
-            @Deprecated("old callback") override fun onError(utteranceId: String?) = onSpeaking(false)
-            override fun onStop(utteranceId: String?, interrupted: Boolean) = onSpeaking(false)
+            override fun onStart(utteranceId: String?) { isSpeaking = true; onSpeaking(true) }
+            override fun onDone(utteranceId: String?) { isSpeaking = false; onSpeaking(false) }
+            @Deprecated("old callback") override fun onError(utteranceId: String?) { isSpeaking = false; onSpeaking(false) }
+            override fun onStop(utteranceId: String?, interrupted: Boolean) { isSpeaking = false; onSpeaking(false) }
         })
         pending?.let { speakNow(engine, it) }
         pending = null
@@ -79,6 +82,7 @@ class Speaker(private val context: Context, private val prefs: Prefs) {
     fun stop() {
         pending = null
         tts?.stop()
+        isSpeaking = false
         onSpeaking(false)
     }
 

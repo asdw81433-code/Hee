@@ -40,7 +40,12 @@ import com.livingai.core.emotion.EmotionEvent
 import com.livingai.core.emotion.Mood
 import com.livingai.core.personality.Bond
 import com.livingai.core.personality.PersonalityStore
+import com.livingai.core.companion.Initiative
+import com.livingai.core.companion.InitiativeContext
 import com.livingai.core.companion.ProactivePolicy
+import com.livingai.core.companion.QuietSettings
+import com.livingai.core.companion.Trigger
+import com.livingai.core.memory.MemoryKind
 import com.livingai.core.tools.SafetyPolicy
 import com.livingai.core.companion.ScreenEventKind
 import kotlinx.coroutines.CoroutineScope
@@ -107,6 +112,14 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     private val mainAgent = KivoCore(
         vision, actions, devicePort, memory, this, localContext = ::deviceContext,
         emotion = emotion, personality = { personalityStore.load() }, bond = bond, brain = brain,
+        activities = com.livingai.core.companion.ActivityHub(playfulness = { personalityStore.load().playfulness }),
+    )
+
+    /** When and what Kivo says on its own; see core.companion.Initiative. */
+    val initiative = Initiative(
+        { System.currentTimeMillis() }, prefs,
+        settings = { QuietSettings(prefs.quietMode || !prefs.proactiveEnabled, prefs.dndEnabled, prefs.dndStartHour, prefs.dndEndHour) },
+        personality = { personalityStore.load() },
     )
 
     private val ocrResource = object : ManagedResource {
@@ -125,6 +138,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
                 delay(60_000)
                 emotion.tick(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
                 resources.onIdleTick()
+                minuteTick()
             }
         }
     }
@@ -175,6 +189,7 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
             return
         }
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), true, text))
+        initiative.userResponded()
         proactiveJob?.cancel()
         val previous = userJob
         userJob = scope.launch {
@@ -255,7 +270,8 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
         }
     }
 
-    private fun canBeProactive() = prefs.proactiveEnabled && prefs.visionEnabled && !LivingState.paused.value
+    private fun canBeProactive() = prefs.proactiveEnabled && prefs.visionEnabled && !LivingState.paused.value && !prefs.quietMode &&
+        !QuietSettings(false, prefs.dndEnabled, prefs.dndStartHour, prefs.dndEndHour).inDnd(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
 
     private fun react(kind: ScreenEventKind, pkg: String, detail: String = "") {
         proactiveJob?.cancel()
@@ -310,6 +326,105 @@ class AgentController(private val context: Context, val prefs: Prefs, memoryStor
     /** The robot was touched / dragged: that is an event for the emotion engine too. */
     fun onTouched() = emotion.onEvent(EmotionEvent.TOUCHED)
     fun onPickedUp() = emotion.onEvent(EmotionEvent.PICKED_UP)
+
+    // ---------- Kivo's own initiative (device events come from CompanionService) ----------
+
+    private var musicWasPlaying = false
+    private var lateNightDay = -1
+    @Volatile private var screenOn = true
+
+    /** Says something on its own if the moment allows it. Never interrupts a task or a game, never while paused. */
+    fun speakUp(trigger: Trigger) {
+        if (LivingState.paused.value || isBusy || overlay == null || mainAgent.activities.active != null) return
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        if (!initiative.allowed(trigger, hour)) return
+        scope.launch {
+            val dc = deviceContext()
+            val todos = memory.store.list(MemoryKind.TODO, 20).filter { !it.done }.map { it.title }
+            val ctx = InitiativeContext(
+                hour = hour, userName = memory.userName(), mood = emotion.state.mood, batteryPercent = dc.batteryPercent,
+                sinceLastChatMs = bond.sinceLastMs, openTodos = todos, followUp = memory.lastEpisode(minImportance = 2),
+                bondLevel = bond.level, interests = personalityStore.load().interests,
+            )
+            val line = initiative.compose(trigger, ctx) { mainAgent.activities.suggestion(it) } ?: return@launch
+            if (isBusy) return@launch
+            initiative.spoke()
+            val said = com.livingai.core.personality.Stylist.apply(line, personalityStore.load().speechStyle)
+            memory.logChat(fromUser = false, text = said)
+            onStatus(AgentStatus.TALKING)
+            onSay(said, proactive = true)
+            onStatus(AgentStatus.IDLE)
+        }
+    }
+
+    fun onUserPresent() {
+        screenOn = true
+        emotion.onEvent(EmotionEvent.USER_RETURNED)
+        overlay?.wave()
+        speakUp(Trigger.UNLOCKED)
+    }
+
+    fun onScreenOff() {
+        screenOn = false
+        speaker.stop()
+    }
+
+    fun onBatteryLow() { emotion.onEvent(EmotionEvent.BATTERY_LOW); speakUp(Trigger.BATTERY_LOW) }
+    fun onCharging() { emotion.onEvent(EmotionEvent.CHARGING_STARTED); speakUp(Trigger.CHARGING) }
+
+    /** Once a minute: music makes Kivo dance, long quiet stretches may bring a suggestion, late nights a nudge to rest. */
+    private fun minuteTick() {
+        if (overlay == null || !screenOn) return
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
+        val music = audio?.isMusicActive == true && !speaker.isSpeaking
+        if (music != musicWasPlaying) {
+            musicWasPlaying = music
+            overlay?.setDancing(music && prefs.roamEnabled)
+            if (music) { emotion.onEvent(EmotionEvent.MUSIC_PLAYING); speakUp(Trigger.MUSIC_STARTED) }
+        }
+        val cal = java.util.Calendar.getInstance()
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        if (hour in 0..3 && lateNightDay != cal.get(java.util.Calendar.DAY_OF_YEAR) && !prefs.dndEnabled) {
+            lateNightDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
+            speakUp(Trigger.LATE_NIGHT)
+        } else if (!music) {
+            speakUp(Trigger.IDLE) // the policy decides whether enough time has passed
+        }
+    }
+
+    /** A picture the user attached in the chat: its text is read on the device (OCR). The language model cannot see images. */
+    fun readImage(bitmap: android.graphics.Bitmap) {
+        LivingState.appendChat(ChatLine(System.currentTimeMillis(), true, tr("📎 (แนบรูป)", "📎 (picture)")))
+        scope.launch {
+            onStatus(AgentStatus.LOOKING)
+            val text = try {
+                when (val a = resources.acquire(ocrResource)) {
+                    is Admission.Denied -> a.reason
+                    else -> try {
+                        screenSource.ocrLoaded = true
+                        val t = com.livingai.core.privacy.Redactor.redactText(screenSource.ocr.recognize(bitmap), false)
+                        if (t.isBlank()) tr("เราอ่านตัวหนังสือในรูปนี้ไม่ออก (เราอ่านได้เฉพาะข้อความ ยังมองภาพวิวหรือหน้าคนไม่ได้)", "I could not find readable text in this picture (I can only read text, not understand photos).")
+                        else tr("ในรูปเขียนว่า:\n", "The picture says:\n") + t.take(1500)
+                    } finally { resources.release(ocrResource) }
+                }
+            } finally { bitmap.recycle() }
+            memory.logChat(fromUser = false, text = text)
+            onStatus(AgentStatus.TALKING)
+            onSay(text)
+            onStatus(AgentStatus.IDLE)
+        }
+    }
+
+    /** Deletes everything Kivo has stored: memories, chat, reminders, personality, bond. Model files are kept unless asked. */
+    suspend fun deleteAllData(alsoModels: Boolean) {
+        stopCurrent()
+        reminders.book.all().forEach { reminders.cancel(it) }
+        memory.store.clearAll()
+        LivingState.chat.value = emptyList()
+        prefs.clearCompanionData()
+        vision.forget()
+        if (alsoModels) { llm.unloadAndWait(); models.installed().forEach { models.delete(it) } }
+    }
 
     /** A reminder is due: say it like any other thing Kivo says on its own (the notification is posted by the receiver). */
     fun announceReminder(text: String) {

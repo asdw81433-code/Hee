@@ -46,6 +46,8 @@ class KivoCore(
     private val bond: Bond? = null,
     /** Free conversation with the on-device language model; null = rules only. */
     private val brain: com.livingai.core.ai.ChatBrain? = null,
+    /** Games and other things done together. */
+    val activities: com.livingai.core.companion.ActivityHub = com.livingai.core.companion.ActivityHub(),
 ) {
     init {
         emotion.onChange = { listener.onMood(it.mood) }
@@ -63,8 +65,11 @@ class KivoCore(
         replyMood = null
         understood = true
         didAct = false
-        Sentiment.of(text)?.let { emotion.onEvent(it) }
-        val learned = memory.learnFrom(text)
+        inGame = false
+        // inside a game, answers are moves: they are not statements about the user and not praise or insults
+        val playing = activities.active != null
+        if (!playing) Sentiment.of(text)?.let { emotion.onEvent(it) }
+        val learned = if (playing) emptyList() else memory.learnFrom(text)
         var reply = try {
             respond(text)
         } catch (e: CancellationException) {
@@ -84,6 +89,7 @@ class KivoCore(
             !understood -> emotion.onEvent(EmotionEvent.NOT_UNDERSTOOD)
             didAct -> emotion.onEvent(EmotionEvent.TASK_SUCCEEDED)
             learned.isNotEmpty() -> emotion.onEvent(EmotionEvent.LEARNED_SOMETHING)
+            inGame -> Unit
             else -> replyMood?.let { emotion.suggest(it) }
         }
         reply = Stylist.apply(reply, personality().speechStyle)
@@ -97,6 +103,7 @@ class KivoCore(
 
     private var understood = true
     private var didAct = false
+    private var inGame = false
 
     private suspend fun context(): LocalMind.Context {
         val base = localContext()
@@ -110,6 +117,17 @@ class KivoCore(
      * chained with "แล้ว" / "then".
      */
     private suspend fun respond(text: String): String {
+        // a game in progress (or a request to start one) comes first: "5" is a move, not a command
+        activities.handle(text)?.let { turn ->
+            turn.event?.let { emotion.onEvent(it) }
+            for (todo in turn.todos) memory.store.save(Memory(kind = MemoryKind.TODO, title = todo, content = "", importance = 2))
+            if (turn.finished && turn.event != null) memory.logEpisode(tr("เล่นเกมด้วยกัน", "Played a game together"), turn.text.lines().last().take(80), importance = 1)
+            inGame = true
+            return turn.text
+        }
+        com.livingai.core.companion.Calculator.find(text)?.let { expr ->
+            com.livingai.core.companion.Calculator.eval(expr)?.let { v -> replyMood = Mood.FOCUSED; return "$expr = ${com.livingai.core.companion.Calculator.format(v)}" }
+        }
         LocalMind.chat(text, context())?.let { reply ->
             replyMood = reply.mood
             reply.rememberName?.let { memory.remember(MemoryAgent.NAME_KEY, it) }

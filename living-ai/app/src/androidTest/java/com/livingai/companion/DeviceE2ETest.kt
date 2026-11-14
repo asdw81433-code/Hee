@@ -93,10 +93,10 @@ class DeviceE2ETest {
     }
 
     /** Sends a command through the real controller and waits for the robot's reply. */
-    private fun ask(command: String): String {
+    private fun ask(command: String, timeoutMs: Long = 45_000): String {
         val before = LivingState.chat.value.size
         graph.controller.submit(command)
-        waitUntil("the robot answers \"$command\"", 45_000) {
+        waitUntil("the robot answers \"$command\"", timeoutMs) {
             val chat = LivingState.chat.value
             chat.size >= before + 2 && !chat.last().fromUser && !graph.controller.isBusy
         }
@@ -318,7 +318,8 @@ class DeviceE2ETest {
             assertEquals(151936, c.llm.info!!.vocabulary)
 
             // the whole path: a message that is neither small talk nor a command goes to the model
-            ask("พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน")
+            // (slow here on purpose: random weights make the script grammar reject almost every token, which a real model does not)
+            ask("พรุ่งนี้ควรไปเที่ยวทะเลหรือภูเขาดีกว่ากัน", timeoutMs = 170_000)
             val r = c.llm.lastResult!!
             assertTrue("tokens generated: ${r.generatedTokens}", r.generatedTokens >= 1)
             assertTrue(c.resources.snapshot().loaded.toString(), c.resources.snapshot().loaded.any { it.contains("llm") })

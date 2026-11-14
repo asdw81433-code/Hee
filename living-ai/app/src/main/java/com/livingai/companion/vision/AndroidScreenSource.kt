@@ -29,7 +29,6 @@ class AndroidScreenSource(private val context: Context, private val prefs: Prefs
     val ocr = OcrEngine(context)
     /** True once the OCR recogniser has been created and until it is released. */
     @Volatile var ocrLoaded = false
-        private set
     @Volatile var lowMemory = false
 
     private var lastSig: IntArray? = null

@@ -44,6 +44,19 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
     /** Speech rate and pitch of the voice (1.0 = the engine's normal). */
     var ttsRate: Float get() = sp.getFloat("tts_rate", 1.05f); set(v) = sp.edit().putFloat("tts_rate", v).apply()
     var ttsPitch: Float get() = sp.getFloat("tts_pitch", 1.25f); set(v) = sp.edit().putFloat("tts_pitch", v).apply()
+    /** Quiet mode: Kivo never starts talking on its own (it still answers). */
+    var quietMode: Boolean get() = bool("quiet_mode", false); set(v) = put("quiet_mode", v)
+    /** Do-not-disturb hours: no initiative between these hours of the day. */
+    var dndEnabled: Boolean get() = bool("dnd_enabled", true); set(v) = put("dnd_enabled", v)
+    var dndStartHour: Int get() = sp.getInt("dnd_start", 22); set(v) = sp.edit().putInt("dnd_start", v).apply()
+    var dndEndHour: Int get() = sp.getInt("dnd_end", 7); set(v) = sp.edit().putInt("dnd_end", v).apply()
+    /** Removes personality, bond, initiative counters and reminders (everything stored through the KeyValueStore). Switches stay as they are. */
+    fun clearCompanionData() {
+        val e = sp.edit()
+        for (k in sp.all.keys) if (k.startsWith("kv_")) e.remove(k)
+        e.apply()
+    }
+
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

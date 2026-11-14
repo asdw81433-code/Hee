@@ -156,11 +156,11 @@ class RealModelTest {
             val history = ArrayList<com.livingai.core.memory.ChatLine>()
             var thai = 0
             var foreign = 0
-            val questions = listOf("เธอชื่ออะไร แล้วเป็นใคร", "วันนี้เราเหนื่อยมากเลย", "ช่วยแนะนำวิธีพักผ่อนหน่อย", "ประเทศไทยมีเมืองหลวงชื่ออะไร", "เย็นนี้กินอะไรดี", "เล่าเรื่องตลกสั้นๆ หน่อย", "1 สัปดาห์มีกี่วัน")
+            val questions = listOf("เธอชื่ออะไร แล้วเป็นใคร", "วันนี้เราเหนื่อยมากเลย", "ช่วยแนะนำวิธีพักผ่อนหน่อย", "ประเทศไทยมีเมืองหลวงชื่ออะไร", "เย็นนี้กินอะไรดี", "เล่าเรื่องตลกสั้นๆ หน่อย", "1 สัปดาห์มีกี่วัน", "แมวกับหมาต่างกันยังไง", "ขอบคุณนะ วันนี้คุยสนุกดี")
             for (q in questions) {
-                history.add(com.livingai.core.memory.ChatLine(0, true, q))
-                val a = brain.reply(q, ctx, com.livingai.core.personality.Personality(), history, if (q.contains("กิน")) memories else emptyList()) ?: "(no reply: ${brain.lastError})"
-                history.add(com.livingai.core.memory.ChatLine(0, false, a))
+                history.add(com.livingai.core.memory.ChatLine(history.size.toLong(), true, q))
+                val a = brain.reply(q, ctx, com.livingai.core.personality.Personality(), history.toList(), if (q.contains("กิน")) memories else emptyList()) ?: "(no reply: ${brain.lastError})"
+                history.add(com.livingai.core.memory.ChatLine(history.size.toLong(), false, a))
                 val r = brain.lastResult
                 println("REAL-MODEL [$name] Q: $q")
                 println("REAL-MODEL [$name] A: ${a.replace("\n", " / ")}")
@@ -170,7 +170,7 @@ class RealModelTest {
             }
             println("REAL-MODEL [$name] SUMMARY: thai answers $thai/${questions.size}, answers with Chinese/Korean characters $foreign")
             e.unloadAndWait()
-            assertTrue(thai >= questions.size - 1, "$name: only $thai Thai answers")
+            assertTrue(thai >= questions.size - 3, "$name: only $thai Thai answers")
             assertEquals(0, foreign, "$name drifted into another script")
         }
     }

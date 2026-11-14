@@ -225,6 +225,14 @@ class RobotOverlay(
         main.postDelayed(hideBubble, (2500L + text.length * 65L).coerceAtMost(14000L))
     }
 
+    /** Frames the robot really drew during the last second. */
+    val fps: Int get() = robot.fps
+
+    fun wave() = main.post { if (!destroyed) robot.play(com.livingai.core.robot.Gesture.WAVE) }
+
+    /** Music is playing on the phone: dance along. */
+    fun setDancing(dancing: Boolean) = main.post { if (!destroyed) robot.dancing = dancing }
+
     /** The synthetic voice started / stopped: the mouth keeps moving while it is audible, also after the bubble has gone. */
     fun setVoiceTalking(talking: Boolean) = main.post {
         if (destroyed) return@post
@@ -430,6 +438,10 @@ class RobotOverlay(
             addView(item(tr("💬 คุยกับ ${Persona.NAME}", "💬 Talk to ${Persona.NAME}")) { togglePanel() })
             addView(item(tr("🎤 พูด", "🎤 Speak")) { com.livingai.companion.ui.VoiceActivity.start(ctx, fromOverlay = true) })
             addView(item(tr("🎮 เล่นด้วยกัน", "🎮 Play together")) { controller.submit(tr("เล่นเกม", "play a game"), fromOverlay = true) })
+            addView(item(if (controller.prefs.quietMode) tr("🔔 เลิกโหมดเงียบ", "🔔 Leave quiet mode") else tr("🤫 โหมดเงียบ (ไม่ทักเอง)", "🤫 Quiet mode")) {
+                controller.prefs.quietMode = !controller.prefs.quietMode
+                say(if (controller.prefs.quietMode) tr("โอเค เราจะเงียบไว้ มีอะไรแตะเรียกได้เลย", "OK, I'll stay quiet. Tap me if you need me.") else tr("กลับมาคุยได้ตามปกติแล้ว", "I'm back to normal."))
+            })
             addView(item(tr("🙈 ย่อเก็บไว้ข้างจอ", "🙈 Tuck away")) { setMinimized(true) })
             addView(item(tr("⏹ ปิด ${Persona.NAME}", "⏹ Turn ${Persona.NAME} off")) { com.livingai.companion.service.CompanionService.stop(ctx); controller.prefs.overlayEnabled = false; com.livingai.companion.LivingApp.graph(ctx).floating.apply() })
             setOnTouchListener { _, e -> if (e.action == MotionEvent.ACTION_OUTSIDE) { hideMenu(); true } else false }

@@ -111,6 +111,8 @@ class SettingsActivity : Activity() {
         buildTitle(content)
         buildSetup(content)
         buildSwitches(content)
+        buildCompanion(content)
+        buildPerformance(content)
         buildVisionTest(content)
         buildPrivacy(content)
     }
@@ -175,7 +177,7 @@ class SettingsActivity : Activity() {
     private fun buildSwitches(root: LinearLayout) {
         val p = graph.prefs
         val card = card(root, tr("การทำงาน", "Behaviour"))
-        card.addView(toggle(tr("มองเห็นหน้าจอ", "See the screen"), tr("อ่านองค์ประกอบ UI จับภาพ และ OCR", "Read UI elements, capture and OCR"), p.visionEnabled) { p.visionEnabled = it })
+        card.addView(toggle(tr("มองเห็นหน้าจอ", "See the screen"), tr("อ่านองค์ประกอบ UI จับภาพ และ OCR เฉพาะเมื่อเธอสั่งหรืออนุญาตให้ทักเอง", "Read UI elements, capture and OCR, only when asked or allowed to speak up"), p.visionEnabled) { p.visionEnabled = it })
         card.addView(toggle(tr("ใช้หน้าจอแทนคุณ", "Use the screen for you"), tr("แตะ พิมพ์ เลื่อน เปิดแอป เล่นเกม", "Tap, type, scroll, open apps, play games"), p.interactionEnabled) { p.interactionEnabled = it })
         card.addView(toggle(tr("หุ่นยนต์บนจอ", "Robot on screen"), tr("แตะเพื่อคุย แตะระหว่างทำงานเพื่อหยุด ลากเพื่อย้าย", "Tap to talk, tap while it works to stop, drag to move"), p.overlayEnabled) {
             p.overlayEnabled = it
@@ -189,7 +191,7 @@ class SettingsActivity : Activity() {
         })
         card.addView(toggle(tr("ให้พูดและแนะนำเองได้", "Let it speak up and suggest"), tr("ทักเมื่อเปิดแอปใหม่หรือเจอข้อผิดพลาด", "Speaks when you open an app or hit an error"), p.proactiveEnabled) { p.proactiveEnabled = it })
         card.addView(toggle(tr("ยืนยันทุกการกระทำ", "Confirm every action"), tr("ปกติถามเฉพาะการส่ง ซื้อ จ่าย ลบ และในแอปการเงิน", "Normally it asks only before sending, buying, paying, deleting, and in finance apps"), p.confirmEverything) { p.confirmEverything = it })
-        card.addView(toggle(tr("OCR ในเครื่อง", "On-device OCR"), tr("อ่านตัวอักษรละตินจากภาพเมื่อแอปไม่มีข้อมูล UI", "Reads Latin text from pixels when an app exposes no UI data"), p.ocrEnabled) { p.ocrEnabled = it })
+        card.addView(toggle(tr("OCR ในเครื่อง (ไทย + อังกฤษ)", "On-device OCR (Thai + English)"), tr("อ่านตัวหนังสือจากภาพเมื่อแอปไม่มีข้อมูล UI เช่น เกมหรือรูป", "Reads text from pixels when an app exposes no UI data, e.g. games and pictures"), p.ocrEnabled) { p.ocrEnabled = it })
 
         card.addView(label(tr("พักอย่างน้อยเท่านี้ก่อนจะพูดเองอีกครั้ง", "Minimum quiet time before it speaks up again"), 13f, colorSub).apply { setPadding(0, 10.dp, 0, 0) })
         val options = listOf(60 to tr("1 นาที", "1 minute"), 120 to tr("2 นาที", "2 minutes"), 300 to tr("5 นาที", "5 minutes"), 900 to tr("15 นาที", "15 minutes"))
@@ -197,6 +199,92 @@ class SettingsActivity : Activity() {
             p.proactiveCooldownSec = options[it].first
         })
     }
+
+    private val kit by lazy { Ui(this) }
+    private var perfText: TextView? = null
+
+    /** Voice, quiet hours and the links to the other pages. */
+    private fun buildCompanion(root: LinearLayout) {
+        val p = graph.prefs
+        val pages = kit.card(root, tr("เพิ่มเติม", "More"))
+        pages.addView(kit.button(tr("🤖 สมอง AI ในเครื่อง (โมเดล)", "🤖 On-device AI brain (models)"), grey) { startActivity(Intent(this, ModelActivity::class.java)) })
+        pages.addView(kit.button(tr("🎨 ตัวละครและนิสัย", "🎨 Character and personality"), grey) { startActivity(Intent(this, CharacterActivity::class.java)) }, kit.matchWrap(top = 8))
+        pages.addView(kit.button(tr("🧠 ความจำ", "🧠 Memory"), grey) { startActivity(Intent(this, MemoryActivity::class.java)) }, kit.matchWrap(top = 8))
+
+        val quiet = kit.card(root, tr("การทักเองและเวลาห้ามรบกวน", "Speaking up and quiet hours"))
+        quiet.addView(kit.toggle(tr("โหมดเงียบ", "Quiet mode"), tr("ไม่ทัก ไม่ชวน ไม่ออกความเห็นเอง แต่ยังตอบเมื่อถูกเรียก", "Never starts talking; still answers when asked"), p.quietMode) { p.quietMode = it })
+        quiet.addView(kit.toggle(tr("ห้ามรบกวนช่วงกลางคืน", "Do not disturb at night"), tr("ไม่ทักเองในช่วงเวลาที่ตั้งไว้ด้านล่าง", "No initiative during the hours below"), p.dndEnabled) { p.dndEnabled = it })
+        val hours = (0..23).map { "%02d:00".format(it) }
+        quiet.addView(kit.row().apply {
+            addView(kit.label(tr("ตั้งแต่", "From"), 14f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 8.dp })
+            addView(spinner(hours, p.dndStartHour.coerceIn(0, 23)) { p.dndStartHour = it })
+            addView(kit.label(tr("ถึง", "to"), 14f), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginStart = 12.dp; marginEnd = 8.dp })
+            addView(spinner(hours, p.dndEndHour.coerceIn(0, 23)) { p.dndEndHour = it })
+        })
+        quiet.addView(kit.label(tr("ความถี่ในการทักปรับได้ที่ \"ความช่างคุย\" ในหน้าตัวละคร ถ้าเธอไม่ตอบ ${Persona.NAME} จะเว้นระยะนานขึ้นเอง", "How often is set by \"Talkativeness\" on the Character page. When ignored, ${Persona.NAME} backs off by itself."), 12f, colorSub))
+
+        val voice = kit.card(root, tr("เสียง", "Voice"))
+        voice.addView(kit.slider(tr("ความเร็วในการพูด", "Speaking speed"), ((p.ttsRate - 0.5f) / 1.5f).coerceIn(0f, 1f)) { p.ttsRate = 0.5f + it * 1.5f })
+        voice.addView(kit.slider(tr("ระดับเสียงสูง-ต่ำ", "Pitch"), ((p.ttsPitch - 0.5f) / 1.5f).coerceIn(0f, 1f)) { p.ttsPitch = 0.5f + it * 1.5f })
+        val voiceInfo = kit.label("", 12f, colorSub)
+        voice.addView(kit.row().apply {
+            addView(kit.button(tr("เสียงหุ่นน่ารัก", "Cute robot"), grey) { p.ttsRate = 1.1f; p.ttsPitch = 1.5f; recreate() }, kit.weight(1f, end = 6))
+            addView(kit.button(tr("เสียงปกติ", "Normal"), grey) { p.ttsRate = 1.0f; p.ttsPitch = 1.0f; recreate() }, kit.weight(1f, end = 6))
+            addView(kit.button(tr("เสียงทุ้มนุ่ม", "Deep and calm"), grey) { p.ttsRate = 0.9f; p.ttsPitch = 0.75f; recreate() }, kit.weight(1f))
+        }, kit.matchWrap(top = 6))
+        voice.addView(kit.button(tr("🔊 ลองฟังเสียง", "🔊 Test the voice")) {
+            graph.controller.speaker.say(tr("สวัสดี เรา ${Persona.NAME} เอง เสียงประมาณนี้โอเคไหม", "Hi, I'm ${Persona.NAME}. How does this voice sound?"))
+            ui.launch { delay(1500); voiceInfo.text = graph.controller.speaker.voiceInfo }
+        }, kit.matchWrap(top = 8))
+        voice.addView(voiceInfo)
+        voice.addView(kit.label(
+            tr("เสียงพูดและการฟังใช้ระบบของเครื่อง ถ้าไม่มีเสียงไทยแบบออฟไลน์ ติดตั้งได้ที่ การตั้งค่า → การจัดการทั่วไป → ข้อความเป็นคำพูด และถ้าจะสั่งด้วยเสียงตอนไม่มีเน็ต ต้องมีชุดภาษาไทยออฟไลน์ของระบบจดจำเสียงในเครื่อง ไมค์เปิดเฉพาะตอนกดปุ่ม 🎤 เท่านั้น",
+                "Speaking and listening use the phone's own engines. If there is no offline voice for your language, install one under Settings → General management → Text-to-speech. Voice input without internet needs the phone's offline speech pack. The microphone is on only while you press 🎤."),
+            12f, colorSub,
+        ).apply { setPadding(0, 6.dp, 0, 0) })
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !graph.controller.reminders.canBeExact()) {
+            val exact = kit.card(root, tr("การเตือนให้ตรงเวลา", "Reminders on time"))
+            exact.addView(kit.label(tr("ตอนนี้การเตือนอาจช้าได้ไม่กี่นาที เปิดสิทธิ์ \"การปลุกและการช่วยเตือน\" เพื่อให้ตรงเวลา", "Reminders may be a few minutes late. Allow \"Alarms & reminders\" to make them exact."), 13f, colorSub))
+            exact.addView(kit.button(tr("เปิดสิทธิ์", "Allow")) {
+                runCatching { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName"))) }
+            }, kit.matchWrap(top = 8))
+        }
+    }
+
+    /** Live numbers measured on this phone. */
+    private fun buildPerformance(root: LinearLayout) {
+        val card = kit.card(root, tr("ประสิทธิภาพ (วัดจริงบนเครื่องนี้)", "Performance (measured on this phone)"))
+        perfText = kit.label("", 13f).apply { typeface = Typeface.MONOSPACE }
+        card.addView(perfText)
+        card.addView(kit.button(tr("คืนหน่วยความจำตอนนี้", "Free memory now"), grey) { graph.controller.onLowMemory(critical = true); refreshPerf() }, kit.matchWrap(top = 8))
+        refreshPerf()
+    }
+
+    private fun refreshPerf() {
+        val c = graph.controller
+        val snap = c.resources.snapshot()
+        val bm = getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val battery = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        val overlay = c.overlay
+        val r = c.llm.lastResult
+        perfText?.text = listOf(
+            tr("RAM ว่าง        ", "RAM free        ") + "${snap.availableMb} / ${snap.totalMb} MB",
+            tr("แอปใช้ RAM      ", "App RAM         ") + "${snap.appUsedMb} MB",
+            tr("โหมด            ", "Mode            ") + snap.mode.name + if (c.resources.lowRam) " (LOW RAM)" else "",
+            tr("ที่โหลดอยู่       ", "Loaded          ") + snap.loaded.joinToString(", ").ifEmpty { "-" },
+            tr("หุ่นบนจอ         ", "Robot           ") + if (overlay == null) tr("ปิดอยู่", "off") else "${overlay.fps} FPS",
+            tr("โมเดลภาษา       ", "Language model  ") + when {
+                !c.llm.isAvailable -> tr("ยังไม่ได้ติดตั้ง", "not installed")
+                r != null -> "%.1f tok/s (%d tok, %d ms)".format(r.tokensPerSecond, r.generatedTokens, r.generationMs)
+                p_speed() > 0 -> "%.1f tok/s".format(p_speed() / 10f)
+                else -> tr("ยังไม่ได้วัด", "not measured yet")
+            },
+            tr("แบตเตอรี่        ", "Battery         ") + "$battery%",
+        ).joinToString("\n")
+    }
+
+    private fun p_speed() = graph.prefs.llmSpeedX10
 
     private fun buildVisionTest(root: LinearLayout) {
         val card = card(root, tr("ทดสอบการมองเห็น", "Vision test"))
@@ -248,6 +336,22 @@ class SettingsActivity : Activity() {
             ),
             13f, colorSub,
         ))
+        card.addView(label(
+            tr("• AI ทั้งหมดทำงานในเครื่อง ใช้ได้โดยไม่ต้องต่อเน็ต แอปใช้เน็ตเฉพาะตอนที่เธอกดดาวน์โหลดโมเดลเอง\n• ไมค์เปิดเฉพาะตอนกดปุ่ม 🎤 • ปิดหุ่นได้ที่สวิตช์ \"หุ่นยนต์บนจอ\" หรือปุ่มในแถบแจ้งเตือน",
+                "• All AI runs on the phone and works offline. The app uses the internet only when you choose to download a model.\n• The microphone is on only while you press 🎤 • Turn the robot off with the \"Robot on screen\" switch or the notification button"),
+            13f, colorSub,
+        ).apply { setPadding(0, 8.dp, 0, 0) })
+        card.addView(button(tr("🗑 ลบข้อมูลทั้งหมดของ ${Persona.NAME}", "🗑 Delete all of ${Persona.NAME}'s data"), red) {
+            val models = android.widget.CheckBox(this).apply { text = tr("ลบไฟล์โมเดล AI ที่ดาวน์โหลดไว้ด้วย", "Also delete downloaded AI model files"); setTextColor(colorText) }
+            android.app.AlertDialog.Builder(this)
+                .setTitle(tr("ลบข้อมูลทั้งหมด?", "Delete everything?"))
+                .setMessage(tr("ความจำ ประวัติแชท โน้ต สิ่งที่ต้องทำ การเตือน นิสัย และระดับความสนิทจะถูกลบถาวร กู้คืนไม่ได้", "Memories, chat history, notes, to-dos, reminders, personality and bond will be deleted for good."))
+                .setView(models)
+                .setPositiveButton(tr("ลบทั้งหมด", "Delete everything")) { _, _ ->
+                    ui.launch { graph.controller.deleteAllData(models.isChecked); toast(tr("ลบข้อมูลทั้งหมดแล้ว", "Everything was deleted")) }
+                }
+                .setNegativeButton(tr("ยกเลิก", "Cancel"), null).show()
+        }, matchWrap(top = 10))
         card.addView(label("${Persona.NAME} ${packageManager.getPackageInfo(packageName, 0).versionName}", 12f, colorSub).apply { setPadding(0, 8.dp, 0, 0) })
     }
 
@@ -258,6 +362,7 @@ class SettingsActivity : Activity() {
         watchJob = ui.launch {
             launch { LivingState.captureActive.collect { refreshSteps() } }
             launch { LivingState.accessibilityConnected.collect { refreshSteps() } }
+            launch { while (true) { refreshPerf(); delay(1500) } }
         }
     }
 

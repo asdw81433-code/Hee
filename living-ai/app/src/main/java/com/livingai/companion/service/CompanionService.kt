@@ -69,7 +69,33 @@ class CompanionService : Service() {
         return START_STICKY
     }
 
+    /** Phone events Kivo reacts to on its own. They only arrive while the robot is on (this service is running). */
+    private val deviceEvents = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val c = LivingApp.graph(context).controller
+            when (intent.action) {
+                Intent.ACTION_USER_PRESENT -> c.onUserPresent()
+                Intent.ACTION_SCREEN_OFF -> c.onScreenOff()
+                Intent.ACTION_BATTERY_LOW -> c.onBatteryLow()
+                Intent.ACTION_POWER_CONNECTED -> c.onCharging()
+            }
+        }
+    }
+    private var listening = false
+
+    override fun onCreate() {
+        super.onCreate()
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_USER_PRESENT); addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_BATTERY_LOW); addAction(Intent.ACTION_POWER_CONNECTED)
+        }
+        // system broadcasts only
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) registerReceiver(deviceEvents, filter, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(deviceEvents, filter)
+        listening = true
+    }
+
     override fun onDestroy() {
+        if (listening) runCatching { unregisterReceiver(deviceEvents) }
+        listening = false
         running = false
         super.onDestroy()
     }
