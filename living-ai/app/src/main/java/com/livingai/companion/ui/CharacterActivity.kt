@@ -83,6 +83,28 @@ class CharacterActivity : Activity() {
             }
         })
 
+        // make it yours
+        val mine = ui.card(root, tr("AI ในแบบของเธอ", "Make it yours"))
+        mine.addView(ui.label(tr("ชื่อ", "Name"), 13f, ui.sub))
+        val nameIn = ui.input("Kivo", graph.prefs.aiName)
+        mine.addView(nameIn, ui.matchWrap(top = 4))
+        mine.addView(ui.label(tr("ตัวตน / วิธีพูด / สิ่งที่ควรรู้ (เขียนอิสระ)", "Who it is, how it talks, what it should know (free text)"), 13f, ui.sub).apply { setPadding(0, ui.dp(10), 0, 0) })
+        val personaIn = ui.input(tr("เช่น เป็นพี่ชายใจดี พูดเหนือ ชอบแซว เรียกเราว่าน้อง รู้ว่าเราเรียน ม.5 และชอบเล่น RoV", "e.g. a kind big brother who teases a lot, calls me buddy, knows I'm in high school and love football"), graph.prefs.customPersona, lines = 4)
+        mine.addView(personaIn, ui.matchWrap(top = 4))
+        mine.addView(ui.label(tr("ข้อความนี้ใช้กับสมอง AI (ต้องโหลดสมอง AI ก่อนจึงเห็นผลเต็มที่) ส่วนชื่อใช้ได้ทันทีทุกที่", "The text shapes the AI brain's replies (install the AI brain to see it fully); the name applies everywhere at once."), 12f, ui.sub).apply { setPadding(0, ui.dp(6), 0, 0) })
+        mine.addView(ui.row().apply {
+            addView(ui.button(tr("บันทึก", "Save")) {
+                graph.prefs.aiName = nameIn.text.toString()
+                graph.prefs.customPersona = personaIn.text.toString()
+                com.livingai.core.Persona.NAME = graph.prefs.aiName.ifBlank { "Kivo" }
+                graph.controller.llm.unload() // the next reply starts from the new character
+                robot?.play(Gesture.CHEER)
+                android.widget.Toast.makeText(this@CharacterActivity, tr("บันทึกแล้ว ตอนนี้ชื่อ ${com.livingai.core.Persona.NAME}", "Saved. It is now called ${com.livingai.core.Persona.NAME}"), android.widget.Toast.LENGTH_SHORT).show()
+                build()
+            }, ui.weight(1f, end = 8))
+            addView(ui.button(tr("📚 สอนความรู้", "📚 Teach it"), ui.grey) { startActivity(android.content.Intent(this@CharacterActivity, MemoryActivity::class.java)) }, ui.weight(1f))
+        }, ui.matchWrap(top = 10))
+
         // outfits
         val w = graph.controller.wardrobe
         val shop = ui.card(root, tr("ของแต่งตัว", "Outfits"))

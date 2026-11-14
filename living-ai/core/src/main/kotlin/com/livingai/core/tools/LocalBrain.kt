@@ -26,6 +26,10 @@ object LocalBrain {
         data class ListNotes(val todos: Boolean) : Plan
         data class DoneTodo(val query: String) : Plan
         data object Summarize : Plan
+        /** Work towards [goal] step by step without further instructions. */
+        data class Auto(val goal: String) : Plan
+        /** Tap the spot under the robot [count] times (for idle / clicker games). */
+        data class RepeatTap(val count: Int) : Plan
         /** "water", "eyes", "move" = log it; "" = show today's numbers. */
         data class Habit(val kind: String) : Plan
         data object Help : Plan
@@ -87,6 +91,13 @@ object LocalBrain {
         after("จับเวลา", "ตั้งเวลา", "นับถอยหลัง", "set a timer", "set timer", "timer")?.let { rest ->
             val d = TimeParser.duration(rest) ?: return Plan.Unknown(tr("จับเวลานานเท่าไหร่ดี เช่น \"จับเวลา 5 นาที\"", "For how long? e.g. \"timer 5 minutes\""))
             return Plan.Device(DeviceCommand.SetTimer(d))
+        }
+        // autopilot: "ทำแทน …", "จัดการ …"
+        after("ทำแทนเรา", "ทำแทน", "ทำให้หน่อย", "ทำให้ที", "ช่วยทำ", "จัดการให้", "จัดการ", "ออโต้", "do it for me", "autopilot", "auto")?.let { g ->
+            return if (g.length >= 2) Plan.Auto(g.trim(':', ' ')) else Plan.Unknown(tr("จะให้ทำอะไรแทนดี เช่น \"ทำแทน เปิดโหมดมืดในการตั้งค่า\"", "What should I do for you? e.g. \"do it for me: turn on dark mode in settings\""))
+        }
+        Regex("^(?:กดรัว|กดซ้ำ|แตะรัว|แตะซ้ำ|tap repeatedly|auto ?tap)\\s*(\\d+)?").find(lower)?.let { m ->
+            return Plan.RepeatTap((m.groupValues[1].toIntOrNull() ?: 30).coerceIn(1, 300))
         }
         // screen summary
         if (listOf("สรุปหน้าจอ", "สรุปจอ", "สรุปให้หน่อย", "สรุปหน้านี้", "summarize the screen", "summarise the screen", "summarize this").any { lower.contains(it) }) return Plan.Summarize
@@ -250,7 +261,7 @@ object LocalBrain {
 
     val HELP: String
         get() = tr(
-            "สิ่งที่สั่งได้:\n• เปิด <ชื่อแอป> • เปิด wifi / บลูทูธ / เสียง / แบต (เปิดหน้าตั้งค่าให้)\n• ตั้งปลุก 6 โมงเช้า • จับเวลา 5 นาที\n• เตือนอีก 10 นาที ว่ากินยา • ดูการเตือน\n" +
+            "สิ่งที่สั่งได้:\n• ทำแทน <งาน> เช่น \"ทำแทน เปิดโหมดมืดในการตั้งค่า\" (ดูจอแล้วกดเองจนเสร็จ จำวิธีไว้ครั้งหน้า)\n• กดรัว 50 ครั้ง (ลากหุ่นไปไว้เหนือปุ่มก่อน)\n• เปิด <ชื่อแอป> • เปิด wifi / บลูทูธ / เสียง / แบต (เปิดหน้าตั้งค่าให้)\n• ตั้งปลุก 6 โมงเช้า • จับเวลา 5 นาที\n• เตือนอีก 10 นาที ว่ากินยา • ดูการเตือน\n" +
                 "• จดโน้ต <ข้อความ> • ต้องทำ <งาน> • ต้องทำอะไรบ้าง • <งาน> เสร็จแล้ว\n• ร่างข้อความ <ข้อความ> (เราเตรียมให้ เธอกดส่งเอง)\n• จำไว้ว่า <เรื่อง> • จำอะไรได้บ้าง\n" +
                 "• ดูหน้าจอ • อ่านหน้าจอ • กด <ชื่อปุ่ม> • พิมพ์ <ข้อความ> • เลื่อนลง/ขึ้น • กลับ • โฮม\n• เล่นเกม (ทายคำ, ควิซ, จับคู่, เอ็กซ์โอ) • คุยเล่นเรื่องอะไรก็ได้",
             "You can say:\n• open <app> • open wifi / bluetooth / sound / battery (opens the settings page)\n• set an alarm for 6:30 • timer 5 minutes\n• remind me in 10 minutes to take medicine • list reminders\n" +

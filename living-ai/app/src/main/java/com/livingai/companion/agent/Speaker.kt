@@ -63,9 +63,10 @@ class Speaker(private val context: Context, private val prefs: Prefs) {
         val supported = !(r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED)
         if (!supported) engine.setLanguage(Locale.US)
         // prefer a voice that needs no network
+        // the best-sounding voice that needs no network (engines ship several qualities per language)
         val offline = runCatching {
-            engine.voices?.filter { it.locale.language == (if (supported) want.language else "en") && !it.isNetworkConnectionRequired }
-                ?.minByOrNull { it.name }
+            engine.voices?.filter { it.locale.language == (if (supported) want.language else "en") && !it.isNetworkConnectionRequired && !it.features.contains("notInstalled") }
+                ?.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { -it.latency }.thenBy { it.name })
         }.getOrNull()
         if (offline != null) runCatching { engine.voice = offline }
         voiceInfo = when {
@@ -75,7 +76,15 @@ class Speaker(private val context: Context, private val prefs: Prefs) {
         }
         engine.setSpeechRate(prefs.ttsRate)
         engine.setPitch(prefs.ttsPitch)
-        engine.speak(text.take(TextToSpeech.getMaxSpeechInputLength() - 1), TextToSpeech.QUEUE_FLUSH, Bundle(), "kivo")
+        // sentence by sentence with a short breath in between sounds far less robotic than one long run
+        val parts = text.take(TextToSpeech.getMaxSpeechInputLength() - 1).split(Regex("(?<=[.!?…])\\s+|\\n+|(?<=ครับ|ค่ะ|คะ|นะ|จ้า|เลย)\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+        parts.forEachIndexed { i, part ->
+            // questions rise a little, exclamations are a touch livelier
+            engine.setPitch(prefs.ttsPitch * (if (part.endsWith("?") || part.endsWith("ไหม") || part.endsWith("มั้ย")) 1.06f else 1f))
+            engine.setSpeechRate(prefs.ttsRate * (if (part.endsWith("!")) 1.05f else 1f))
+            engine.speak(part, if (i == 0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, Bundle(), "kivo$i")
+            if (i < parts.size - 1) engine.playSilentUtterance(if (part.length > 40) 260L else 160L, TextToSpeech.QUEUE_ADD, "kivo-pause$i")
+        }
     }
 
     @Synchronized

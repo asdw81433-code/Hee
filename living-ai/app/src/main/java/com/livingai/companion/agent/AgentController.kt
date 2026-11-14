@@ -119,7 +119,31 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         activities = com.livingai.core.companion.ActivityHub(playfulness = { personalityStore.load().playfulness }),
         wardrobe = wardrobe,
         habits = habits,
+        repeatTap = ::repeatTap,
+        customPersona = { prefs.customPersona },
     )
+
+    /**
+     * Taps the spot under the robot again and again: for idle / clicker games, where the user parks
+     * the robot above the button. Never on secret screens or in finance apps; the stop button ends it at once.
+     */
+    private suspend fun repeatTap(count: Int): String {
+        val svc = LivingAccessibilityService.instance ?: return tr("ต้องเปิดสิทธิ์ \"ให้ ${Persona.NAME} ใช้หน้าจอ\" ในตั้งค่าก่อน", "Turn on \"Let ${Persona.NAME} use the screen\" in Settings first")
+        val o = overlay ?: return tr("ต้องแสดงหุ่นบนจอก่อน แล้วลากหุ่นไปไว้เหนือจุดที่จะให้กด", "Show the robot on screen first and park it just above the spot to tap")
+        val obs = vision.look(includeImage = false)
+        if (obs.sensitive || Regex("(?i)(bank|wallet|pay|kplus|scb|ktb|krungsri|bbl|ttb|truemoney|shopee|lazada|trade|binance|crypto|finance|money)").containsMatchIn(obs.packageName)) {
+            return tr("หน้านี้เป็นแอปการเงินหรือมีข้อมูลลับ เราไม่กดรัวให้นะ", "This is a finance app or a screen with secrets, so I won't auto-tap here")
+        }
+        val (x, y) = o.pointBelow()
+        onStatus(AgentStatus.ACTING, tr("กดรัว $count ครั้ง", "tapping $count times"))
+        var done = 0
+        repeat(count) {
+            if (!svc.tapAt(x, y)) return tr("ระบบหยุดการกดไว้ กดไปได้ $done ครั้ง", "The system stopped the taps after $done")
+            done++
+            delay(110)
+        }
+        return tr("กดให้แล้ว $done ครั้ง ตรงจุดใต้ตัวเรา", "Tapped $done times at the spot below me")
+    }
 
     /** When and what Kivo says on its own; see core.companion.Initiative. */
     val initiative = Initiative(

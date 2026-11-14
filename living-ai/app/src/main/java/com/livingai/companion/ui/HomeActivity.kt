@@ -94,6 +94,9 @@ class HomeActivity : Activity() {
         root.addView(header(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             setMargins(12.dp, 8.dp, 12.dp, 6.dp)
         })
+        root.addView(brainCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(12.dp, 0, 12.dp, 6.dp)
+        })
         root.addView(setupBanner(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             setMargins(12.dp, 0, 12.dp, 6.dp)
         })
@@ -155,6 +158,50 @@ class HomeActivity : Activity() {
         }
     }
 
+    private lateinit var brain: LinearLayout
+    private lateinit var brainText: TextView
+    private lateinit var brainButton: Button
+
+    /** Shown until a language model is installed: one tap downloads the recommended one in the background. */
+    private fun brainCard(): View {
+        brainText = label("", 13f, colorText)
+        brainButton = smallButton("", accent) {
+            val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+            if (graph.models.downloads.value[spec.id]?.running == true) { graph.models.cancel(spec); return@smallButton }
+            if (filesDir.usableSpace < spec.bytes + 60_000_000L) { android.widget.Toast.makeText(this, tr("พื้นที่ในเครื่องไม่พอ (ต้องการ ~850 MB)", "Not enough storage (~850 MB needed)"), android.widget.Toast.LENGTH_LONG).show(); return@smallButton }
+            val metered = (getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager).isActiveNetworkMetered
+            android.app.AlertDialog.Builder(this)
+                .setTitle(tr("ติดตั้งสมอง AI", "Install the AI brain"))
+                .setMessage(tr("ดาวน์โหลด ${spec.title.substringBefore(" —")} ขนาด 806 MB ครั้งเดียว แล้วใช้ได้ตลอดโดยไม่ต้องต่อเน็ต\nสัญญาอนุญาต: ${spec.license}" + (if (metered) "\n\n⚠ ตอนนี้ใช้เน็ตมือถือ จะใช้ดาต้าประมาณ 806 MB" else ""),
+                    "Download ${spec.title.substringBefore(" —")} (806 MB) once; after that it works without internet.\nLicence: ${spec.license}" + (if (metered) "\n\n⚠ You are on mobile data: about 806 MB" else "")))
+                .setPositiveButton(tr("ติดตั้งเลย", "Install")) { _, _ -> graph.models.download(spec) }
+                .setNegativeButton(tr("ไว้ก่อน", "Later"), null).show()
+        }
+        brain = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = Theme.glass(this@HomeActivity, 18f, 0x268B5CFF, 0x668B5CFF)
+            setPadding(12.dp, 10.dp, 10.dp, 10.dp)
+            addView(brainText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
+            addView(brainButton)
+        }
+        return brain
+    }
+
+    private fun refreshBrain() {
+        val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+        val d = graph.models.downloads.value[spec.id]
+        val installed = graph.controller.models.installed().isNotEmpty()
+        brain.visibility = if (installed && d == null) View.GONE else View.VISIBLE
+        brainText.text = when {
+            d == null -> tr("🤖 ${Persona.NAME} ยังไม่มีสมอง AI — ติดตั้งแล้วจะคุยได้ฉลาดขึ้นมากและทำงานแทนได้เก่งขึ้น", "🤖 ${Persona.NAME} has no AI brain yet. Install it for much smarter talk and better autopilot")
+            d.error != null -> tr("โหลดไม่สำเร็จ: ${d.error} (กดเพื่อโหลดต่อจากเดิม)", "Download failed: ${d.error} (tap to continue)")
+            d.verifying -> tr("กำลังตรวจสอบไฟล์…", "Verifying…")
+            else -> tr("กำลังโหลดสมอง AI ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%) ปิดหน้านี้ได้ โหลดต่อเบื้องหลัง", "Downloading the AI brain ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)")
+        }
+        brainButton.text = if (d?.running == true) tr("หยุด", "Stop") else if (d?.error != null) tr("โหลดต่อ", "Resume") else tr("ติดตั้ง", "Install")
+    }
+
     private fun setupBanner(): View {
         bannerText = label("", 13f, colorText)
         banner = LinearLayout(this).apply {
@@ -176,6 +223,7 @@ class HomeActivity : Activity() {
             tr("🧠 จำอะไรได้บ้าง", "🧠 What do you remember") to tr("จำอะไรเกี่ยวกับเราได้บ้าง", "What do you remember about me?"),
             tr("🎮 เล่นเกม", "🎮 Play") to tr("เล่นเกม", "play a game"),
             tr("📝 วางแผนวันนี้", "📝 Plan my day") to tr("วางแผนวันนี้", "plan my day"),
+            tr("🦾 ทำแทนเรา", "🦾 Do it for me") to tr("ทำแทน", "do it for me"),
             tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
         )
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 4.dp, 12.dp, 4.dp) }
@@ -331,6 +379,7 @@ class HomeActivity : Activity() {
             launch { LivingState.mood.collect { orb.mood = it; moodText.text = moodLabel(it) } }
             launch { LivingState.chat.collect { renderChat(it) } }
             launch { LivingState.partial.collect { showPartial(it) } }
+            launch { graph.models.downloads.collect { refreshBrain() } }
             launch { LivingState.accessibilityConnected.collect { refresh() } }
             launch { LivingState.captureActive.collect { refresh() } }
         }

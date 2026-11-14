@@ -61,6 +61,10 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
     var soundsEnabled: Boolean get() = bool("sounds", true); set(v) = put("sounds", v)
     /** Gentle nudges to drink water and rest the eyes (respecting quiet mode and quiet hours). */
     var habitNudges: Boolean get() = bool("habit_nudges", true); set(v) = put("habit_nudges", v)
+    /** The name the user gave their companion ("" = Kivo). */
+    var aiName: String get() = sp.getString("ai_name", null) ?: ""; set(v) = sp.edit().putString("ai_name", v.trim().take(20)).apply()
+    /** Free text: who this companion is, how it talks, what it should know. Added to every model prompt. */
+    var customPersona: String get() = sp.getString("ai_persona", null) ?: ""; set(v) = sp.edit().putString("ai_persona", v.trim().take(600)).apply()
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

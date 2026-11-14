@@ -52,6 +52,7 @@ class HoverBotRenderer {
     // scratch for ellipse projection
     private var eRx = 0f; private var eRy = 0f; private var eAngle = 0f
     private var hover = 0f
+    private val handFrame = Frame()
 
     /** Projects an ellipsoid (axes = the frame's axes scaled by the radii) to its silhouette ellipse. */
     private fun projectEllipsoid(f: Frame, r0: Float, r1: Float, r2: Float, scale: Float) {
@@ -272,16 +273,15 @@ class HoverBotRenderer {
     private fun arm(upper: Frame, fore: Frame, side: Float, pitch: Float, roll: Float, elbow: Float, body: Int, accent: Int) {
         upper.set(torso).translate(side * 0.34f, 0.1f, 0f).rotZ(side * roll).rotX(-pitch)
         fore.set(upper).translate(0f, -UPPER_ARM, 0f).rotX(-elbow)
-        val bias = 0.03f
-        addCapsule(
-            upper.px(0f, 0f, 0f), upper.py(0f, 0f, 0f), upper.pz(0f, 0f, 0f),
-            fore.px(0f, 0f, 0f), fore.py(0f, 0f, 0f), fore.pz(0f, 0f, 0f), 0.075f, body, bias,
-        )
-        addCapsule(
-            fore.px(0f, 0f, 0f), fore.py(0f, 0f, 0f), fore.pz(0f, 0f, 0f),
-            fore.px(0f, -FOREARM, 0f), fore.py(0f, -FOREARM, 0f), fore.pz(0f, -FOREARM, 0f), 0.068f, body, bias + 0.01f,
-        )
-        addBall(BALL, fore, 0f, -FOREARM - 0.04f, 0f, 0.11f, 0.11f, 0.11f, accent, bias + 0.03f) // hand
+        // no arm segments at all: the hands float beside the body (nothing to bend, so no joints to look wrong)
+        val hx = fore.px(0f, -FOREARM, 0f); val hy = fore.py(0f, -FOREARM, 0f); val hz = fore.pz(0f, -FOREARM, 0f)
+        val sx0 = upper.px(0f, 0f, 0f); val sy0 = upper.py(0f, 0f, 0f); val sz0 = upper.pz(0f, 0f, 0f)
+        // pushed a little away from the shoulder so the hand never sinks into the body
+        val k = 1.35f
+        handFrame.identity().translate(sx0 + (hx - sx0) * k + side * 0.06f, sy0 + (hy - sy0) * k, sz0 + (hz - sz0) * k + 0.05f)
+        addBall(BALL, handFrame, 0f, 0f, 0f, 0.125f, 0.125f, 0.125f, accent, 0.06f)
+        addBall(BALL, handFrame, side * 0.03f, 0.02f, 0.03f, 0.075f, 0.075f, 0.075f, lighten(accent, 0.25f), 0.08f)
+        if (body == accent) Unit
     }
 
     private fun sortByDepth() {

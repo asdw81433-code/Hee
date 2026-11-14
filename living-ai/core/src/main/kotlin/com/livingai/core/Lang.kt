@@ -8,5 +8,6 @@ object Lang {
 
 object Persona {
     /** The assistant's name, the same in every language. */
-    const val NAME = "Kivo"
+    /** The companion's name. "Kivo" unless the user renamed it. */
+    @JvmField var NAME = "Kivo"
 }

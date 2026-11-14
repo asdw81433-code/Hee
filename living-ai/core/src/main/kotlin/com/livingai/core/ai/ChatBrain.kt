@@ -22,12 +22,16 @@ import com.livingai.core.personality.Personality
 class ChatBrain(private val generator: TextGenerator, private val maxHistory: Int = 8) {
 
     val isAvailable: Boolean get() = generator.isAvailable
+    fun generatorOrNull(): TextGenerator? = generator
 
     /**
      * Written in English on purpose: it costs a quarter of the tokens of the same text in Thai (so the first
      * answer after loading comes much sooner on a phone), and the Thai example turns that follow set the language.
      */
-    fun systemPrompt(p: Personality): String =
+    fun systemPrompt(p: Personality, custom: String = ""): String = basePrompt(p) +
+        if (custom.isBlank()) "" else "\nThe user also set this about you (follow it): ${custom.take(600)}"
+
+    private fun basePrompt(p: Personality): String =
         "You are ${Persona.NAME}, a tiny robot who lives on the user's phone screen as their buddy. You are a program, not a human, and you run on this phone without internet.\n" +
             "Personality: ${p.promptLinesEn()}.\n" +
             "Rules: reply in the language the user writes in (Thai → natural, simple Thai). Keep it to 1-3 short sentences. " +
@@ -69,9 +73,9 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
     private var anchorMs = -1L
 
     @Synchronized
-    fun buildMessages(userText: String, ctx: LocalMind.Context, personality: Personality, history: List<ChatLine>, memories: List<Memory>): List<ChatMessage> {
+    fun buildMessages(userText: String, ctx: LocalMind.Context, personality: Personality, history: List<ChatLine>, memories: List<Memory>, custom: String = ""): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
-        out.add(ChatMessage(Role.SYSTEM, systemPrompt(personality)))
+        out.add(ChatMessage(Role.SYSTEM, systemPrompt(personality, custom)))
         // two tiny examples fix the voice (pronouns, length) far better than instructions do for a small model;
         // they sit in the stable part of the prompt, so they are read once and then cached
         for ((q, r) in examples(personality)) { out.add(ChatMessage(Role.USER, q)); out.add(ChatMessage(Role.ASSISTANT, r)) }
@@ -113,12 +117,13 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
     /** Returns the reply, or null if the model could not answer (not installed, no memory, failure): the caller then falls back. */
     suspend fun reply(
         userText: String, ctx: LocalMind.Context, personality: Personality, history: List<ChatLine>, memories: List<Memory>,
+        custom: String = "",
         onPartial: (String) -> Unit = {},
     ): String? {
         if (!generator.isAvailable) return null
         val so = StringBuilder()
         val request = GenRequest(
-            messages = buildMessages(userText, ctx, personality, history, memories),
+            messages = buildMessages(userText, ctx, personality, history, memories, custom),
             maxTokens = if (personality.talkativeness > 0.75f) 160 else 110,
             // small models wander when sampled hot; a little variety is kept for playful personalities
             temperature = 0.35f + personality.playfulness * 0.2f,

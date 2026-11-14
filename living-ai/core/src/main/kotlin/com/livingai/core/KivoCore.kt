@@ -51,7 +51,12 @@ class KivoCore(
     /** Coins and outfits; null = no rewards. */
     val wardrobe: com.livingai.core.personality.Wardrobe? = null,
     val habits: com.livingai.core.companion.Habits? = null,
+    /** Taps the spot the robot is hovering over, [count] times; returns what happened. Null = not available. */
+    private val repeatTap: (suspend (Int) -> String)? = null,
+    /** Extra things the user wants this companion to be or know, added to every model prompt. */
+    private val customPersona: () -> String = { "" },
 ) {
+    val autopilot = com.livingai.core.tools.AutoPilot(vision, actions, memory.store, listener, { brain?.generatorOrNull() })
     init {
         emotion.onChange = { listener.onMood(it.mood) }
     }
@@ -220,7 +225,7 @@ class KivoCore(
         val b = brain?.takeIf { it.isAvailable } ?: return null
         listener.onStatus(AgentStatus.THINKING)
         val reply = b.reply(
-            text, context().copy(mood = emotion.state.mood), personality(),
+            text, context().copy(mood = emotion.state.mood), personality(), custom = customPersona(),
             history = memory.store.recentChat(12),
             // what Kivo remembers about the user plus facts it knows for sure that fit the question
             memories = memory.relevant(text, 4) + com.livingai.core.companion.Knowledge.find(text, 2).map {
@@ -282,6 +287,21 @@ class KivoCore(
             LocalBrain.Plan.Describe -> { replyMood = Mood.CURIOUS; LocalBrain.describe(if (VisionAgent.isSparse(obs)) vision.lookAuto() else obs) }
             is LocalBrain.Plan.Remember -> memory.remember(plan.key, plan.value)
             is LocalBrain.Plan.Recall -> memory.recall(plan.query)
+            is LocalBrain.Plan.Auto -> {
+                emotion.onEvent(EmotionEvent.TASK_STARTED)
+                val known = autopilot.routineFor(plan.goal) != null
+                listener.onSay(if (known) tr("อันนี้เคยทำแล้ว จำวิธีได้ เดี๋ยวจัดให้!", "I've done this before, on it!") else tr("โอเค เดี๋ยวลองทำให้ดูนะ กดหยุดได้ตลอด", "OK, let me try. You can stop me any time."))
+                val o = autopilot.run(plan.goal)
+                didAct = o.steps.isNotEmpty()
+                if (!o.done) anyActionFailed = true
+                if (o.done) memory.logEpisode(tr("ทำแทน: ${plan.goal}", "Did for you: ${plan.goal}"), o.steps.joinToString(" > "), importance = 2)
+                o.message + if (o.done && !known) tr("\n(จำวิธีไว้แล้ว ครั้งหน้าจะเร็วขึ้น)", "\n(I saved how, so next time is faster)") else ""
+            }
+            is LocalBrain.Plan.RepeatTap -> {
+                val f = repeatTap ?: return tr("ยังกดแทนไม่ได้ ต้องเปิดสิทธิ์การช่วยเหลือพิเศษก่อน", "I can't tap yet: accessibility access is off")
+                didAct = true
+                f(plan.count)
+            }
             LocalBrain.Plan.Summarize -> { replyMood = Mood.FOCUSED; summarizeScreen() }
             is LocalBrain.Plan.Habit -> {
                 val h = habits ?: return tr("ยังไม่ได้เปิดการติดตามนิสัย", "Habit tracking is not available")

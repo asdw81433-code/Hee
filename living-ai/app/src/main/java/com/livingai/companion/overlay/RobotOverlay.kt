@@ -229,6 +229,9 @@ class RobotOverlay(
     /** Frames the robot really drew during the last second. */
     val fps: Int get() = robot.fps
 
+    /** The screen point just below the robot: where "tap here repeatedly" taps. */
+    fun pointBelow(): Pair<Int, Int> = (robotLp.x + robotW() / 2) to (robotLp.y + robotH() + (10 * dp).toInt())
+
     fun wave() = main.post { if (!destroyed) robot.play(com.livingai.core.robot.Gesture.WAVE) }
 
     /** Music is playing on the phone: dance along. */

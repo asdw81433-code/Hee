@@ -22,6 +22,7 @@ class LivingApp : Application() {
     override fun onCreate() {
         super.onCreate()
         applyLanguage()
+        com.livingai.companion.settings.Prefs(this).aiName.takeIf { it.isNotBlank() }?.let { com.livingai.core.Persona.NAME = it }
         // Put the orb back after the process restarts (the accessibility service takes over if it connects).
         android.os.Handler(mainLooper).post { graph.floating.apply() }
     }

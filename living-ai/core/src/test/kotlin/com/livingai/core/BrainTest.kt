@@ -34,7 +34,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ScriptedGenerator(var answer: String = "ได้เลย", override var isAvailable: Boolean = true, var fail: Boolean = false) : TextGenerator {
+open class ScriptedGenerator(var answer: String = "ได้เลย", override var isAvailable: Boolean = true, var fail: Boolean = false) : TextGenerator {
     val requests = ArrayList<GenRequest>()
     override val isLoaded = true
     override val modelName = "scripted"
