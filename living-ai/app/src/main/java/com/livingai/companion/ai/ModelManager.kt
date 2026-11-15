@@ -152,6 +152,7 @@ class ModelManager(private val controller: AgentController) {
     }
 
     fun cancel(spec: ModelSpec) {
+        controller.prefs.putLong("brain_auto_off", 1L)
         jobs.remove(spec.id)?.cancel()
         val id = controller.prefs.getLong(idKey(spec), -1L)
         if (id >= 0) runCatching { dm.remove(id) }
@@ -200,6 +201,22 @@ class ModelManager(private val controller: AgentController) {
                 }
             }
         }
+    }
+
+    /**
+     * The APK stays small: the AI brain is fetched once and kept in app storage, where it survives
+     * app updates. Started by itself on Wi-Fi; on mobile data it waits for the user to press Install.
+     * Never again after the user cancelled it.
+     */
+    fun autoDownloadIfNeeded() {
+        if (controller.models.installed().isNotEmpty() || hasBundledBrain) return
+        if (controller.prefs.getLong("brain_auto_off", 0L) == 1L) return
+        val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+        if (downloads.value[spec.id] != null || jobs[spec.id]?.isActive == true) return
+        val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        if (cm.isActiveNetworkMetered || cm.activeNetwork == null) return
+        if (context.getExternalFilesDir(null)?.usableSpace ?: 0L < spec.bytes + 100_000_000L) return
+        download(spec)
     }
 
     /** True when this APK carries the AI brain. */

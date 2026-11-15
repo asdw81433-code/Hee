@@ -169,6 +169,7 @@ class HomeActivity : Activity() {
             if (graph.models.downloads.value.values.any { it.bundled && it.error != null }) { graph.models.installBundled(); return@smallButton }
             val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
             if (graph.models.downloads.value[spec.id]?.running == true) { graph.models.cancel(spec); return@smallButton }
+            graph.controller.prefs.putLong("brain_auto_off", 0L)
             if (filesDir.usableSpace < spec.bytes + 60_000_000L) { android.widget.Toast.makeText(this, tr("พื้นที่ในเครื่องไม่พอ (ต้องการ ~850 MB)", "Not enough storage (~850 MB needed)"), android.widget.Toast.LENGTH_LONG).show(); return@smallButton }
             val metered = (getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager).isActiveNetworkMetered
             android.app.AlertDialog.Builder(this)
@@ -206,7 +207,7 @@ class HomeActivity : Activity() {
         val installed = graph.controller.models.installed().isNotEmpty()
         brain.visibility = if (installed && d == null) View.GONE else View.VISIBLE
         brainText.text = when {
-            d == null -> tr("🤖 ${Persona.NAME} ยังไม่มีสมอง AI — ติดตั้งแล้วจะคุยได้ฉลาดขึ้นมากและทำงานแทนได้เก่งขึ้น", "🤖 ${Persona.NAME} has no AI brain yet. Install it for much smarter talk and better autopilot")
+            d == null -> tr("🤖 ยังไม่มีสมองในเครื่อง (806 MB โหลดครั้งเดียว อัปเดตแอปครั้งหน้าไม่ต้องโหลดอีก) — หรือต่อ 🌐 AI ออนไลน์แทนก็ได้", "🤖 ${Persona.NAME} has no AI brain yet. Install it for much smarter talk and better autopilot")
             d.error != null -> tr("โหลดไม่สำเร็จ: ${d.error} (กดเพื่อโหลดต่อจากเดิม)", "Download failed: ${d.error} (tap to continue)")
             d.verifying -> tr("กำลังตรวจสอบไฟล์…", "Verifying…")
             d.note != null && d.doneBytes == 0L -> d.note

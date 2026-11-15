@@ -65,16 +65,9 @@ jobs:
           [ -n "$REAL" ] && ARGS="$ARGS -PrealModel=$REAL"
           (./gradlew :core:test $ARGS || ./gradlew :core:test $ARGS) 2>&1 | tee "$RUNNER_TEMP/core-test.log" | grep -v -E "^(llama|ggml|graph_compute|process_ubatch)" | tail -150
           exit ${PIPESTATUS[0]}
-      - name: Put the AI brain into the release APK
+      - name: Build APKs (debug for tests, release for installing; the AI brain is fetched by the app once)
         run: |
-          F="$RUNNER_TEMP/models/gemma-3-1b-it-Q4_K_M.gguf"
-          if [ ! -f "$F" ]; then curl -sSL --retry 3 -m 900 -o "$F" "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf"; fi
-          echo "8ccc5cd1f1b3602548715ae25a66ed73fd5dc68a210412eea643eb20eb75a135  $F" | sha256sum -c -
-          mkdir -p "$RUNNER_TEMP/bundle/brain"
-          ln -f "$F" "$RUNNER_TEMP/bundle/brain/gemma-3-1b-it-Q4_K_M.gguf" 2>/dev/null || cp "$F" "$RUNNER_TEMP/bundle/brain/"
-      - name: Build APKs (debug for tests, release with the AI brain for installing)
-        run: |
-          ARGS="-PllamaDir=$RUNNER_TEMP/llama.cpp -PbundleModelDir=$RUNNER_TEMP/bundle"
+          ARGS="-PllamaDir=$RUNNER_TEMP/llama.cpp"
           ./gradlew :app:assembleDebug :app:assembleRelease $ARGS || ./gradlew :app:assembleDebug :app:assembleRelease $ARGS
       - name: Lint
         run: ./gradlew :app:lintDebug
@@ -88,7 +81,7 @@ jobs:
           gh release delete living-ai-latest --cleanup-tag --yes || true
           gh release create living-ai-latest "kivo-$VERSION.apk" --prerelease --target "$GITHUB_SHA" \
             --title "Kivo $VERSION" \
-            --notes "เวอร์ชัน $VERSION — มีสมอง AI (Gemma 3 1B) ในตัวแล้ว ไม่ต้องโหลดเพิ่ม โหลดไฟล์เดียวนี้ kivo-$VERSION.apk แล้วแตะเพื่อติดตั้งทับของเดิม ดูเลขเวอร์ชันได้ข้างชื่อ Kivo ในหน้าแรกของแอป (สร้างจาก $GITHUB_SHA)"
+            --notes "เวอร์ชัน $VERSION — ไฟล์เล็ก ติดตั้งทับของเดิมได้เลย สมอง AI ที่เคยติดตั้งไว้ยังอยู่ ไม่ต้องโหลดใหม่ (ถ้ายังไม่มี แอปจะโหลดให้ครั้งเดียวตอนต่อ Wi-Fi) โหลด kivo-$VERSION.apk ดูเลขเวอร์ชันได้ข้างชื่อ Kivo ในหน้าแรกของแอป (สร้างจาก $GITHUB_SHA)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
