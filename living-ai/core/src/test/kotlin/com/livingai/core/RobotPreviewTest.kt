@@ -77,7 +77,7 @@ class RobotPreviewTest {
     private val cell = 190
     private val cellH = 220
 
-    private fun sheet(name: String, cols: Int, cells: List<Triple<String, RobotSkin, (RobotAnimator, Long) -> Long>>) {
+    private fun sheet(name: String, cols: Int, cells: List<Triple<String, RobotSkin, (RobotAnimator, Long) -> Long>>, hover: Boolean = false) {
         val rows = (cells.size + cols - 1) / cols
         val img = BufferedImage(cols * cell, rows * cellH, BufferedImage.TYPE_INT_ARGB)
         val g = img.createGraphics()
@@ -87,13 +87,15 @@ class RobotPreviewTest {
             val x = (i % cols) * cell; val y = (i / cols) * cellH
             g.transform = AffineTransform(); g.clip = null
             g.paint = Color(bgs[i % bgs.size], true); g.fillRect(x, y, cell, cellH)
-            val anim = RobotAnimator(); val renderer = PixelBotRenderer(); renderer.skin = skin
+            val anim = RobotAnimator()
             val at = setup(anim, 100_000L)
             // let the pose settle on the target, as it would after a moment on screen
             var pose = anim.update(at - 600)
             for (k in 1..20) pose = anim.update(at - 600 + k * 30L)
             g.translate(x, y)
-            renderer.draw(AwtPainter(g), pose, cell.toFloat(), cellH.toFloat() - 16, RobotAnimator.eyeColor(anim.status, anim.mood, skin), at)
+            val eye = RobotAnimator.eyeColor(anim.status, anim.mood, skin)
+            if (hover) HoverBotRenderer().also { it.skin = skin }.draw(AwtPainter(g), pose, cell.toFloat(), cellH.toFloat() - 16, eye, at)
+            else PixelBotRenderer().also { it.skin = skin }.draw(AwtPainter(g), pose, cell.toFloat(), cellH.toFloat() - 16, eye, at)
             g.transform = AffineTransform()
             g.paint = if (i % bgs.size == 1) Color.WHITE else Color.BLACK
             g.font = Font(Font.SANS_SERIF, Font.PLAIN, 12); g.drawString(label, x + 6, y + cellH - 5)
@@ -121,6 +123,8 @@ class RobotPreviewTest {
             Triple("listen", s) { a, t -> a.status = AgentStatus.LISTENING; t },
             Triple("off", s) { a, t -> a.status = AgentStatus.PAUSED; t },
         ))
+        sheet("hover-moods", 5, Mood.entries.map { m -> Triple(m.name, s) { a: RobotAnimator, t: Long -> a.mood = m; t } }, hover = true)
+        sheet("hover-gestures", 5, Gesture.entries.map { gst -> Triple(gst.name, s) { a: RobotAnimator, t: Long -> a.play(gst, t - gst.ms / 2); t } }, hover = true)
         sheet("skins", 6, RobotSkin.ALL.map { sk -> Triple(sk.name, sk) { a: RobotAnimator, t: Long -> a.mood = Mood.HAPPY; t } })
         val outfits = Hat.entries.drop(1).map { Outfit(hat = it) } + Eyewear.entries.drop(1).map { Outfit(eyewear = it) } + Neckwear.entries.drop(1).map { Outfit(neck = it) } +
             listOf(Outfit(Hat.CROWN, Eyewear.SUNGLASSES, Neckwear.BOWTIE), Outfit(Hat.CAT_EARS, Eyewear.ROUND_GLASSES, Neckwear.BELL))
