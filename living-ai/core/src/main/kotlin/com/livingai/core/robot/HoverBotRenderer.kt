@@ -23,6 +23,18 @@ class HoverBotRenderer {
 
     var skin: RobotSkin = RobotSkin.SNOW
     var outfit: Outfit = Outfit()
+    /** Which character: proportions, face, ears, topper, base and (optionally) its own colours. */
+    var design: BotDesign = BotDesign.CLASSIC
+
+    private val bodyColor get() = if (design.body != 0) design.body else skin.body
+    private val accentColor get() = if (design.accent != 0) design.accent else skin.accent
+    private val visorColor get() = if (design.visor != 0) design.visor else skin.visor
+    // face screen geometry of the current design
+    private val vRx get() = design.visorR.first
+    private val vRy get() = design.visorR.second
+    private val vRz get() = design.visorR.third
+    private val vY get() = design.visorY
+    private val vZ get() = design.headR.third - design.visorR.third + 0.03f
 
     // ---- camera (body units; the robot is 2 units tall, y up, z towards the viewer) ----
     private val camDist = 7.5f
@@ -93,9 +105,12 @@ class HoverBotRenderer {
         centerX = width / 2f
         groundY = height * 0.95f
         count = 0
+        nowMs = timeMs
         val v = pose.v
-        val body = skin.body
-        val accent = skin.accent
+        val body = bodyColor
+        val accent = accentColor
+        val d = design
+        val (hRx, hRy, hRz) = d.headR
 
         // ---------- forward kinematics ----------
         // hovering: a slow bob in the air; "sitting" and "sleeping" poses bring it down close to the ground
@@ -103,27 +118,55 @@ class HoverBotRenderer {
         hover = (HOVER + v[Pose.Y] * 0.9f + bob).coerceAtLeast(0.08f)
         root.identity().translate(v[Pose.X], hover, 0f).rotY(v[Pose.YAW]).rotX(v[Pose.PITCH] * 0.7f).rotZ(v[Pose.ROLL]).scaleY(v[Pose.SQUASH])
         torso.set(root).translate(0f, BODY_Y, 0f)
-        head.set(torso).translate(0f, 0.36f, 0f).rotY(v[Pose.HEAD_YAW]).rotX(v[Pose.HEAD_PITCH]).rotZ(v[Pose.HEAD_ROLL])
+        head.set(torso).translate(0f, if (d.bodyR == null) -0.3f else 0.36f, 0f).rotY(v[Pose.HEAD_YAW]).rotX(v[Pose.HEAD_PITCH]).rotZ(v[Pose.HEAD_ROLL])
 
-        addBall(BALL, torso, 0f, 0f, 0f, 0.37f, 0.34f, 0.33f, body, 0f)                        // body
-        if (outfit.neck != Neckwear.SCARF) addBall(TIP, torso, 0f, 0.29f, 0f, 0.21f, 0.045f, 0.2f, eyeColor, -0.08f) // glowing neck ring
-        addBall(BALL, torso, 0f, -0.33f, 0f, 0.17f, 0.07f, 0.17f, darken(accent, 0.15f), -0.02f) // jet nozzle
+        val bodyR = d.bodyR
+        if (bodyR != null) {
+            addBall(BALL, torso, 0f, 0f, 0f, bodyR.first, bodyR.second, bodyR.third, body, 0f)                        // body
+            if (outfit.neck != Neckwear.SCARF) addBall(TIP, torso, 0f, bodyR.second - 0.05f, 0f, bodyR.first * 0.57f, 0.045f, bodyR.third * 0.6f, eyeColor, -0.08f) // glowing neck ring
+        }
+        jetY = if (bodyR != null) -bodyR.second + 0.01f else -0.3f + 0.4f - hRy + 0.02f
+        if (d.base == Base.JET) addBall(BALL, torso, 0f, jetY, 0f, 0.17f, 0.07f, 0.17f, darken(accent, 0.15f), -0.02f) // jet nozzle
+        if (d.base == Base.RING) {
+            // a tilted ring of beads around the body: the back half hides behind it, the front half passes in front
+            val rr = (bodyR?.first ?: hRx) + 0.24f
+            for (k in 0 until 18) {
+                val a = k * (2.0 * Math.PI / 18)
+                val x = (cos(a) * rr).toFloat(); val z = (sin(a) * rr).toFloat()
+                addBall(BALL, torso, x, -0.04f + x * 0.18f, z, 0.075f, 0.05f, 0.075f, if (k % 2 == 0) accent else lighten(accent, 0.3f), 0f)
+            }
+        }
+        if (d.base == Base.CLOUD) for (k in -2..2) {
+            val r = 0.17f - kotlin.math.abs(k) * 0.025f
+            addBall(BALL, torso, k * 0.15f, jetY - 0.02f + kotlin.math.abs(k) * 0.03f, if (k % 2 == 0) 0.05f else -0.05f, r, r * 0.8f, r, 0xFFFFFFFF.toInt(), -0.03f)
+        }
 
-        arm(armL, foreL, -1f, v[Pose.ARM_L_PITCH], v[Pose.ARM_L_ROLL], v[Pose.ARM_L_ELBOW], body, accent)
-        arm(armR, foreR, 1f, v[Pose.ARM_R_PITCH], v[Pose.ARM_R_ROLL], v[Pose.ARM_R_ELBOW], body, accent)
+        if (d.hands) {
+            arm(armL, foreL, -1f, v[Pose.ARM_L_PITCH], v[Pose.ARM_L_ROLL], v[Pose.ARM_L_ELBOW], body, accent)
+            arm(armR, foreR, 1f, v[Pose.ARM_R_PITCH], v[Pose.ARM_R_ROLL], v[Pose.ARM_R_ELBOW], body, accent)
+        }
 
-        // antenna: stalk + tip, standing on the top of the head (the head hides its foot)
-        val sway = Math.toRadians(v[Pose.ANTENNA].toDouble())
-        val tipX = (sin(sway) * 0.26).toFloat(); val tipY = 0.92f + (cos(sway) * 0.26).toFloat()
-        addCapsule(
-            head.px(0f, 0.88f, -0.04f), head.py(0f, 0.88f, -0.04f), head.pz(0f, 0.88f, -0.04f),
-            head.px(tipX, tipY, -0.04f), head.py(tipX, tipY, -0.04f), head.pz(tipX, tipY, -0.04f), 0.028f, accent, -0.12f,
-        )
-        addBall(TIP, head, tipX, tipY, -0.04f, 0.075f, 0.075f, 0.075f, eyeColor, -0.11f)
+        addTopper(v, eyeColor, accent, body, hRx, hRy)
 
-        addBall(BALL, head, -0.64f, 0.38f, 0f, 0.1f, 0.17f, 0.17f, accent, -0.01f) // ear pods
-        addBall(BALL, head, 0.64f, 0.38f, 0f, 0.1f, 0.17f, 0.17f, accent, -0.01f)
-        addBall(HEAD, head, 0f, 0.4f, 0f, 0.66f, 0.56f, 0.6f, body, 0.1f)
+        if (d.earPods) {
+            addBall(BALL, head, -(hRx - 0.02f), 0.38f, 0f, 0.1f, 0.17f, 0.17f, accent, -0.01f) // ear pods
+            addBall(BALL, head, hRx - 0.02f, 0.38f, 0f, 0.1f, 0.17f, 0.17f, accent, -0.01f)
+        }
+        if (d.headphones) {
+            for (side in -1..1 step 2) {
+                addBall(BALL, head, side * (hRx + 0.02f), 0.4f, 0f, 0.1f, 0.23f, 0.23f, accent, 0.02f)
+                addBall(BALL, head, side * (hRx + 0.09f), 0.4f, 0f, 0.04f, 0.13f, 0.13f, lighten(accent, 0.35f), 0.03f)
+            }
+            // band over the top of the head
+            var px = -(hRx + 0.04f); var py = 0.48f
+            for (k in 1..8) {
+                val a = Math.PI - k * Math.PI / 8
+                val nx = (cos(a) * (hRx + 0.04f)).toFloat(); val ny = 0.48f + (sin(a) * (hRy + 0.02f)).toFloat()
+                addCapsule(head.px(px, py, -0.12f), head.py(px, py, -0.12f), head.pz(px, py, -0.12f), head.px(nx, ny, -0.12f), head.py(nx, ny, -0.12f), head.pz(nx, ny, -0.12f), 0.045f, darken(accent, 0.2f), -0.13f)
+                px = nx; py = ny
+            }
+        }
+        addBall(HEAD, head, 0f, 0.4f, 0f, hRx, hRy, hRz, body, 0.1f)
 
         addOutfit()
 
@@ -138,8 +181,8 @@ class HoverBotRenderer {
         g.glow(0xFF000000.toInt(), (0.42f - lift * 0.3f).coerceAtLeast(0.12f))
         g.restore()
         // hover jet: a soft light under the body, brighter when it rises
-        run {
-            val jx = torso.px(0f, -0.38f, 0f); val jy = torso.py(0f, -0.38f, 0f); val jz = torso.pz(0f, -0.38f, 0f)
+        if (design.base != Base.CLOUD) run {
+            val jx = torso.px(0f, jetY - 0.05f, 0f); val jy = torso.py(0f, jetY - 0.05f, 0f); val jz = torso.pz(0f, jetY - 0.05f, 0f)
             val s = scaleAt(jz)
             val flick = 0.85f + 0.15f * sin(timeMs / 1000.0 * 23.0).toFloat()
             for (k in 0..2) {
@@ -174,8 +217,71 @@ class HoverBotRenderer {
                 else -> paintBall(g, p, outline)
             }
         }
-        paintChest(g, eyeColor, v[Pose.GLOW])
+        if (design.tummyLight && design.bodyR != null) paintChest(g, eyeColor, v[Pose.GLOW])
         paintSymbol(g, pose, eyeColor, timeMs)
+    }
+
+    private var jetY = -0.33f
+    private var nowMs = 0L
+
+    /** The thing on top of the head that gives each character its silhouette. */
+    private fun addTopper(v: FloatArray, eyeColor: Int, accent: Int, body: Int, hRx: Float, hRy: Float) {
+        val top = 0.4f + hRy
+        val sway = Math.toRadians(v[Pose.ANTENNA].toDouble())
+        fun stalk(x0: Float, lean: Double, len: Float, tip: Int) {
+            val a = sway + lean
+            val tx = x0 + (sin(a) * len).toFloat(); val ty = top + 0.04f + (cos(a) * len).toFloat()
+            addCapsule(
+                head.px(x0, top - 0.04f, -0.04f), head.py(x0, top - 0.04f, -0.04f), head.pz(x0, top - 0.04f, -0.04f),
+                head.px(tx, ty, -0.04f), head.py(tx, ty, -0.04f), head.pz(tx, ty, -0.04f), 0.028f, accent, -0.12f,
+            )
+            addBall(TIP, head, tx, ty, -0.04f, 0.075f, 0.075f, 0.075f, tip, -0.11f)
+        }
+        when (design.topper) {
+            Topper.ANTENNA -> stalk(0f, 0.0, 0.26f, eyeColor)
+            Topper.TWIN_ANTENNA -> { stalk(-0.22f, -0.35, 0.3f, eyeColor); stalk(0.22f, 0.35, 0.3f, eyeColor) }
+            Topper.PROPELLER -> {
+                addCapsule(head.px(0f, top - 0.04f, 0f), head.py(0f, top - 0.04f, 0f), head.pz(0f, top - 0.04f, 0f), head.px(0f, top + 0.14f, 0f), head.py(0f, top + 0.14f, 0f), head.pz(0f, top + 0.14f, 0f), 0.035f, darken(accent, 0.2f), -0.12f)
+                // two blades, spinning
+                val spin = (nowMs % 100_000L) / 1000.0 * 9.0
+                for (b in 0..1) {
+                    val a = spin + b * Math.PI
+                    addBall(BALL, head, (cos(a) * 0.24).toFloat(), top + 0.16f, (sin(a) * 0.24).toFloat(), 0.2f, 0.025f, 0.07f, if (b == 0) accent else lighten(accent, 0.25f), -0.1f)
+                }
+                addBall(BALL, head, 0f, top + 0.17f, 0f, 0.06f, 0.05f, 0.06f, eyeColor, -0.09f)
+            }
+            Topper.BUNNY_EARS -> for (side in -1..1 step 2) {
+                val lean = side * 0.25f + (sin(sway) * 0.1).toFloat()
+                addBall(BALL, head, side * 0.3f + lean * 0.3f, top + 0.22f, -0.05f, 0.13f, 0.34f, 0.08f, body, -0.1f)
+                addBall(BALL, head, side * 0.3f + lean * 0.3f, top + 0.22f, 0.0f, 0.07f, 0.24f, 0.04f, accent, -0.09f)
+            }
+            Topper.CAT_EARS -> for (side in -1..1 step 2) {
+                addBall(BALL, head, side * (hRx * 0.58f), top - 0.03f, 0f, 0.17f, 0.22f, 0.08f, body, -0.1f)
+                addBall(BALL, head, side * (hRx * 0.58f), top - 0.03f, 0.05f, 0.09f, 0.13f, 0.03f, accent, -0.09f)
+            }
+            Topper.SPROUT -> {
+                addCapsule(head.px(0f, top - 0.04f, 0f), head.py(0f, top - 0.04f, 0f), head.pz(0f, top - 0.04f, 0f), head.px(0f, top + 0.16f, 0f), head.py(0f, top + 0.16f, 0f), head.pz(0f, top + 0.16f, 0f), 0.03f, darken(accent, 0.25f), -0.12f)
+                val w = (sin(sway) * 0.05).toFloat()
+                addBall(BALL, head, -0.14f + w, top + 0.2f, 0f, 0.16f, 0.07f, 0.06f, accent, -0.1f)
+                addBall(BALL, head, 0.14f + w, top + 0.24f, 0f, 0.16f, 0.07f, 0.06f, lighten(accent, 0.2f), -0.1f)
+            }
+            Topper.CREST -> for (k in 0..4) {
+                val z = 0.3f - k * 0.16f
+                addBall(BALL, head, 0f, top - 0.02f + (if (k in 1..3) 0.08f else 0.02f), z, 0.05f, 0.14f - kotlin.math.abs(k - 2) * 0.025f, 0.1f, accent, -0.1f)
+            }
+            Topper.HORN -> for (k in 0..4) {
+                val r = 0.1f - k * 0.018f
+                addBall(BALL, head, 0f, top - 0.02f + k * 0.08f, 0.2f - k * 0.02f, r, 0.07f, r, if (k % 2 == 0) accent else lighten(accent, 0.45f), -0.1f + k * 0.001f)
+            }
+            Topper.HALO -> {
+                val bob = (sin(sway) * 0.03).toFloat()
+                for (k in 0 until 14) {
+                    val a = k * (2.0 * Math.PI / 14)
+                    addBall(TIP, head, (cos(a) * 0.36).toFloat(), top + 0.22f + bob, (sin(a) * 0.36).toFloat(), 0.05f, 0.03f, 0.05f, 0xFFFFE27A.toInt(), -0.1f)
+                }
+            }
+            Topper.NONE -> Unit
+        }
     }
 
     /** Hats and neckwear are small 3D parts on the head and body frames, so they turn and hide with them. */
@@ -241,7 +347,7 @@ class HoverBotRenderer {
             val az = Math.toRadians(side * 20.0)
             val ca = cos(az).toFloat(); val sa = sin(az).toFloat()
             if (f.m22 * ca + f.m20 * sa < 0.12f) continue
-            val lx = (VISOR_RX + 0.02f) * sa; val ly = VISOR_Y + 0.03f; val lz = VISOR_Z + (VISOR_RZ + 0.02f) * ca
+            val lx = (vRx + 0.02f) * sa; val ly = vY + 0.03f; val lz = vZ + (vRz + 0.02f) * ca
             g.save()
             decal(g, f.px(lx, ly, lz), f.py(lx, ly, lz), f.pz(lx, ly, lz), f.m00 * ca - f.m02 * sa, f.m10 * ca - f.m12 * sa, f.m01, f.m11)
             when (e) {
@@ -271,7 +377,8 @@ class HoverBotRenderer {
     }
 
     private fun arm(upper: Frame, fore: Frame, side: Float, pitch: Float, roll: Float, elbow: Float, body: Int, accent: Int) {
-        upper.set(torso).translate(side * 0.34f, 0.1f, 0f).rotZ(side * roll).rotX(-pitch)
+        val shoulder = design.bodyR?.let { it.first - 0.03f } ?: (design.headR.first * 0.82f)
+        upper.set(torso).translate(side * shoulder, if (design.bodyR == null) -0.15f else 0.1f, 0f).rotZ(side * roll).rotX(-pitch)
         fore.set(upper).translate(0f, -UPPER_ARM, 0f).rotX(-elbow)
         // no arm segments at all: the hands float beside the body (nothing to bend, so no joints to look wrong)
         val hx = fore.px(0f, -FOREARM, 0f); val hy = fore.py(0f, -FOREARM, 0f); val hz = fore.pz(0f, -FOREARM, 0f)
@@ -279,8 +386,9 @@ class HoverBotRenderer {
         // pushed a little away from the shoulder so the hand never sinks into the body
         val k = 1.35f
         handFrame.identity().translate(sx0 + (hx - sx0) * k + side * 0.06f, sy0 + (hy - sy0) * k, sz0 + (hz - sz0) * k + 0.05f)
-        addBall(BALL, handFrame, 0f, 0f, 0f, 0.125f, 0.125f, 0.125f, accent, 0.06f)
-        addBall(BALL, handFrame, side * 0.03f, 0.02f, 0.03f, 0.075f, 0.075f, 0.075f, lighten(accent, 0.25f), 0.08f)
+        val hs = design.handSize
+        addBall(BALL, handFrame, 0f, 0f, 0f, 0.125f * hs, 0.125f * hs, 0.125f * hs, accent, 0.06f)
+        addBall(BALL, handFrame, side * 0.03f * hs, 0.02f * hs, 0.03f * hs, 0.075f * hs, 0.075f * hs, 0.075f * hs, lighten(accent, 0.25f), 0.08f)
         if (body == accent) Unit
     }
 
@@ -344,15 +452,27 @@ class HoverBotRenderer {
         g.save()
         g.clipEllipse(headPart.x, headPart.y, headPart.rx, headPart.ry, headPart.angle)
 
+        if (design.blush) for (side in -1..1 step 2) {
+            val az = Math.toRadians(side * 44.0); val el = Math.toRadians(-12.0)
+            val (hx, hy, hz) = design.headR
+            val ca = cos(az).toFloat(); val sa = sin(az).toFloat(); val ce = cos(el).toFloat(); val se = sin(el).toFloat()
+            if (f.m22 * ca + f.m20 * sa < 0.15f) continue
+            val lx = hx * sa * ce; val ly = 0.4f + hy * se; val lz = hz * ca * ce
+            g.save()
+            decal(g, f.px(lx, ly, lz), f.py(lx, ly, lz), f.pz(lx, ly, lz), f.m00 * ca - f.m02 * sa, f.m10 * ca - f.m12 * sa, f.m01, f.m11)
+            g.save(); g.concat(0.13f, 0f, 0f, 0.08f, 0f, 0f); g.glow(0xFFFF7FA3.toInt(), 0.7f); g.restore()
+            g.restore()
+        }
+
         // visor: a dark glass lens on the front of the head
-        val vz = f.pz(0f, VISOR_Y, VISOR_Z)
+        val vz = f.pz(0f, vY, vZ)
         val vs = scaleAt(vz)
-        projectEllipsoid(f, VISOR_RX, VISOR_RY, VISOR_RZ, vs)
-        val vx = centerX + f.px(0f, VISOR_Y, VISOR_Z) * vs; val vy = groundY - f.py(0f, VISOR_Y, VISOR_Z) * vs
+        projectEllipsoid(f, vRx, vRy, vRz, vs)
+        val vx = centerX + f.px(0f, vY, vZ) * vs; val vy = groundY - f.py(0f, vY, vZ) * vs
         val a = Math.toRadians(eAngle.toDouble()); val c = cos(a).toFloat(); val s = sin(a).toFloat()
         g.save()
         g.concat(eRx * c, eRx * s, -eRy * s, eRy * c, vx, vy)
-        g.ball(lighten(skin.visor, 0.3f), skin.visor, darken(skin.visor, 0.4f), -0.35f, -0.45f)
+        g.ball(lighten(visorColor, 0.3f), visorColor, darken(visorColor, 0.4f), -0.35f, -0.45f)
         g.arc(205f, 50f, 0.07f, 0x55FFFFFF)
         g.restore()
         g.clipEllipse(vx, vy, eRx, eRy, eAngle)
@@ -362,20 +482,23 @@ class HoverBotRenderer {
         val dim = face == Face.OFF
         val color = if (dim) darken(eyeColor, 0.55f) else eyeColor
 
-        for (side in -1..1 step 2) {
-            val az = Math.toRadians((side * 20f + v[Pose.PUPIL_X] * 7f).toDouble())
+        val sides = if (design.oneEye) intArrayOf(0) else intArrayOf(-1, 1)
+        for (side in sides) {
+            val az = Math.toRadians((side * 20f * (vRx / 0.52f).coerceAtMost(1.15f) + v[Pose.PUPIL_X] * 7f).toDouble())
             val el = Math.toRadians((4f - v[Pose.PUPIL_Y] * 6f).toDouble())
             val ca = cos(az).toFloat(); val sa = sin(az).toFloat(); val ce = cos(el).toFloat(); val se = sin(el).toFloat()
             // facing: z of the surface normal in world space
             val nz = f.m22 * ca + f.m20 * sa
             if (nz < 0.12f) continue
-            val lx = VISOR_RX * sa * ce; val ly = VISOR_Y + VISOR_RY * se; val lz = VISOR_Z + VISOR_RZ * ca * ce
+            val lx = vRx * sa * ce; val ly = vY + vRy * se; val lz = vZ + vRz * ca * ce
             g.save()
             decal(
                 g, f.px(lx, ly, lz), f.py(lx, ly, lz), f.pz(lx, ly, lz),
                 f.m00 * ca - f.m02 * sa, f.m10 * ca - f.m12 * sa, f.m01, f.m11,
             )
-            paintEye(g, face, side, open, color, dim)
+            val k = design.eyeScale
+            if (k != 1f) g.concat(k, 0f, 0f, k, 0f, 0f)
+            paintEye(g, face, if (side == 0) 1 else side, open, color, dim)
             g.restore()
         }
 
@@ -384,10 +507,14 @@ class HoverBotRenderer {
             val el = Math.toRadians(-27.0)
             val ce = cos(el).toFloat(); val se = sin(el).toFloat()
             if (f.m22 > 0.12f) {
-                val ly = VISOR_Y + VISOR_RY * se; val lz = VISOR_Z + VISOR_RZ * ce
+                val ly = vY + vRy * se; val lz = vZ + vRz * ce
                 g.save()
                 decal(g, f.px(v[Pose.PUPIL_X] * 0.02f, ly, lz), f.py(0f, ly, lz), f.pz(0f, ly, lz), f.m00, f.m10, f.m01, f.m11)
                 paintMouth(g, face, v[Pose.MOUTH_OPEN], if (dim) color else lighten(color, 0.35f))
+                if (design.whiskers) for (sd in -1..1 step 2) for (w in -1..1) {
+                    val x0 = sd * 0.19f; val y0 = -0.01f + w * 0.035f
+                    g.line(x0, y0, x0 + sd * 0.12f, y0 + w * 0.025f, 0.012f, lighten(color, 0.2f))
+                }
                 g.restore()
             }
         }
@@ -535,11 +662,6 @@ class HoverBotRenderer {
         private const val SHIN = 0.22f
         private const val UPPER_ARM = 0.24f
         private const val FOREARM = 0.22f
-        private const val VISOR_Y = 0.37f
-        private const val VISOR_Z = 0.3f
-        private const val VISOR_RX = 0.52f
-        private const val VISOR_RY = 0.34f
-        private const val VISOR_RZ = 0.33f
         const val HOVER = 0.5f
         const val BODY_Y = 0.36f
 

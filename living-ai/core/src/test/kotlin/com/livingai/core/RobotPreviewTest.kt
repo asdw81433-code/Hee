@@ -77,6 +77,41 @@ class RobotPreviewTest {
     private val cell = 190
     private val cellH = 220
 
+    @Test fun `render the ten new characters`() {
+        designSheet("designs", yaw = 0f, mood = Mood.HAPPY)
+        designSheet("designs-turned", yaw = 38f, mood = Mood.CALM)
+    }
+
+    private fun designSheet(name: String, yaw: Float, mood: Mood) {
+        val cols = 5; val w = 300; val h = 360
+        val list = BotDesign.NEW
+        val img = BufferedImage(cols * w, ((list.size + cols - 1) / cols) * h, BufferedImage.TYPE_INT_ARGB)
+        val g = img.createGraphics()
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+        list.forEachIndexed { i, d ->
+            val x = (i % cols) * w; val y = (i / cols) * h
+            g.transform = AffineTransform(); g.clip = null
+            g.paint = java.awt.GradientPaint(x.toFloat(), y.toFloat(), Color(0x1B1F3A), x.toFloat(), (y + h).toFloat(), Color(0x0E1020))
+            g.fillRect(x, y, w, h)
+            val anim = RobotAnimator(); anim.mood = mood
+            val at = 100_000L + i * 137L
+            var pose = anim.update(at - 600)
+            for (k in 1..20) pose = anim.update(at - 600 + k * 30L)
+            pose.v[Pose.YAW] += yaw
+            val r = HoverBotRenderer(); r.design = d
+            g.translate(x, y + 10)
+            r.draw(AwtPainter(g), pose, w.toFloat(), h - 60f, RobotAnimator.eyeColor(anim.status, anim.mood, RobotSkin.SNOW), at)
+            g.transform = AffineTransform()
+            g.paint = Color.WHITE
+            g.font = Font(Font.SANS_SERIF, Font.BOLD, 22)
+            g.drawString("${i + 1}. ${d.nameEn}", x + 14, y + h - 18)
+        }
+        g.dispose()
+        val out = File("build/robot-preview/$name.png"); out.parentFile.mkdirs()
+        ImageIO.write(img, "png", out)
+    }
+
     private fun sheet(name: String, cols: Int, cells: List<Triple<String, RobotSkin, (RobotAnimator, Long) -> Long>>, hover: Boolean = false) {
         val rows = (cells.size + cols - 1) / cols
         val img = BufferedImage(cols * cell, rows * cellH, BufferedImage.TYPE_INT_ARGB)
