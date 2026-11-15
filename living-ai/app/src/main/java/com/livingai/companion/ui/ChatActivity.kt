@@ -1,0 +1,571 @@
+package com.livingai.companion.ui
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.Bundle
+import android.text.InputType
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import android.widget.EditText
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import com.livingai.companion.AppGraph
+import com.livingai.companion.LivingApp
+import com.livingai.companion.LivingState
+import com.livingai.companion.overlay.RobotView
+import com.livingai.core.Lang.tr
+import com.livingai.core.Persona
+import com.livingai.core.AgentStatus
+import com.livingai.core.memory.ChatLine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+
+/**
+ * The chat with Kivo: streaming replies, stop, copy (long press), search old chats, new conversation,
+ * attach a picture or a text file, voice, quick actions.
+ */
+class ChatActivity : Activity() {
+
+    private lateinit var graph: AppGraph
+    private val ui = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var watchJob: Job? = null
+
+    private lateinit var orb: RobotView
+    private lateinit var statusText: TextView
+    private lateinit var moodText: TextView
+    private lateinit var banner: LinearLayout
+    private lateinit var bannerText: TextView
+    private lateinit var chatScroll: ScrollView
+    private lateinit var chatList: LinearLayout
+    private lateinit var input: EditText
+    private var shownLines = -1
+
+    private var bg = Theme.BG_TOP
+    private val colorText = Theme.TEXT
+    private val colorSub = Theme.SUB
+    private val bubbleTheirs = Theme.CARD
+    private val accent = Theme.ACCENT
+    private val grey = 0x29FFFFFF
+    private val red = Theme.RED
+    private val green = Theme.GREEN
+
+    private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        graph = LivingApp.graph(this)
+        Theme.window(this)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = Theme.background()
+            setOnApplyWindowInsetsListener { v, insets ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val i = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
+                    v.setPadding(i.left, i.top, i.right, i.bottom)
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                }
+                insets
+            }
+        }
+        setContentView(root)
+
+        root.addView(header(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(12.dp, 8.dp, 12.dp, 6.dp)
+        })
+        root.addView(brainCard(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(12.dp, 0, 12.dp, 6.dp)
+        })
+        root.addView(setupBanner(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            setMargins(12.dp, 0, 12.dp, 6.dp)
+        })
+
+        chatList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(14.dp, 6.dp, 14.dp, 12.dp) }
+        chatScroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            addView(chatList, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        root.addView(chatScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(quickActions(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(inputBar(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(Theme.bottomNav(this, Theme.TAB_CHAT), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        Theme.applyFonts(root)
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(i: Intent?) {
+        i ?: return
+        i.getStringExtra(EXTRA_PREFILL)?.let { input.setText(it); input.setSelection(it.length); input.requestFocus() }
+        @Suppress("DEPRECATION")
+        when (i.getStringExtra(EXTRA_ACTION)) {
+            ACTION_IMAGE -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }, REQ_IMAGE)
+            ACTION_FILE -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "text/*" }, REQ_TEXT)
+        }
+        i.removeExtra(EXTRA_ACTION); i.removeExtra(EXTRA_PREFILL)
+    }
+
+    // ---------- parts ----------
+
+    /** Slim header: Kivo, what it is doing, new conversation and search. */
+    private fun header(): View {
+        orb = RobotView(this).apply {
+            showCaption = false; mayRest = false; skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin)
+            style = graph.prefs.robotStyle
+            setOnClickListener { poke() }
+        }
+        statusText = label("", 12.5f, colorSub).apply { maxLines = 2 }
+        moodText = label("", 12f, colorSub)
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = Theme.glass(this@ChatActivity, 22f)
+            setPadding(6.dp, 4.dp, 8.dp, 4.dp)
+            addView(orb, LinearLayout.LayoutParams(60.dp, 68.dp))
+            addView(LinearLayout(this@ChatActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(6.dp, 0, 0, 0)
+                addView(label(Persona.NAME, 20f, colorText, bold = true))
+                addView(statusText)
+                addView(moodText)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(roundButton("🔍", grey) { searchDialog() }.apply { contentDescription = tr("ค้นหาแชตเก่า", "Search old chats") }, LinearLayout.LayoutParams(42.dp, 42.dp).apply { marginEnd = 6.dp })
+            addView(roundButton("＋", grey) {
+                android.app.AlertDialog.Builder(this@ChatActivity)
+                    .setTitle(tr("เริ่มบทสนทนาใหม่?", "Start a new conversation?"))
+                    .setMessage(tr("แชตเก่ายังเก็บไว้และค้นหาได้ด้วย 🔍 แต่ ${Persona.NAME} จะเริ่มคุยเรื่องใหม่ (ความจำเรื่องตัวเรายังอยู่)", "Old chat stays saved and searchable, but ${Persona.NAME} starts fresh (what it remembers about you stays)."))
+                    .setPositiveButton(tr("เริ่มใหม่", "New chat")) { _, _ -> graph.controller.newConversation(); shownLines = -1 }
+                    .setNegativeButton(tr("ยกเลิก", "Cancel"), null).show()
+            }.apply { contentDescription = tr("แชตใหม่", "New chat") }, LinearLayout.LayoutParams(42.dp, 42.dp))
+        }
+    }
+
+    /** Finds old messages, also from before "new conversation". */
+    private fun searchDialog() {
+        val field = EditText(this).apply { hint = tr("คำที่จะค้น", "Search for"); setSingleLine() }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(tr("ค้นหาแชตเก่า", "Search old chats"))
+            .setView(LinearLayout(this).apply { setPadding(20.dp, 8.dp, 20.dp, 0); addView(field, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)) })
+            .setPositiveButton(tr("ค้นหา", "Search")) { _, _ ->
+                val q = field.text.toString()
+                ui.launch {
+                    val found = graph.controller.searchChat(q)
+                    val fmt = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale("th"))
+                    val items = found.map { (if (it.fromUser) "🧑 " else "🤖 ") + fmt.format(java.util.Date(it.timestampMs)) + "\n" + it.text.take(200) }
+                    android.app.AlertDialog.Builder(this@ChatActivity)
+                        .setTitle(tr("เจอ ${found.size} ข้อความ", "${found.size} found"))
+                        .apply {
+                            if (items.isEmpty()) setMessage(tr("ไม่เจอคำว่า \"$q\"", "Nothing matches \"$q\""))
+                            else setItems(items.toTypedArray()) { _, i -> copy(found[i].text) }
+                        }
+                        .setPositiveButton(tr("ปิด", "Close"), null).show()
+                }
+            }
+            .setNegativeButton(tr("ยกเลิก", "Cancel"), null).show()
+    }
+
+    private fun copy(text: String) {
+        (getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("Kivo", text))
+        android.widget.Toast.makeText(this, tr("คัดลอกแล้ว", "Copied"), android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    private lateinit var brain: LinearLayout
+    private lateinit var brainText: TextView
+    private lateinit var brainButton: Button
+
+    /** Shown until a language model is installed: one tap downloads the recommended one in the background. */
+    private fun brainCard(): View {
+        brainText = label("", 13f, colorText)
+        brainButton = smallButton("", accent) {
+            if (graph.models.downloads.value.values.any { it.bundled && it.error != null }) { graph.models.installBundled(); return@smallButton }
+            val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+            if (graph.models.downloads.value[spec.id]?.running == true) { graph.models.cancel(spec); return@smallButton }
+            graph.controller.prefs.putLong("brain_auto_off", 0L)
+            if (filesDir.usableSpace < spec.bytes + 60_000_000L) { android.widget.Toast.makeText(this, tr("พื้นที่ในเครื่องไม่พอ (ต้องการ ~850 MB)", "Not enough storage (~850 MB needed)"), android.widget.Toast.LENGTH_LONG).show(); return@smallButton }
+            val metered = (getSystemService(CONNECTIVITY_SERVICE) as android.net.ConnectivityManager).isActiveNetworkMetered
+            android.app.AlertDialog.Builder(this)
+                .setTitle(tr("ติดตั้งสมอง AI", "Install the AI brain"))
+                .setMessage(tr("ดาวน์โหลด ${spec.title.substringBefore(" —")} ขนาด 806 MB ครั้งเดียว แล้วใช้ได้ตลอดโดยไม่ต้องต่อเน็ต\nสัญญาอนุญาต: ${spec.license}" + (if (metered) "\n\n⚠ ตอนนี้ใช้เน็ตมือถือ จะใช้ดาต้าประมาณ 806 MB" else ""),
+                    "Download ${spec.title.substringBefore(" —")} (806 MB) once; after that it works without internet.\nLicence: ${spec.license}" + (if (metered) "\n\n⚠ You are on mobile data: about 806 MB" else "")))
+                .setPositiveButton(tr("ติดตั้งเลย", "Install")) { _, _ -> graph.models.download(spec) }
+                .setNegativeButton(tr("ไว้ก่อน", "Later"), null).show()
+        }
+        brain = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = Theme.glass(this@ChatActivity, 18f, 0x268B5CFF, 0x668B5CFF)
+            setPadding(12.dp, 10.dp, 10.dp, 10.dp)
+            addView(brainText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
+            addView(brainButton)
+        }
+        return brain
+    }
+
+    /** Says honestly which brain will answer right now. */
+    private fun brainStatus(): String {
+        val r = graph.controller.router
+        return when {
+            r.usingOnline -> tr("🌐 ออนไลน์: ${r.modelName}", "🌐 Online: ${r.modelName}")
+            r.isAvailable -> tr("🧠 สมองในเครื่อง • ออฟไลน์ได้", "🧠 Phone model • works offline")
+            else -> tr("⚠️ ยังไม่มีสมอง AI (ตอบได้แค่พื้นฐาน)", "⚠️ No AI brain yet (basic replies only)")
+        }
+    }
+
+    private fun refreshBrain() {
+        if (LivingState.status.value == AgentStatus.IDLE) statusText.text = brainStatus()
+        val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
+        val d = graph.models.downloads.value[spec.id]
+        val installed = graph.controller.models.installed().isNotEmpty()
+        brain.visibility = if (installed && d == null) View.GONE else View.VISIBLE
+        brainText.text = when {
+            d == null -> tr("🤖 ยังไม่มีสมองในเครื่อง (806 MB โหลดครั้งเดียว อัปเดตแอปครั้งหน้าไม่ต้องโหลดอีก) — หรือต่อ 🌐 AI ออนไลน์แทนก็ได้", "🤖 ${Persona.NAME} has no AI brain yet. Install it for much smarter talk and better autopilot")
+            d.error != null -> tr("โหลดไม่สำเร็จ: ${d.error} (กดเพื่อโหลดต่อจากเดิม)", "Download failed: ${d.error} (tap to continue)")
+            d.verifying -> tr("กำลังตรวจสอบไฟล์…", "Verifying…")
+            d.note != null && d.doneBytes == 0L -> d.note
+            else -> (d.note?.let { "$it\n" } ?: "") + tr("กำลังโหลดสมอง AI ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%) ปิดแอปได้ ดูความคืบหน้าในแถบแจ้งเตือน", "Downloading the AI brain ${d.doneBytes / 1_000_000}/${d.totalBytes / 1_000_000} MB (${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%)")
+        }
+        brainButton.text = if (d?.running == true) tr("ยกเลิก", "Cancel") else if (d?.error != null) tr("ลองใหม่", "Try again") else tr("ติดตั้ง", "Install")
+        // the built-in brain unpacks by itself: nothing to press
+        brainButton.visibility = if (d?.bundled == true && d.error == null) View.GONE else View.VISIBLE
+        if (d?.bundled == true && d.error == null) brainText.text = (d.note ?: "") + " ${d.doneBytes * 100 / d.totalBytes.coerceAtLeast(1)}%"
+    }
+
+    private fun setupBanner(): View {
+        bannerText = label("", 13f, colorText)
+        banner = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = Theme.glass(this@ChatActivity, 18f, 0x26FFB547, 0x55FFB547)
+            setPadding(12.dp, 10.dp, 10.dp, 10.dp)
+            addView(bannerText, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
+            addView(smallButton(tr("ตั้งค่าต่อ", "Finish setup"), accent) { startActivity(Intent(this@ChatActivity, SettingsActivity::class.java)) })
+            setOnClickListener { startActivity(Intent(this@ChatActivity, SettingsActivity::class.java)) }
+        }
+        return banner
+    }
+
+    private fun quickActions(): View {
+        val chips = listOf(
+            tr("👁 ดูหน้าจอ", "👁 Look at the screen") to tr("ดูหน้าจอ", "look"),
+            tr("❓ ทำอะไรได้บ้าง", "❓ What can you do") to tr("คุณทำอะไรได้บ้าง", "What can you do?"),
+            tr("🧠 จำอะไรได้บ้าง", "🧠 What do you remember") to tr("จำอะไรเกี่ยวกับเราได้บ้าง", "What do you remember about me?"),
+            tr("🎮 เล่นเกม", "🎮 Play") to tr("เล่นเกม", "play a game"),
+            tr("📝 วางแผนวันนี้", "📝 Plan my day") to tr("วางแผนวันนี้", "plan my day"),
+            tr("🦾 ทำแทนเรา", "🦾 Do it for me") to tr("ทำแทน", "do it for me"),
+            tr("🩺 ตรวจระบบ", "🩺 System check") to tr("ตรวจระบบ", "system check"),
+            tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
+        )
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 4.dp, 12.dp, 4.dp) }
+        row.addView(TextView(this).apply {
+            text = tr("🤖 สมอง AI", "🤖 AI brain"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            background = Theme.gradient(this@ChatActivity, 18f)
+            setPadding(14.dp, 8.dp, 14.dp, 8.dp)
+            setOnClickListener { startActivity(Intent(this@ChatActivity, ModelActivity::class.java)) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
+        row.addView(TextView(this).apply {
+            text = tr("🌐 AI ออนไลน์", "🌐 Online AI"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            background = Theme.gradient(this@ChatActivity, 18f, Theme.ACCENT2, Theme.GREEN)
+            setPadding(14.dp, 8.dp, 14.dp, 8.dp)
+            setOnClickListener { startActivity(Intent(this@ChatActivity, ApiActivity::class.java)) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
+        for ((title, text) in chips) {
+            row.addView(TextView(this).apply {
+                this.text = title; textSize = 13f; setTextColor(colorText)
+                background = Theme.glass(this@ChatActivity, 18f, Theme.FIELD)
+                setPadding(14.dp, 8.dp, 14.dp, 8.dp)
+                setOnClickListener { send(text) }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
+        }
+        return HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; addView(row) }
+    }
+
+    private fun inputBar(): View {
+        input = EditText(this).apply {
+            hint = tr("พิมพ์คุยกับ ${Persona.NAME}…", "Message ${Persona.NAME}…")
+            textSize = 15f
+            setTextColor(colorText); setHintTextColor(Theme.MUTED)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            maxLines = 4
+            imeOptions = EditorInfo.IME_ACTION_SEND
+            background = Theme.glass(this@ChatActivity, 24f, Theme.FIELD)
+            setPadding(16.dp, 11.dp, 16.dp, 11.dp)
+            setOnEditorActionListener { _, id, _ -> if (id == EditorInfo.IME_ACTION_SEND) { send(text.toString()); true } else false }
+            // starting to type: get the on-device model ready in the background
+            setOnFocusChangeListener { _, focused -> if (focused) graph.controller.warmUp() }
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(10.dp, 6.dp, 10.dp, 8.dp)
+            addView(roundButton("🎤", grey) { VoiceActivity.start(this@ChatActivity, fromOverlay = false) }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
+            addView(roundButton("📎", grey) { attach() }.apply { contentDescription = tr("แนบรูปหรือไฟล์", "Attach") }, LinearLayout.LayoutParams(46.dp, 46.dp).apply { marginEnd = 8.dp })
+            addView(input, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp })
+            sendButton = roundButton("➤", accent) {
+                if (busy) graph.controller.stopCurrent(userInitiated = true) else send(input.text.toString())
+            }.apply { contentDescription = tr("ส่ง", "Send") }
+            addView(sendButton, LinearLayout.LayoutParams(48.dp, 48.dp))
+        }
+    }
+
+    private lateinit var sendButton: Button
+    private var busy = false
+
+    /** While Kivo is thinking or acting, the send button becomes a stop button. */
+    private fun setBusy(b: Boolean) {
+        busy = b
+        sendButton.text = if (b) "⏹" else "➤"
+        sendButton.contentDescription = if (b) tr("หยุดตอบ", "Stop") else tr("ส่ง", "Send")
+        sendButton.background = if (b) Theme.circle(0xCCFF5A6E.toInt(), 0, 0) else Theme.gradientCircle()
+    }
+
+    private fun attach() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle(tr("แนบอะไรดี", "Attach"))
+            .setItems(arrayOf(tr("🖼 รูปภาพ (อ่านข้อความในรูป + ให้ AI อธิบาย)", "🖼 Picture (read its text + AI explains)"), tr("📄 ไฟล์ข้อความ .txt (ให้ AI สรุป)", "📄 Text file (AI summarises)"))) { _, i ->
+                @Suppress("DEPRECATION")
+                if (i == 0) startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" }, REQ_IMAGE)
+                else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "text/*" }, REQ_TEXT)
+            }.show()
+    }
+
+    private fun send(text: String) {
+        val t = text.trim()
+        if (t.isEmpty()) return
+        input.setText("")
+        graph.controller.submit(t)
+    }
+
+    // ---------- chat rendering ----------
+
+    private fun renderChat(lines: List<ChatLine>) {
+        if (lines.size == shownLines) return
+        shownLines = lines.size
+        chatList.removeAllViews()
+        partialView = null
+        if (lines.isEmpty()) {
+            chatList.addView(bubble(
+                tr(
+                    "สวัสดี เราชื่อ ${Persona.NAME} 👋\nกด \"แสดง ${Persona.NAME} บนจอ\" แล้วเราจะลอยอยู่บนจอทุกแอป แตะเราเมื่อไหร่ก็คุยหรือสั่งงานได้\nกด 🎤 เพื่อพูดแทนพิมพ์",
+                    "Hi, I'm ${Persona.NAME} 👋\nPress \"Show ${Persona.NAME} on my screen\" and I'll float over every app. Tap me any time to chat or give me a task.\nPress 🎤 to talk instead of typing.",
+                ),
+                mine = false,
+            ))
+        } else {
+            for (line in lines.takeLast(60)) chatList.addView(bubble(line.text, line.fromUser))
+        }
+        chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    @Deprecated("Framework Activity API; fine without AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data ?: return
+        if (resultCode != RESULT_OK) return
+        if (requestCode == REQ_TEXT) {
+            val content = runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes().take(200_000).toByteArray().toString(Charsets.UTF_8) } }.getOrNull()
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
+            if (content.isNullOrBlank()) android.widget.Toast.makeText(this, tr("อ่านไฟล์นี้ไม่ได้", "Could not read that file"), android.widget.Toast.LENGTH_SHORT).show()
+            else graph.controller.readTextFile(name, content)
+            return
+        }
+        if (requestCode != REQ_IMAGE) return
+        val bitmap = runCatching {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1600) sample *= 2
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }) }
+        }.getOrNull()
+        if (bitmap == null) android.widget.Toast.makeText(this, tr("เปิดรูปนี้ไม่ได้", "Could not open that picture"), android.widget.Toast.LENGTH_SHORT).show()
+        else graph.controller.readImage(bitmap)
+    }
+
+    private var partialView: View? = null
+
+    /** The reply while the on-device model is still writing it. */
+    private fun showPartial(text: String) {
+        partialView?.let { chatList.removeView(it) }
+        partialView = null
+        if (text.isBlank()) return
+        partialView = bubble("$text ▌", mine = false).also { chatList.addView(it) }
+        chatScroll.post { chatScroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private fun bubble(text: String, mine: Boolean): View {
+        val long = !mine && text.length > 260
+        val tv = TextView(this).apply {
+            this.text = if (long) text.take(240).trimEnd() + tr("… (แตะเพื่ออ่านต่อ)", "… (tap for more)") else text
+            if (long) setOnClickListener { this.text = text; setOnClickListener(null) }
+            setOnLongClickListener { copy(text); true }
+            textSize = 15f
+            setTextColor(if (mine) 0xFFFFFFFF.toInt() else colorText)
+            setTextIsSelectable(false)
+            setLineSpacing(2.dp.toFloat(), 1f)
+            setPadding(14.dp, 9.dp, 14.dp, 9.dp)
+            background = GradientDrawable().apply {
+                val r = 18f * resources.displayMetrics.density
+                val s = 5f * resources.displayMetrics.density
+                cornerRadii = if (mine) floatArrayOf(r, r, r, r, s, s, r, r) else floatArrayOf(r, r, r, r, r, r, s, s)
+                if (mine) { orientation = GradientDrawable.Orientation.TL_BR; colors = intArrayOf(Theme.ACCENT1, Theme.ACCENT2) }
+                else { setColor(bubbleTheirs); setStroke(1, Theme.CARD_BORDER) }
+            }
+            typeface = Theme.regular(this@ChatActivity)
+            maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
+        }
+        return LinearLayout(this).apply {
+            gravity = if (mine) Gravity.END else Gravity.START
+            setPadding(0, 4.dp, 0, 4.dp)
+            addView(tv, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    // ---------- live state ----------
+
+    override fun onStart() {
+        super.onStart()
+        watchJob = ui.launch {
+            launch {
+                combine(LivingState.status, LivingState.statusDetail, LivingState.paused) { s, d, p -> Triple(s, d, p) }.collect { (s, d, paused) ->
+                    orb.status = s
+                    statusText.text = when (s) {
+                        AgentStatus.IDLE -> brainStatus()
+                        AgentStatus.LOOKING -> tr("👁 กำลังมองหน้าจอ…", "👁 Looking at the screen…")
+                        AgentStatus.THINKING -> tr("💭 กำลังพิมพ์…", "💭 Typing…")
+                        AgentStatus.ACTING -> tr("✋ กำลังใช้หน้าจอ: ", "✋ Using the screen: ") + d
+                        AgentStatus.WAITING_CONFIRM -> tr("❓ รอคุณยืนยันบนจอ", "❓ Waiting for you to confirm on screen")
+                        AgentStatus.TALKING -> tr("💬 กำลังพูด", "💬 Talking")
+                        AgentStatus.LISTENING -> tr("👂 กำลังฟัง…", "👂 Listening…")
+                        AgentStatus.PAUSED -> tr("⏸ หยุดอยู่", "⏸ Paused")
+                    }
+                    setBusy(s == AgentStatus.THINKING || s == AgentStatus.ACTING || s == AgentStatus.LOOKING || s == AgentStatus.TALKING)
+                    if (paused) statusText.text = tr("⏸ หยุดอยู่ (กดทำงานต่อที่หน้าหลัก)", "⏸ Paused (resume on Home)")
+                }
+            }
+            launch { LivingState.mood.collect { orb.mood = it; moodText.text = moodLabel(it) } }
+            launch { LivingState.chat.collect { renderChat(it) } }
+            launch { LivingState.partial.collect { showPartial(it) } }
+            launch { graph.models.downloads.collect { refreshBrain() } }
+            launch { LivingState.accessibilityConnected.collect { refresh() } }
+            launch { LivingState.captureActive.collect { refresh() } }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        orb.skin = com.livingai.core.robot.RobotSkin.byName(graph.prefs.skin)
+        orb.outfit = graph.controller.wardrobe.outfit
+        orb.style = graph.prefs.robotStyle
+        graph.floating.apply()
+        refresh()
+    }
+
+    override fun onStop() {
+        watchJob?.cancel()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        ui.cancel()
+        super.onDestroy()
+    }
+
+    private fun refresh() {
+
+        val notif = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val steps = listOf(notif, LivingState.accessibilityConnected.value, LivingState.captureActive.value)
+        val done = steps.count { it }
+        banner.visibility = if (done == steps.size) View.GONE else View.VISIBLE
+        val missing = buildList {
+            if (!LivingState.accessibilityConnected.value) add(tr("เปิดสิทธิ์ให้กดแทน", "allow it to tap for you"))
+            if (!LivingState.captureActive.value) add(tr("แชร์หน้าจอ", "share the screen"))
+            if (!notif) add(tr("อนุญาตการแจ้งเตือน", "allow notifications"))
+        }
+        bannerText.text = tr("ตั้งค่าแล้ว $done/${steps.size} • ", "Setup $done/${steps.size} • ") + missing.joinToString(", ")
+    }
+
+    private fun moodLabel(m: com.livingai.core.emotion.Mood): String = tr("อารมณ์: ", "Mood: ") + when (m) {
+        com.livingai.core.emotion.Mood.CALM -> tr("🙂 สบาย ๆ", "🙂 calm")
+        com.livingai.core.emotion.Mood.HAPPY -> tr("😊 ดีใจ", "😊 happy")
+        com.livingai.core.emotion.Mood.SAD -> tr("😢 หงอย", "😢 sad")
+        com.livingai.core.emotion.Mood.CURIOUS -> tr("🤔 สงสัย", "🤔 curious")
+        com.livingai.core.emotion.Mood.EXCITED -> tr("🤩 ตื่นเต้น", "🤩 excited")
+        com.livingai.core.emotion.Mood.SLEEPY -> tr("😴 ง่วง", "😴 sleepy")
+        com.livingai.core.emotion.Mood.CONFUSED -> tr("😵 งง", "😵 confused")
+        com.livingai.core.emotion.Mood.FRUSTRATED -> tr("😤 หงุดหงิด", "😤 frustrated")
+        com.livingai.core.emotion.Mood.FOCUSED -> tr("🧐 ตั้งใจ", "🧐 focused")
+    }
+
+    // ---------- helpers ----------
+
+    private fun round(color: Int, radius: Float) = GradientDrawable().apply {
+        setColor(color); cornerRadius = radius * resources.displayMetrics.density
+    }
+
+    private fun label(text: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {
+        this.text = text; textSize = size; setTextColor(color)
+        typeface = if (bold) Theme.bold(this@ChatActivity) else Theme.regular(this@ChatActivity)
+    }
+
+    private fun smallButton(text: String, color: Int, onClick: () -> Unit) = Button(this).apply {
+        this.text = text; isAllCaps = false; textSize = 14.5f
+        setTextColor(0xFFFFFFFF.toInt())
+        typeface = Theme.medium(this@ChatActivity)
+        background = if (color == accent) Theme.gradient(this@ChatActivity, 16f) else round(color, 16f)
+        stateListAnimator = null
+        minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
+        setPadding(12.dp, 6.dp, 12.dp, 6.dp)
+        setOnClickListener { onClick() }
+    }
+
+    private fun roundButton(text: String, color: Int, onClick: () -> Unit) = Button(this).apply {
+        this.text = text; textSize = 18f
+        setTextColor(0xFFFFFFFF.toInt())
+        background = if (color == accent) Theme.gradientCircle() else Theme.circle(Theme.FIELD, Theme.CARD_BORDER, 1)
+        stateListAnimator = null
+        minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0
+        setPadding(0, 0, 0, 0)
+        setOnClickListener { onClick() }
+    }
+
+    companion object {
+        const val EXTRA_PREFILL = "prefill"
+        const val EXTRA_ACTION = "action"
+        const val ACTION_IMAGE = "image"
+        const val ACTION_FILE = "file"
+        private const val REQ_IMAGE = 8101
+        private const val REQ_TEXT = 8102
+        fun open(a: Activity, prefill: String? = null, action: String? = null) {
+            a.startActivity(Intent(a, ChatActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT).apply {
+                prefill?.let { putExtra(EXTRA_PREFILL, it) }
+                action?.let { putExtra(EXTRA_ACTION, it) }
+            })
+        }
+    }
+
+}

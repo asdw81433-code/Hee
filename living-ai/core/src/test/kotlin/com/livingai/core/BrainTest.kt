@@ -110,11 +110,46 @@ class ChatBrainTest {
         assertEquals("Sure. Let's go!", ChatBrain.trimToSentence("Sure. Let's go! And th"))
     }
 
-    private fun core(gen: TextGenerator?, store: InMemoryMemoryStore, listener: RecordingListener): KivoCore {
+    @Test
+    fun textTools_runOnTheBrain_andSayHonestlyWhenThereIsNone() = runBlocking {
+        assertEquals("translate", com.livingai.core.tools.LocalBrain.taskPlan("แปล:\nhello")?.kind)
+        assertEquals("translate", com.livingai.core.tools.LocalBrain.taskPlan("แปลเป็นอังกฤษ: สวัสดี")?.kind)
+        assertEquals("summary", com.livingai.core.tools.LocalBrain.taskPlan("สรุป: บทความยาว")?.kind)
+        assertEquals("write", com.livingai.core.tools.LocalBrain.taskPlan("ช่วยเขียน: แคปชันทะเล")?.kind)
+        assertEquals("plan", com.livingai.core.tools.LocalBrain.taskPlan("วางแผน: อ่านหนังสือ 3 วัน")?.kind)
+        assertNull(com.livingai.core.tools.LocalBrain.taskPlan("สรุปหน้าจอ"))
+        assertNull(com.livingai.core.tools.LocalBrain.taskPlan("วางแผนวันนี้"))
+        assertNull(com.livingai.core.tools.LocalBrain.taskPlan("แปลกดีนะ"))
+
+        // no brain: honest answer, not small talk
+        val l0 = RecordingListener()
+        val noBrain = core(null, InMemoryMemoryStore(), l0).handleUserMessage("แปล:\nhello friend")
+        assertTrue(noBrain.contains("สมอง AI"), noBrain)
+
+        // with a brain: the task goes to the model with the right instruction
+        val gen = ScriptedGenerator("สวัสดีเพื่อน")
+        val out = core(gen, InMemoryMemoryStore(), RecordingListener()).handleUserMessage("แปล:\nhello friend")
+        assertTrue(out.contains("สวัสดีเพื่อน"), out)
+        assertTrue(gen.requests.last().messages.first().content.contains("translat"), gen.requests.last().messages.first().content)
+    }
+
+    @Test
+    fun newConversation_dropsOldChatFromTheModelsContext() = runBlocking {
+        val store = InMemoryMemoryStore()
+        store.addChat(true, "เรื่องเก่ามาก")
+        Thread.sleep(5)
+        val gen = ScriptedGenerator("โอเค")
+        val start = System.currentTimeMillis()
+        val c = core(gen, store, RecordingListener(), sessionStart = start)
+        c.handleUserMessage("เล่าเรื่องอะไรให้ฟังหน่อย")
+        assertFalse(gen.requests.last().messages.any { it.content.contains("เรื่องเก่ามาก") })
+    }
+
+    private fun core(gen: TextGenerator?, store: InMemoryMemoryStore, listener: RecordingListener, sessionStart: Long = 0L): KivoCore {
         val src = FakeScreen(screen("com.example", el(1, "ตกลง")))
         val vision = VisionAgent(src, listener)
         val actions = ActionAgent(FakePort(src), vision, SafetyPolicy(), { true }, listener, settleMs = 1)
-        return KivoCore(vision, actions, FakeDevice(), MemoryAgent(store), listener, brain = gen?.let { ChatBrain(it) })
+        return KivoCore(vision, actions, FakeDevice(), MemoryAgent(store), listener, brain = gen?.let { ChatBrain(it) }, sessionStart = { sessionStart })
     }
 
     @Test

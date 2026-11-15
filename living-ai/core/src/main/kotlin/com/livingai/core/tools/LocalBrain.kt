@@ -14,6 +14,33 @@ import com.livingai.core.perception.UiElement
  * it lets every part of the vision → action pipeline be exercised without a network.
  */
 object LocalBrain {
+    private val taskPrefixes = listOf(
+        "translate" to listOf("แปลเป็นภาษาไทย", "แปลเป็นไทย", "แปลเป็นอังกฤษ", "แปลเป็นภาษาอังกฤษ", "แปลให้หน่อย", "แปลว่า", "แปล", "translate"),
+        "summary" to listOf("สรุปข้อความ", "สรุปให้", "สรุป", "summarize", "summarise"),
+        "write" to listOf("ช่วยเขียน", "เขียนให้", "ช่วยแต่ง", "แต่ง", "write"),
+        "plan" to listOf("ช่วยวางแผน", "วางแผน", "plan"),
+    )
+
+    /** "แปล: hello" → Task(translate, "hello"). Needs a colon or a line break after the word so plain chat is not caught. */
+    fun taskPlan(text: String): Plan.Task? {
+        val t = text.trim()
+        val lower = t.lowercase()
+        for ((kind, words) in taskPrefixes) for (w in words) {
+            if (!lower.startsWith(w)) continue
+            val rest = t.substring(w.length)
+            val sep = rest.indexOfFirst { it == ':' || it == '：' || it == '\n' }
+            if (sep < 0) continue
+            val between = rest.substring(0, sep)
+            if (between.isNotBlank() && (kind != "translate" || between.length > 24)) continue
+            val body = rest.substring(sep + 1).trim()
+            if (body.length < 2) continue
+            // keep the target language for translation ("แปลเป็นอังกฤษ:")
+            val head = (w + rest.substring(0, sep)).trim()
+            return Plan.Task(kind, if (kind == "translate") "$head\n$body" else body)
+        }
+        return null
+    }
+
 
     sealed interface Plan {
         data class Act(val action: AgentAction) : Plan
@@ -36,6 +63,8 @@ object LocalBrain {
         data class RepeatTap(val count: Int) : Plan
         /** "water", "eyes", "move" = log it; "" = show today's numbers. */
         data class Habit(val kind: String) : Plan
+        /** A writing task for the AI brain: kind is translate / summary / write / plan. */
+        data class Task(val kind: String, val text: String) : Plan
         data object Help : Plan
         /** [generic]: nothing in the message looked like a command at all (as opposed to a command that could not be carried out). */
         data class Unknown(val hint: String, val generic: Boolean = false) : Plan
@@ -105,6 +134,8 @@ object LocalBrain {
         Regex("^(?:กดรัว|กดซ้ำ|แตะรัว|แตะซ้ำ|tap repeatedly|auto ?tap)\\s*(\\d+)?").find(lower)?.let { m ->
             return Plan.RepeatTap((m.groupValues[1].toIntOrNull() ?: 30).coerceIn(1, 300))
         }
+        // text tools: "แปล: …", "สรุป: …", "ช่วยเขียน: …", "วางแผน: …"
+        taskPlan(text)?.let { return it }
         // screen summary
         if (listOf("สรุปหน้าจอ", "สรุปจอ", "สรุปให้หน่อย", "สรุปหน้านี้", "summarize the screen", "summarise the screen", "summarize this").any { lower.contains(it) }) return Plan.Summarize
         // good habits

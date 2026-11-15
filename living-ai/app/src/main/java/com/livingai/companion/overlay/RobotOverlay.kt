@@ -128,7 +128,7 @@ class RobotOverlay(
         override fun run() {
             if (destroyed) return
             robot.lowRam = controller.resources.lowRam
-            robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin); robot.outfit = controller.wardrobe.outfit
+            robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin); robot.outfit = controller.wardrobe.outfit; robot.style = controller.prefs.robotStyle
             val quiet = !minimized && panel == null && confirmView == null && bubble == null && !controller.isBusy &&
                 android.os.SystemClock.uptimeMillis() - lastUserMove > 25_000 && LivingState.status.value == AgentStatus.IDLE
             if (quiet && controller.prefs.roamEnabled) {
@@ -166,7 +166,7 @@ class RobotOverlay(
 
     fun show() {
         controller.overlay = this
-        robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin); robot.outfit = controller.wardrobe.outfit
+        robot.skin = com.livingai.core.robot.RobotSkin.byName(controller.prefs.skin); robot.outfit = controller.wardrobe.outfit; robot.style = controller.prefs.robotStyle
         robot.mood = LivingState.mood.value
         robot.status = LivingState.status.value
         robot.setOnTouchListener(DragTapListener())

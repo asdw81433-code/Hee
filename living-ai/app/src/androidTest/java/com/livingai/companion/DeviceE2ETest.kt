@@ -270,17 +270,35 @@ class DeviceE2ETest {
 
     @Test
     fun i_screens_openWithoutCrashing() {
-        // Launch the real home (chat) screen and the settings screen and make sure they render.
+        // Companion Home: the big robot, talk and chat buttons
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-        waitUntil("the home screen is in front", 20_000) { observe().packageName == ctx.packageName }
+        waitUntil("the home screen is in front", 20_000) { observe().elements.any { it.label.contains("คุยด้วยเสียง") } }
         val home = observe()
         assertTrue(home.toPromptText(), home.elements.any { it.label.contains("Kivo") })
-        assertTrue(home.toPromptText(), home.elements.any { it.editable }) // chat input
+        SystemClock.sleep(1200); shell("screencap -p /data/local/tmp/kivo-shot-1-home.png")
 
-        // Chat through the home screen's own input box.
+        // Tools hub: every tool is listed
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.ToolsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the tools screen is in front", 20_000) { observe().elements.any { it.label.contains("แปลภาษา") } }
+        SystemClock.sleep(600); shell("screencap -p /data/local/tmp/kivo-shot-7-tools.png")
+        shell("input keyevent KEYCODE_BACK")
+
+        // Chat screen with its own input box
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.ChatActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the chat screen is in front", 20_000) { observe().elements.any { it.editable } }
         val reply = ask("ดูหน้าจอ")
         assertTrue(reply, reply.contains("Kivo"))
-        SystemClock.sleep(800); shell("screencap -p /data/local/tmp/kivo-shot-1-home.png")
+        // a text tool without an AI brain says so instead of pretending
+        if (!graph.controller.router.isAvailable) {
+            val t = ask("แปล:\nhello friend")
+            assertTrue(t, t.contains("สมอง AI"))
+        }
+        SystemClock.sleep(800); shell("screencap -p /data/local/tmp/kivo-shot-6-chat.png")
+        // new conversation clears the screen but keeps the history searchable
+        graph.controller.newConversation()
+        assertTrue(LivingState.chat.value.isEmpty())
+        assertTrue(runBlocking { graph.controller.searchChat("ดูหน้าจอ") }.isNotEmpty())
+        shell("input keyevent KEYCODE_BACK")
 
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         waitUntil("the settings screen is in front", 20_000) { observe().elements.any { it.label.contains("สิทธิ์ที่ใช้") } }

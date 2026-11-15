@@ -91,13 +91,15 @@ object Theme {
 
     // ---------- bottom navigation ----------
 
-    const val TAB_CHAT = 0
-    const val TAB_CHARACTER = 1
-    const val TAB_MEMORY = 2
-    const val TAB_SETTINGS = 3
+    const val TAB_HOME = 0
+    const val TAB_CHAT = 1
+    const val TAB_TOOLS = 2
+    const val TAB_MEMORY = 3
+    const val TAB_SETTINGS = 4
 
     private fun target(tab: Int): Class<out Activity> = when (tab) {
-        TAB_CHARACTER -> CharacterActivity::class.java
+        TAB_CHAT -> ChatActivity::class.java
+        TAB_TOOLS -> ToolsActivity::class.java
         TAB_MEMORY -> MemoryActivity::class.java
         TAB_SETTINGS -> SettingsActivity::class.java
         else -> HomeActivity::class.java
@@ -107,8 +109,9 @@ object Theme {
     fun bottomNav(a: Activity, current: Int): View {
         val d = a.resources.displayMetrics.density
         val tabs = listOf(
+            Triple(TAB_HOME, "🏠", tr("หน้าหลัก", "Home")),
             Triple(TAB_CHAT, "💬", tr("แชต", "Chat")),
-            Triple(TAB_CHARACTER, "🎨", tr("ตัวละคร", "Character")),
+            Triple(TAB_TOOLS, "🧰", tr("เครื่องมือ", "Tools")),
             Triple(TAB_MEMORY, "🧠", tr("ความจำ", "Memory")),
             Triple(TAB_SETTINGS, "⚙️", tr("ตั้งค่า", "Settings")),
         )
@@ -126,7 +129,7 @@ object Theme {
                         text = icon; textSize = 19f; gravity = Gravity.CENTER
                         alpha = if (selected) 1f else 0.55f
                         background = if (selected) glass(a, 14f, 0x338B5CFF, 0) else null
-                        setPadding((14 * d).toInt(), (2 * d).toInt(), (14 * d).toInt(), (2 * d).toInt())
+                        setPadding((12 * d).toInt(), (2 * d).toInt(), (12 * d).toInt(), (2 * d).toInt())
                     })
                     addView(TextView(a).apply {
                         text = label; textSize = 11f; gravity = Gravity.CENTER

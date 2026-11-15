@@ -147,6 +147,27 @@ class ChatBrain(
         }
     }
 
+    /** A writing task from the tools page or a typed "แปล: …": translate, summary, write or plan. */
+    suspend fun task(kind: String, text: String, onPartial: (String) -> Unit = {}): String? {
+        if (!generator.isAvailable) return null
+        val system = when (kind) {
+            "translate" -> "You are a careful translator. If the text is Thai, translate it to natural English; otherwise translate it to natural Thai, unless the first line names a target language. Output only the translation."
+            "summary" -> "You summarise text for the user. Reply in Thai with at most 5 short bullet points starting with •. Use only the given text; never add facts."
+            "explain" -> "The user attached a picture; below is the text read from it. Explain in Thai what it is and what matters in it, in at most 5 short bullet points starting with •. Use only the given text."
+            "write" -> "You help the user write. Write what they ask for in Thai (unless they ask for another language), ready to copy and use. Output only the finished text."
+            else -> "You help the user plan. Reply in Thai with a short numbered step-by-step plan (at most 7 steps) with rough times where useful."
+        }
+        val so = StringBuilder()
+        return try {
+            val r = generator.generate(GenRequest(
+                listOf(ChatMessage(Role.SYSTEM, system), ChatMessage(Role.USER, text.take(4000))),
+                maxTokens = if (generator is ModelRouter && generator.usingOnline) 700 else 320, temperature = 0.3f,
+                stop = listOf("<|im_end|>", "<end_of_turn>"),
+            )) { so.append(it); onPartial(clean(so.toString())) }
+            clean(r.text).ifBlank { null }
+        } catch (e: AiException) { lastError = e.message; null }
+    }
+
     /** A short summary of [screenText] in Thai (3 bullet points at most). */
     suspend fun summarize(screenText: String, onPartial: (String) -> Unit = {}): String? {
         if (!screenGenerator.isAvailable) return null

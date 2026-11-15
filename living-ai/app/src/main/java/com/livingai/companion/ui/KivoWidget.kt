@@ -68,9 +68,10 @@ class KivoWidget : AppWidgetProvider() {
             val anim = RobotAnimator().apply { this.mood = mood }
             var pose = anim.update(10_000L)
             for (k in 1..20) pose = anim.update(10_000L + k * 30L)
-            val r = com.livingai.core.robot.PixelBotRenderer().apply { skin = RobotSkin.byName(skinName); this.outfit = outfit }
             val p = CanvasPainter().apply { canvas = Canvas(bmp) }
-            r.draw(p, pose, w.toFloat(), h.toFloat(), RobotAnimator.eyeColor(anim.status, mood, r.skin), 10_000L)
+            val sk = RobotSkin.byName(skinName)
+            if (LivingApp.graph(context).prefs.robotStyle == "pixel") com.livingai.core.robot.PixelBotRenderer().apply { skin = sk; this.outfit = outfit }.draw(p, pose, w.toFloat(), h.toFloat(), RobotAnimator.eyeColor(anim.status, mood, sk), 10_000L)
+            else com.livingai.core.robot.HoverBotRenderer().apply { skin = sk; this.outfit = outfit }.draw(p, pose, w.toFloat(), h.toFloat(), RobotAnimator.eyeColor(anim.status, mood, sk), 10_000L)
             return bmp
         }
     }

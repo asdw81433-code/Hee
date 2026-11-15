@@ -133,7 +133,59 @@ internal class CanvasPainter : Painter {
 class RobotView(context: Context) : View(context) {
 
     private val animator = RobotAnimator()
-    private val renderer = com.livingai.core.robot.PixelBotRenderer()
+    private val pixel = com.livingai.core.robot.PixelBotRenderer()
+    private val hover = com.livingai.core.robot.HoverBotRenderer()
+    /** "3d" (hovering robot) or "pixel". */
+    var style: String = "3d"
+        set(v) { field = v; invalidate() }
+    private val renderer: Renderer get() = if (style == "pixel") pixelR else hoverR
+    private interface Renderer {
+        var skin: com.livingai.core.robot.RobotSkin
+        var outfit: com.livingai.core.robot.Outfit
+        fun draw(g: Painter, pose: com.livingai.core.robot.Pose, w: Float, h: Float, eye: Int, t: Long)
+    }
+    private val pixelR = object : Renderer {
+        override var skin get() = pixel.skin; set(v) { pixel.skin = v; hover.skin = v }
+        override var outfit get() = pixel.outfit; set(v) { pixel.outfit = v; hover.outfit = v }
+        override fun draw(g: Painter, pose: com.livingai.core.robot.Pose, w: Float, h: Float, eye: Int, t: Long) = pixel.draw(g, pose, w, h, eye, t)
+    }
+    private val hoverR = object : Renderer {
+        override var skin get() = hover.skin; set(v) { pixel.skin = v; hover.skin = v }
+        override var outfit get() = hover.outfit; set(v) { pixel.outfit = v; hover.outfit = v }
+        override fun draw(g: Painter, pose: com.livingai.core.robot.Pose, w: Float, h: Float, eye: Int, t: Long) = hover.draw(g, pose, w, h, eye, t)
+    }
+
+    /** When true the user can drag sideways to turn the robot, and it looks at the finger. */
+    var interactive = false
+    private var dragYaw = 0f
+    private var lookX = 0f
+    private var lookY = 0f
+    private var downX = 0f
+    private var startYaw = 0f
+    private var moved = false
+    /** Called when the robot is tapped (not dragged). */
+    var onTapped: (() -> Unit)? = null
+
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (!interactive) return super.onTouchEvent(e)
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { downX = e.x; startYaw = dragYaw; moved = false; parent?.requestDisallowInterceptTouchEvent(true) }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                if (kotlin.math.abs(e.x - downX) > 8 * dp) moved = true
+                dragYaw = (startYaw + (e.x - downX) / dp * 0.9f).coerceIn(-70f, 70f)
+                lookX = ((e.x / width) * 2f - 1f).coerceIn(-1f, 1f)
+                lookY = -((e.y / height) * 2f - 1f).coerceIn(-1f, 1f)
+                wake()
+            }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                if (!moved && e.actionMasked == android.view.MotionEvent.ACTION_UP) { poke(); onTapped?.invoke(); performClick() }
+                lookX = 0f; lookY = 0f
+            }
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean { super.performClick(); return true }
     private val painter = CanvasPainter()
     private val captionPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val captionRect = RectF()
@@ -258,6 +310,14 @@ class RobotView(context: Context) : View(context) {
         }
 
         val pose = animator.update(now)
+        if (interactive) {
+            // springs back slowly after the finger lets go
+            if (lookX == 0f && lookY == 0f) dragYaw *= 0.92f
+            pose[com.livingai.core.robot.Pose.YAW] += dragYaw
+            pose[com.livingai.core.robot.Pose.HEAD_YAW] += lookX * 25f
+            pose[com.livingai.core.robot.Pose.PUPIL_X] = (pose[com.livingai.core.robot.Pose.PUPIL_X] + lookX).coerceIn(-1f, 1f)
+            pose[com.livingai.core.robot.Pose.PUPIL_Y] = (pose[com.livingai.core.robot.Pose.PUPIL_Y] + lookY).coerceIn(-1f, 1f)
+        }
         val robotH = height - if (showCaption) 18 * dp else 0f
         painter.canvas = canvas
         renderer.draw(painter, pose, width.toFloat(), robotH, RobotAnimator.eyeColor(status, mood, renderer.skin), now)

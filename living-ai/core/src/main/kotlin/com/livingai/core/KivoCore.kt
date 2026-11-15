@@ -57,6 +57,8 @@ class KivoCore(
     private val customPersona: () -> String = { "" },
     val appHabits: com.livingai.core.companion.AppHabits? = null,
     private val web: com.livingai.core.tools.WebLookup? = null,
+    /** Chat before this time belongs to an older conversation and is not given to the model. */
+    private val sessionStart: () -> Long = { 0L },
     /** Checks the app's own parts and returns a report. */
     private val diagnose: (suspend () -> String)? = null,
 ) {
@@ -238,7 +240,7 @@ class KivoCore(
         listener.onStatus(AgentStatus.THINKING)
         val reply = b.reply(
             text, context().copy(mood = emotion.state.mood), personality(), custom = customPersona(),
-            history = memory.store.recentChat(12),
+            history = memory.store.recentChat(12).filter { it.timestampMs >= sessionStart() },
             // what Kivo remembers about the user plus facts it knows for sure that fit the question
             memories = memory.relevant(text, 4) + com.livingai.core.companion.Knowledge.find(text, 2).map {
                 Memory(kind = MemoryKind.KNOWLEDGE, title = tr("ข้อเท็จจริง", "fact"), content = tr(it.th, it.en))
@@ -322,6 +324,14 @@ class KivoCore(
             }
             LocalBrain.Plan.Diagnose -> { replyMood = Mood.FOCUSED; diagnose?.invoke() ?: tr("ตรวจระบบไม่ได้ในโหมดนี้", "Diagnostics are not available here") }
             LocalBrain.Plan.AppStats -> { replyMood = Mood.CURIOUS; appHabits?.summary() ?: tr("ยังไม่ได้เปิดการเรียนรู้จากจอ", "Learning from the screen is off") }
+            is LocalBrain.Plan.Task -> {
+                val b = brain?.takeIf { it.isAvailable }
+                    ?: return tr("เครื่องมือนี้ต้องใช้สมอง AI ก่อน: ติดตั้งสมองในเครื่อง หรือต่อ AI ออนไลน์ในตั้งค่า", "This tool needs the AI brain: install it or connect an online AI in Settings")
+                listener.onStatus(AgentStatus.THINKING)
+                replyMood = Mood.FOCUSED
+                b.task(plan.kind, plan.text) { listener.onPartial(it) }
+                    ?: run { anyActionFailed = true; tr("ทำไม่สำเร็จ: ", "Failed: ") + (b.lastError ?: tr("สมอง AI ไม่ตอบ", "no answer")) }
+            }
             LocalBrain.Plan.Summarize -> { replyMood = Mood.FOCUSED; summarizeScreen() }
             is LocalBrain.Plan.Habit -> {
                 val h = habits ?: return tr("ยังไม่ได้เปิดการติดตามนิสัย", "Habit tracking is not available")

@@ -65,6 +65,16 @@
         </activity>
 
         <activity
+            android:name=".ui.ChatActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".ui.ToolsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

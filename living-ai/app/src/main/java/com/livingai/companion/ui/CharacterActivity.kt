@@ -38,7 +38,7 @@ class CharacterActivity : Activity() {
     }
 
     private fun build() {
-        root = ui.page(tr("ตัวละคร", "Character"), Theme.TAB_CHARACTER, tr("หน้าตาและนิสัยของ ${Persona.NAME}", "How ${Persona.NAME} looks and behaves"))
+        root = ui.page(tr("ตัวละคร", "Character"), subtitle = tr("หน้าตาและนิสัยของ ${Persona.NAME}", "How ${Persona.NAME} looks and behaves"))
         val p = graph.controller.personalityStore.load()
         val bond = graph.controller.bond
 
@@ -47,7 +47,7 @@ class CharacterActivity : Activity() {
         robot = RobotView(this).apply {
             showCaption = false; mayRest = false
             skin = RobotSkin.byName(graph.prefs.skin); outfit = graph.controller.wardrobe.outfit; mood = LivingState.mood.value
-            setOnClickListener { poke() }
+            style = graph.prefs.robotStyle; interactive = true
         }
         preview.gravity = Gravity.CENTER_HORIZONTAL
         preview.addView(robot, LinearLayout.LayoutParams(ui.dp(190), ui.dp(210)))
@@ -62,6 +62,14 @@ class CharacterActivity : Activity() {
         )
         preview.addView(wrapRow(moves.map { (name, g) -> ui.chip(name, false) { robot?.play(g) } }), ui.matchWrap(top = 10))
         preview.addView(ui.chip(tr("💃 เต้น", "💃 Dance"), false) { robot?.let { it.dancing = !it.dancing } }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ui.dp(8) })
+
+        // look
+        val look = ui.card(root, tr("รูปแบบตัวละคร", "Style"))
+        look.addView(wrapRow(listOf(
+            ui.chip(tr("🤖 3D ลอยตัว", "🤖 3D hover"), graph.prefs.robotStyle == "3d") { graph.prefs.robotStyle = "3d"; graph.floating.apply(); build() },
+            ui.chip(tr("🟦 Pixel", "🟦 Pixel"), graph.prefs.robotStyle == "pixel") { graph.prefs.robotStyle = "pixel"; graph.floating.apply(); build() },
+        )))
+        look.addView(ui.label(tr("ลากที่ตัวหุ่นเพื่อหมุนดูรอบตัว", "Drag the robot to turn it around"), 12f, ui.sub).apply { setPadding(0, ui.dp(6), 0, 0) })
 
         // colours
         val skins = ui.card(root, tr("สีตัว", "Colours"))

@@ -143,6 +143,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         customPersona = { prefs.customPersona },
         appHabits = appHabits,
         web = com.livingai.core.tools.WebLookup(),
+        sessionStart = { prefs.sessionStart },
         diagnose = ::selfCheck,
     )
 
@@ -226,7 +227,8 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         // the conversation from before the app was closed is shown again
         scope.launch {
             val old = runCatching { memoryStore.recentChat(60) }.getOrDefault(emptyList())
-            if (old.isNotEmpty() && LivingState.chat.value.isEmpty()) LivingState.chat.value = old
+            val current = old.filter { it.timestampMs >= prefs.sessionStart }
+            if (current.isNotEmpty() && LivingState.chat.value.isEmpty()) LivingState.chat.value = current
         }
         // feelings fade and idle resources are released, once a minute
         scope.launch {
@@ -307,6 +309,20 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
                 onStatus(AgentStatus.IDLE)
             }
         }
+    }
+
+    /** Starts a new conversation: the old chat stays saved (and searchable) but is no longer context. */
+    fun newConversation() {
+        stopCurrent()
+        prefs.sessionStart = System.currentTimeMillis()
+        LivingState.chat.value = emptyList()
+    }
+
+    /** Searches saved chat (newest first). */
+    suspend fun searchChat(query: String): List<ChatLine> {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return emptyList()
+        return memoryStore.recentChat(2000).filter { it.text.lowercase().contains(q) }.reversed().take(100)
     }
 
     /** Stops whatever the robot is doing right now. */
@@ -527,22 +543,35 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), true, tr("📎 (แนบรูป)", "📎 (picture)")))
         scope.launch {
             onStatus(AgentStatus.LOOKING)
+            var found = ""
             val text = try {
                 when (val a = resources.acquire(ocrResource)) {
                     is Admission.Denied -> a.reason
                     else -> try {
                         screenSource.ocrLoaded = true
                         val t = com.livingai.core.privacy.Redactor.redactText(screenSource.ocr.recognize(bitmap), false)
+                        found = t
                         if (t.isBlank()) tr("เราอ่านตัวหนังสือในรูปนี้ไม่ออก (เราอ่านได้เฉพาะข้อความ ยังมองภาพวิวหรือหน้าคนไม่ได้)", "I could not find readable text in this picture (I can only read text, not understand photos).")
                         else tr("ในรูปเขียนว่า:\n", "The picture says:\n") + t.take(1500)
                     } finally { resources.release(ocrResource) }
                 }
             } finally { bitmap.recycle() }
-            memory.logChat(fromUser = false, text = text)
+            // the AI brain explains what the text in the picture is about
+            val explained = if (found.isNotBlank() && brain.isAvailable) {
+                onStatus(AgentStatus.THINKING)
+                brain.task("explain", found.take(2500)) { onPartial(it) }
+            } else null
+            val out = if (explained != null) text.take(400) + (if (text.length > 400) "…" else "") + tr("\n\n🤖 อธิบาย:\n", "\n\n🤖 What it means:\n") + explained else text
+            memory.logChat(fromUser = false, text = out)
             onStatus(AgentStatus.TALKING)
-            onSay(text)
+            onSay(out)
             onStatus(AgentStatus.IDLE)
         }
+    }
+
+    /** A text file the user attached: its content goes to the AI brain for a summary. */
+    fun readTextFile(name: String, content: String) {
+        submit(tr("สรุป:\n", "summarize:\n") + tr("(ไฟล์ $name)\n", "(file $name)\n") + content.take(6000))
     }
 
     /** Deletes everything Kivo has stored: memories, chat, reminders, personality, bond. Model files are kept unless asked. */
@@ -577,6 +606,9 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         router.lastNotice.takeIf { it.isNotEmpty() && !proactive }?.let { LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, "ℹ️ $it")) }
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, text))
         overlay?.say(text)
-        if (prefs.speakReplies && !LivingState.paused.value) speaker.say(text)
+        if ((prefs.speakReplies || voiceConversation) && !LivingState.paused.value) speaker.say(text)
     }
+
+    /** True while a back-and-forth voice conversation is open: replies are spoken even if speaking is off. */
+    @Volatile var voiceConversation = false
 }

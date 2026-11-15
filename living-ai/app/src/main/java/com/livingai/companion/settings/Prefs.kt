@@ -69,6 +69,10 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
     var preferOnline: Boolean get() = bool("prefer_online", true); set(v) = put("prefer_online", v)
     /** Whether on-screen text may be sent to an online provider (summaries, autopilot). Off by default. */
     var screenOnline: Boolean get() = bool("screen_online", false); set(v) = put("screen_online", v)
+    /** Look of the robot: "3d" or "pixel". */
+    var robotStyle: String get() = sp.getString("robot_style", null) ?: "3d"; set(v) = sp.edit().putString("robot_style", v).apply()
+    /** Start of the current conversation: older chat is history, not context. */
+    var sessionStart: Long get() = sp.getLong("session_start", 0L); set(v) = sp.edit().putLong("session_start", v).apply()
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

@@ -37,6 +37,11 @@ class VoiceActivity : Activity() {
     private var finished = false
     private var triedOnline = false
     private var best = ""
+    /** Back-and-forth: after Kivo answers (out loud), it listens again until the user ends it. */
+    private val continuous get() = intent.getBooleanExtra(EXTRA_CONTINUOUS, false)
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var silentRounds = 0
+    private var turns = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,17 +57,18 @@ class VoiceActivity : Activity() {
             addView(LinearLayout(this@VoiceActivity).apply { addView(meter, LinearLayout.LayoutParams(ui.dp(8), ui.dp(8))) }, ui.matchWrap(top = 10))
             addView(ui.row().apply {
                 addView(ui.button(tr("⏹ พูดจบแล้ว", "⏹ Done"), ui.accent) { recognizer?.stopListening(); title.text = tr("กำลังประมวลผล…", "Working on it…") }, ui.weight(1f, end = 8))
-                addView(ui.button(tr("ยกเลิก", "Cancel"), ui.grey) { done(null) }, ui.weight(1f))
+                addView(ui.button(if (continuous) tr("จบการคุย", "End") else tr("ยกเลิก", "Cancel"), ui.grey) { done(null, end = true) }, ui.weight(1f))
             }, ui.matchWrap(top = 14))
         }
         setContentView(LinearLayout(this).apply {
             gravity = Gravity.BOTTOM
             setPadding(ui.dp(14), ui.dp(14), ui.dp(14), ui.dp(28))
-            setOnClickListener { done(null) }
+            setOnClickListener { done(null, end = true) }
             card.isClickable = true
             addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         })
 
+        if (continuous) LivingApp.graph(this).controller.voiceConversation = true
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) start(preferOffline = true)
         else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_MIC)
     }
@@ -85,7 +91,7 @@ class VoiceActivity : Activity() {
         recognizer = r
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                title.text = tr("🎤 พูดได้เลย", "🎤 Go ahead, I'm listening")
+                title.text = if (continuous && turns > 0) tr("🎤 พูดต่อได้เลย (กด จบการคุย เพื่อหยุด)", "🎤 Your turn (press End to stop)") else tr("🎤 พูดได้เลย", "🎤 Go ahead, I'm listening")
                 LivingApp.graph(this@VoiceActivity).controller.onStatus(AgentStatus.LISTENING, "")
             }
             override fun onBeginningOfSpeech() { title.text = tr("👂 ได้ยินแล้ว…", "👂 I hear you…") }
@@ -109,6 +115,12 @@ class VoiceActivity : Activity() {
                     error == SpeechRecognizer.ERROR_SERVER || error == SpeechRecognizer.ERROR_CLIENT
                 if (onDevice && languageMissing && !triedOnline) { triedOnline = true; start(preferOffline = false); return }
                 if (best.isNotEmpty()) { done(best); return }
+                // in a conversation a quiet moment is fine: listen again, end after a few silent rounds
+                if (continuous && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) && ++silentRounds < 3) {
+                    heard.text = tr("(ไม่ได้ยินอะไร ฟังต่อนะ…)", "(didn't catch that, still listening…)")
+                    handler.postDelayed({ if (!finished) start(preferOffline = !triedOnline) }, 400)
+                    return
+                }
                 toast(when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> tr("ไม่ได้ยินเสียงพูด ลองใหม่อีกครั้งนะ", "I did not hear anything. Please try again.")
                     SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
@@ -129,10 +141,32 @@ class VoiceActivity : Activity() {
         })
     }
 
-    private fun done(text: String?) {
+    private fun done(text: String?, end: Boolean = false) {
         if (finished) return
-        finished = true
         val controller = LivingApp.graph(this).controller
+        if (continuous && !end && !text.isNullOrBlank()) {
+            // send it, wait for the answer to be written and spoken, then listen again
+            silentRounds = 0; turns++
+            best = ""
+            controller.submit(text)
+            title.text = tr("💭 กำลังตอบ…", "💭 Answering…")
+            heard.text = "🧑 $text"
+            val started = System.currentTimeMillis()
+            val poll = object : Runnable {
+                override fun run() {
+                    if (finished) return
+                    val waiting = controller.isBusy || controller.speaker.isSpeaking || System.currentTimeMillis() - started < 900
+                    if (waiting && System.currentTimeMillis() - started < 120_000) { handler.postDelayed(this, 300); return }
+                    com.livingai.companion.LivingState.chat.value.lastOrNull { !it.fromUser }?.let { heard.text = "🤖 " + it.text.take(160) }
+                    start(preferOffline = !triedOnline)
+                }
+            }
+            handler.postDelayed(poll, 300)
+            return
+        }
+        finished = true
+        handler.removeCallbacksAndMessages(null)
+        controller.voiceConversation = false
         if (!controller.isBusy) controller.onStatus(AgentStatus.IDLE, "")
         if (!text.isNullOrBlank()) controller.submit(text, fromOverlay = intent.getBooleanExtra(EXTRA_FROM_OVERLAY, false))
         finish()
@@ -142,7 +176,9 @@ class VoiceActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
-        if (!finished && !isChangingConfigurations && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) done(best.ifEmpty { null })
+        if (!finished && !isChangingConfigurations && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            if (continuous) { recognizer?.cancel(); done(null, end = true) } else done(best.ifEmpty { null })
+        }
     }
 
     override fun onDestroy() {
@@ -154,9 +190,10 @@ class VoiceActivity : Activity() {
     companion object {
         private const val REQ_MIC = 9102
         private const val EXTRA_FROM_OVERLAY = "from_overlay"
+        private const val EXTRA_CONTINUOUS = "continuous"
 
-        fun start(context: Context, fromOverlay: Boolean) {
-            val i = Intent(context, VoiceActivity::class.java).putExtra(EXTRA_FROM_OVERLAY, fromOverlay)
+        fun start(context: Context, fromOverlay: Boolean, continuous: Boolean = false) {
+            val i = Intent(context, VoiceActivity::class.java).putExtra(EXTRA_FROM_OVERLAY, fromOverlay).putExtra(EXTRA_CONTINUOUS, continuous)
             if (context !is Activity) i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(i)
         }
