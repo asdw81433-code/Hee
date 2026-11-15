@@ -19,10 +19,15 @@ import com.livingai.core.personality.Personality
  * The model only talks. It never triggers actions on the phone: those come from the rule
  * based command parser, which is predictable and goes through the safety policy.
  */
-class ChatBrain(private val generator: TextGenerator, private val maxHistory: Int = 8) {
+class ChatBrain(
+    private val generator: TextGenerator,
+    private val maxHistory: Int = 8,
+    /** Used for anything that contains screen content (summaries, autopilot). */
+    private val screenGenerator: TextGenerator = generator,
+) {
 
     val isAvailable: Boolean get() = generator.isAvailable
-    fun generatorOrNull(): TextGenerator? = generator
+    fun generatorOrNull(): TextGenerator? = screenGenerator
 
     /**
      * Written in English on purpose: it costs a quarter of the tokens of the same text in Thai (so the first
@@ -124,7 +129,7 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
         val so = StringBuilder()
         val request = GenRequest(
             messages = buildMessages(userText, ctx, personality, history, memories, custom),
-            maxTokens = if (personality.talkativeness > 0.75f) 160 else 110,
+            maxTokens = if (generator is ModelRouter && generator.usingOnline) 400 else if (personality.talkativeness > 0.75f) 160 else 110,
             // small models wander when sampled hot; a little variety is kept for playful personalities
             temperature = 0.35f + personality.playfulness * 0.2f,
             topP = 0.85f, topK = 30, repeatPenalty = 1.15f,
@@ -144,10 +149,10 @@ class ChatBrain(private val generator: TextGenerator, private val maxHistory: In
 
     /** A short summary of [screenText] in Thai (3 bullet points at most). */
     suspend fun summarize(screenText: String, onPartial: (String) -> Unit = {}): String? {
-        if (!generator.isAvailable) return null
+        if (!screenGenerator.isAvailable) return null
         val so = StringBuilder()
         return try {
-            val r = generator.generate(GenRequest(
+            val r = screenGenerator.generate(GenRequest(
                 listOf(
                     ChatMessage(Role.SYSTEM, "You summarise what is on a phone screen for the user. Reply in Thai with at most 3 short bullet points starting with •. Use only the text given; never add facts."),
                     ChatMessage(Role.USER, "ข้อความบนหน้าจอ:\n$screenText\n\nสรุปเป็นภาษาไทยสั้นๆ"),

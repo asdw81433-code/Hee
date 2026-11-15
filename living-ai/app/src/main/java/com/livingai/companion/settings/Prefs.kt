@@ -65,6 +65,10 @@ class Prefs(context: Context) : com.livingai.core.KeyValueStore {
     var aiName: String get() = sp.getString("ai_name", null) ?: ""; set(v) = sp.edit().putString("ai_name", v.trim().take(20)).apply()
     /** Free text: who this companion is, how it talks, what it should know. Added to every model prompt. */
     var customPersona: String get() = sp.getString("ai_persona", null) ?: ""; set(v) = sp.edit().putString("ai_persona", v.trim().take(600)).apply()
+    /** Use the connected online AI providers while there is a connection. */
+    var preferOnline: Boolean get() = bool("prefer_online", true); set(v) = put("prefer_online", v)
+    /** Whether on-screen text may be sent to an online provider (summaries, autopilot). Off by default. */
+    var screenOnline: Boolean get() = bool("screen_online", false); set(v) = put("screen_online", v)
     var overlayEnabled: Boolean get() = bool("overlay", true); set(v) = put("overlay", v)
 
     var proactiveCooldownSec: Int

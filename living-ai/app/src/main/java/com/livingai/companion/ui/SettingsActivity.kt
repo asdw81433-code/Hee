@@ -209,7 +209,11 @@ class SettingsActivity : Activity() {
     private fun buildCompanion(root: LinearLayout) {
         val p = graph.prefs
         val pages = kit.card(root, tr("เพิ่มเติม", "More"))
-        pages.addView(kit.button(tr("🤖 สมอง AI ในเครื่อง (โมเดล)", "🤖 On-device AI brain (models)"), grey) { startActivity(Intent(this, ModelActivity::class.java)) })
+        pages.addView(kit.button(tr("🌐 AI ออนไลน์ (API)", "🌐 Online AI (API)")) { startActivity(Intent(this, ApiActivity::class.java)) })
+        pages.addView(kit.button(tr("🤖 สมอง AI ในเครื่อง (โมเดล)", "🤖 On-device AI brain (models)"), grey) { startActivity(Intent(this, ModelActivity::class.java)) }, kit.matchWrap(top = 8))
+        val diag = kit.label("", 12.5f, colorSub)
+        pages.addView(kit.button(tr("🩺 ตรวจระบบ", "🩺 System check"), grey) { diag.text = tr("กำลังตรวจ…", "Checking…"); ui.launch { diag.text = graph.controller.selfCheck() } }, kit.matchWrap(top = 8))
+        pages.addView(diag)
         pages.addView(kit.button(tr("🎨 ตัวละครและนิสัย", "🎨 Character and personality"), grey) { startActivity(Intent(this, CharacterActivity::class.java)) }, kit.matchWrap(top = 8))
         pages.addView(kit.button(tr("🧠 ความจำ", "🧠 Memory"), grey) { startActivity(Intent(this, MemoryActivity::class.java)) }, kit.matchWrap(top = 8))
 

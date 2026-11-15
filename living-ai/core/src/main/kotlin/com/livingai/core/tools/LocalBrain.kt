@@ -27,6 +27,9 @@ object LocalBrain {
         data class DoneTodo(val query: String) : Plan
         data object Summarize : Plan
         data object AppStats : Plan
+        /** Look a topic up on the web (Wikipedia) and report with the source. */
+        data class Lookup(val query: String) : Plan
+        data object Diagnose : Plan
         /** Work towards [goal] step by step without further instructions. */
         data class Auto(val goal: String) : Plan
         /** Tap the spot under the robot [count] times (for idle / clicker games). */
@@ -93,6 +96,8 @@ object LocalBrain {
             val d = TimeParser.duration(rest) ?: return Plan.Unknown(tr("จับเวลานานเท่าไหร่ดี เช่น \"จับเวลา 5 นาที\"", "For how long? e.g. \"timer 5 minutes\""))
             return Plan.Device(DeviceCommand.SetTimer(d))
         }
+        if (listOf("ตรวจระบบ", "เช็กระบบ", "เช็คระบบ", "สถานะระบบ", "diagnose", "system check", "self check").any { lower.contains(it) }) return Plan.Diagnose
+        after("วิกิ", "ค้นข้อมูล", "หาข้อมูลเรื่อง", "หาข้อมูล", "ค้นคว้า", "wiki", "look up", "research")?.let { q -> if (q.length >= 2) return Plan.Lookup(q.removePrefix("เรื่อง").removePrefix("เกี่ยวกับ").trim()) }
         // autopilot: "ทำแทน …", "จัดการ …"
         after("ทำแทนเรา", "ทำแทน", "ทำให้หน่อย", "ทำให้ที", "ช่วยทำ", "จัดการให้", "จัดการ", "ออโต้", "do it for me", "autopilot", "auto")?.let { g ->
             return if (g.length >= 2) Plan.Auto(g.trim(':', ' ')) else Plan.Unknown(tr("จะให้ทำอะไรแทนดี เช่น \"ทำแทน เปิดโหมดมืดในการตั้งค่า\"", "What should I do for you? e.g. \"do it for me: turn on dark mode in settings\""))

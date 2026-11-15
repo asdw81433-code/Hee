@@ -189,8 +189,18 @@ class HomeActivity : Activity() {
         return brain
     }
 
+    /** Says honestly which brain will answer right now. */
+    private fun brainStatus(): String {
+        val r = graph.controller.router
+        return when {
+            r.usingOnline -> tr("🌐 ออนไลน์: ${r.modelName}", "🌐 Online: ${r.modelName}")
+            r.isAvailable -> tr("🧠 สมองในเครื่อง • ออฟไลน์ได้", "🧠 Phone model • works offline")
+            else -> tr("⚠️ ยังไม่มีสมอง AI (ตอบได้แค่พื้นฐาน)", "⚠️ No AI brain yet (basic replies only)")
+        }
+    }
+
     private fun refreshBrain() {
-        if (graph.controller.llm.isAvailable && LivingState.status.value == AgentStatus.IDLE) statusText.text = tr("🧠 สมอง AI พร้อม • ทำงานในเครื่อง", "🧠 AI brain ready • on this phone")
+        if (LivingState.status.value == AgentStatus.IDLE) statusText.text = brainStatus()
         val spec = com.livingai.core.ai.ModelCatalog.GEMMA3_1B
         val d = graph.models.downloads.value[spec.id]
         val installed = graph.controller.models.installed().isNotEmpty()
@@ -230,6 +240,7 @@ class HomeActivity : Activity() {
             tr("🎮 เล่นเกม", "🎮 Play") to tr("เล่นเกม", "play a game"),
             tr("📝 วางแผนวันนี้", "📝 Plan my day") to tr("วางแผนวันนี้", "plan my day"),
             tr("🦾 ทำแทนเรา", "🦾 Do it for me") to tr("ทำแทน", "do it for me"),
+            tr("🩺 ตรวจระบบ", "🩺 System check") to tr("ตรวจระบบ", "system check"),
             tr("📋 คำสั่ง", "📋 Commands") to tr("คำสั่ง", "help"),
         )
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(12.dp, 4.dp, 12.dp, 4.dp) }
@@ -238,6 +249,12 @@ class HomeActivity : Activity() {
             background = Theme.gradient(this@HomeActivity, 18f)
             setPadding(14.dp, 8.dp, 14.dp, 8.dp)
             setOnClickListener { startActivity(Intent(this@HomeActivity, ModelActivity::class.java)) }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
+        row.addView(TextView(this).apply {
+            text = tr("🌐 AI ออนไลน์", "🌐 Online AI"); textSize = 13f; setTextColor(0xFFFFFFFF.toInt())
+            background = Theme.gradient(this@HomeActivity, 18f, Theme.ACCENT2, Theme.GREEN)
+            setPadding(14.dp, 8.dp, 14.dp, 8.dp)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, ApiActivity::class.java)) }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = 6.dp })
         for ((title, text) in chips) {
             row.addView(TextView(this).apply {
@@ -371,8 +388,7 @@ class HomeActivity : Activity() {
                 combine(LivingState.status, LivingState.statusDetail, LivingState.paused) { s, d, p -> Triple(s, d, p) }.collect { (s, d, paused) ->
                     orb.status = s
                     statusText.text = when (s) {
-                        AgentStatus.IDLE -> if (graph.controller.llm.isAvailable && graph.prefs.llmEnabled) tr("🧠 สมอง AI พร้อม • ทำงานในเครื่อง", "🧠 AI brain ready • on this phone")
-                            else tr("⚠️ ยังไม่มีสมอง AI (ตอบได้แค่พื้นฐาน)", "⚠️ No AI brain yet (basic replies only)")
+                        AgentStatus.IDLE -> brainStatus()
                         AgentStatus.LOOKING -> tr("👁 กำลังมองหน้าจอ…", "👁 Looking at the screen…")
                         AgentStatus.THINKING -> tr("💭 กำลังพิมพ์…", "💭 Typing…")
                         AgentStatus.ACTING -> tr("✋ กำลังใช้หน้าจอ: ", "✋ Using the screen: ") + d

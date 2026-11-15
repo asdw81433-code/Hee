@@ -16,6 +16,8 @@ object LivingState {
     val chat = MutableStateFlow<List<ChatLine>>(emptyList())
     /** The reply being written by the language model right now ("" = none). */
     val partial = MutableStateFlow("")
+    /** Which model wrote the latest reply. */
+    val servedBy = MutableStateFlow("")
 
     fun appendChat(line: ChatLine) {
         chat.value = (chat.value + line).takeLast(80)

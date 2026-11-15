@@ -3,6 +3,7 @@
 
     <!-- Talk to the LLM / Vision API. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- hand an alarm / timer to the clock app -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <!-- Kivo's own reminders: on time when the user allows "Alarms & reminders", and set again after a reboot -->
@@ -70,6 +71,7 @@
 
         <activity android:name=".ui.CharacterActivity" android:exported="false" />
         <activity android:name=".ui.ModelActivity" android:exported="false" />
+        <activity android:name=".ui.ApiActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.MemoryActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
 
         <!-- Small listening card over whatever is on screen (voice input), also opened from the floating robot. -->

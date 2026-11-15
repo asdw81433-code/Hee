@@ -56,6 +56,9 @@ class KivoCore(
     /** Extra things the user wants this companion to be or know, added to every model prompt. */
     private val customPersona: () -> String = { "" },
     val appHabits: com.livingai.core.companion.AppHabits? = null,
+    private val web: com.livingai.core.tools.WebLookup? = null,
+    /** Checks the app's own parts and returns a report. */
+    private val diagnose: (suspend () -> String)? = null,
 ) {
     val autopilot = com.livingai.core.tools.AutoPilot(vision, actions, memory.store, listener, { brain?.generatorOrNull() })
     init {
@@ -311,6 +314,13 @@ class KivoCore(
                 didAct = true
                 f(plan.count)
             }
+            is LocalBrain.Plan.Lookup -> {
+                listener.onStatus(AgentStatus.ACTING, tr("ค้นข้อมูล: ${plan.query}", "looking up: ${plan.query}"))
+                val r = web?.lookup(plan.query)
+                if (r == null) { anyActionFailed = true; tr("หาข้อมูลเรื่อง \"${plan.query}\" ไม่เจอ หรือไม่มีเน็ต", "I couldn't find \"${plan.query}\", or there is no connection") }
+                else { didAct = true; replyMood = Mood.FOCUSED; web.format(r) }
+            }
+            LocalBrain.Plan.Diagnose -> { replyMood = Mood.FOCUSED; diagnose?.invoke() ?: tr("ตรวจระบบไม่ได้ในโหมดนี้", "Diagnostics are not available here") }
             LocalBrain.Plan.AppStats -> { replyMood = Mood.CURIOUS; appHabits?.summary() ?: tr("ยังไม่ได้เปิดการเรียนรู้จากจอ", "Learning from the screen is off") }
             LocalBrain.Plan.Summarize -> { replyMood = Mood.FOCUSED; summarizeScreen() }
             is LocalBrain.Plan.Habit -> {

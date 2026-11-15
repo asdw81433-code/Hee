@@ -292,6 +292,19 @@ class DeviceE2ETest {
         SystemClock.sleep(900); shell("screencap -p /data/local/tmp/kivo-shot-3-character.png")
         shell("input keyevent KEYCODE_BACK")
 
+        ctx.startActivity(Intent(ctx, com.livingai.companion.ui.ApiActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        waitUntil("the API screen is in front", 20_000) { observe().elements.any { it.label.contains("Google Gemini") } }
+        SystemClock.sleep(600); shell("screencap -p /data/local/tmp/kivo-shot-5-api.png")
+        shell("input keyevent KEYCODE_BACK")
+        // keys survive only encrypted, and come back intact
+        val secrets = graph.controller.secrets
+        secrets.put("test-key", "sk-ทดสอบ-123"); assertEquals("sk-ทดสอบ-123", secrets.get("test-key"))
+        assertFalse(ctx.getSharedPreferences("kivo_secrets", 0).getString("test-key", "")!!.contains("sk-"))
+        secrets.remove("test-key"); assertEquals("", secrets.get("test-key"))
+        // self-diagnostics really run
+        val check = ask("ตรวจระบบ", timeoutMs = 60_000)
+        assertTrue(check, check.contains("RAM") && check.contains("ฐานข้อมูลความจำ"))
+
         // The memory manager shows what is in the database.
         runBlocking { graph.memoryStore.save(Memory(kind = MemoryKind.KNOWLEDGE, title = "ทดสอบหน้าความจำ", content = "ข้อมูลตัวอย่าง")) }
         ctx.startActivity(Intent(ctx, com.livingai.companion.ui.MemoryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

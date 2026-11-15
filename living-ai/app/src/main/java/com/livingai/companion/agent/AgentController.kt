@@ -116,7 +116,22 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
             try { return llm.generate(request, onText) } finally { resources.release(llm) }
         }
     }
-    val brain = ChatBrain(managedLlm)
+    /** Online AI services the user connected; keys are encrypted with the Android Keystore. */
+    val secrets = com.livingai.companion.ai.KeystoreSecretStore(context)
+    val providers = com.livingai.core.ai.ProviderStore(prefs, secrets)
+
+    private fun isOnline(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return false
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return false) ?: return false
+        return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    /** Chooses who answers: online providers in order, then the model on the phone. */
+    val router = com.livingai.core.ai.ModelRouter(
+        remotes = { providers.all().map { p -> com.livingai.core.ai.RemoteGenerator(p) { secrets.get(p.id) } } },
+        local = managedLlm, online = ::isOnline, screenOnlineAllowed = { prefs.screenOnline }, preferOnline = { prefs.preferOnline },
+    )
+    val brain = ChatBrain(router, screenGenerator = router.forScreen())
 
     private val mainAgent = KivoCore(
         vision, actions, devicePort, memory, this, localContext = ::deviceContext,
@@ -127,7 +142,47 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         repeatTap = ::repeatTap,
         customPersona = { prefs.customPersona },
         appHabits = appHabits,
+        web = com.livingai.core.tools.WebLookup(),
+        diagnose = ::selfCheck,
     )
+
+    /** Self-diagnostics: checks each part for real and reports what works and what does not. */
+    suspend fun selfCheck(): String {
+        val ok = "✅"; val bad = "❌"; val warn = "⚠️"
+        val lines = ArrayList<String>()
+        val snap = resources.snapshot()
+        val list = providers.all().filter { it.enabled }
+        lines.add(if (isOnline()) "$ok " + tr("อินเทอร์เน็ต: ต่ออยู่", "Internet: connected") else "$warn " + tr("อินเทอร์เน็ต: ไม่ได้ต่อ (ใช้สมองในเครื่อง)", "Internet: offline (phone model only)"))
+        if (list.isEmpty()) lines.add("$warn " + tr("AI ออนไลน์: ยังไม่ได้ต่อ (ตั้งค่า → AI ออนไลน์)", "Online AI: none connected"))
+        for (p in list.take(3)) {
+            val r = if (!isOnline() || !prefs.preferOnline) null else runCatching {
+                com.livingai.core.ai.RemoteGenerator(p.copy(retries = 0, timeoutSec = 15)) { secrets.get(p.id) }
+                    .generate(GenRequest(listOf(com.livingai.core.ai.ChatMessage(com.livingai.core.ai.ChatMessage.Role.USER, "ok?")), maxTokens = 16, temperature = 0f))
+            }
+            lines.add(when {
+                !providers.hasKey(p.id) -> "$bad ${p.name}: " + tr("ยังไม่มี API key", "no API key")
+                r == null -> "$warn ${p.name}: " + tr("ยังไม่ได้ทดสอบ (ออฟไลน์หรือปิดไว้)", "not tested (offline or off)")
+                r.isSuccess -> "$ok ${p.name}: " + tr("ใช้ได้", "works")
+                else -> "$bad ${p.name}: ${r.exceptionOrNull()?.message}"
+            })
+        }
+        val model = models.active()
+        lines.add(when {
+            com.livingai.core.ai.LlamaNative.loadError != null -> "$bad " + tr("สมองในเครื่อง: ไลบรารีโหลดไม่ได้", "Phone model: library failed to load")
+            model == null -> "$warn " + tr("สมองในเครื่อง: ยังไม่ได้ติดตั้ง", "Phone model: not installed")
+            else -> "$ok " + tr("สมองในเครื่อง: ${model.name} (${model.length() / 1_000_000} MB)", "Phone model: ${model.name} (${model.length() / 1_000_000} MB)")
+        })
+        val mem = runCatching { memory.store.list(null, 1000).size }
+        lines.add(mem.fold({ "$ok " + tr("ฐานข้อมูลความจำ: $it รายการ", "Memory database: $it items") }, { "$bad " + tr("ฐานข้อมูลความจำ: ${it.message}", "Memory database: ${it.message}") }))
+        lines.add((if (snap.availableMb > 600) ok else warn) + " RAM: " + tr("ว่าง ${snap.availableMb} MB จาก ${snap.totalMb} MB", "${snap.availableMb} MB free of ${snap.totalMb} MB"))
+        val freeMb = context.filesDir.usableSpace / 1_000_000
+        lines.add((if (freeMb > 500) ok else warn) + " " + tr("พื้นที่ว่าง: $freeMb MB", "Storage free: $freeMb MB"))
+        lines.add((if (LivingAccessibilityService.instance != null) ok else warn) + " " + tr("สิทธิ์ใช้หน้าจอ (กดแทน): ", "Screen control: ") + if (LivingAccessibilityService.instance != null) tr("เปิด", "on") else tr("ปิด", "off"))
+        lines.add((if (overlay != null) ok else warn) + " " + tr("หุ่นบนจอ: ", "Robot on screen: ") + if (overlay != null) tr("แสดงอยู่", "showing") else tr("ไม่ได้แสดง", "hidden"))
+        lines.add((if (LivingState.captureActive.value) ok else warn) + " " + tr("แชร์หน้าจอ: ", "Screen sharing: ") + if (LivingState.captureActive.value) tr("เปิด", "on") else tr("ปิด", "off"))
+        lines.add("$ok " + tr("การเตือนที่ตั้งไว้: ${reminders.book.all().size} • คำตอบล่าสุดโดย: ${router.lastServedBy.ifEmpty { "-" }}", "Reminders: ${reminders.book.all().size} • last answer by: ${router.lastServedBy.ifEmpty { "-" }}"))
+        return tr("ผลตรวจระบบ:\n", "System check:\n") + lines.joinToString("\n")
+    }
 
     /**
      * Taps the spot under the robot again and again: for idle / clicker games, where the user parks
@@ -498,6 +553,7 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
         appHabits.clear()
         LivingState.chat.value = emptyList()
         prefs.clearCompanionData()
+        secrets.clear()
         vision.forget()
         if (alsoModels) { llm.unloadAndWait(); models.installed().forEach { models.delete(it) } }
     }
@@ -517,6 +573,8 @@ class AgentController(private val context: Context, val prefs: Prefs, private va
 
     override fun onSay(text: String, proactive: Boolean) {
         LivingState.partial.value = ""
+        LivingState.servedBy.value = router.lastServedBy
+        router.lastNotice.takeIf { it.isNotEmpty() && !proactive }?.let { LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, "ℹ️ $it")) }
         LivingState.appendChat(ChatLine(System.currentTimeMillis(), false, text))
         overlay?.say(text)
         if (prefs.speakReplies && !LivingState.paused.value) speaker.say(text)
