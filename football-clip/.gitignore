@@ -1,0 +1,5 @@
+_tmp/
+output.mp4
+clips/*
+!clips/.gitkeep
+*.mp3
