@@ -25,3 +25,9 @@
 *.apk
 *.aab
 crashlytics-build.properties
+
+# Godot (westbridge/)
+westbridge/.godot/
+westbridge/export/
+westbridge/*.apk
+westbridge/*.aab
