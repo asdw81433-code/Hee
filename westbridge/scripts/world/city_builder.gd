@@ -186,14 +186,18 @@ func _connect_crosswalks() -> void:
 func _build_vegetation() -> void:
 	var he := CityMap.half_extent()
 	# Forest ring around the town.
-	var attempts := 2600
+	var attempts := 2200
 	for k in attempts:
-		var p := Vector3(rng.randf_range(-430, 430), 0, rng.randf_range(-400, 400))
+		var p := Vector3(rng.randf_range(-400, 400), 0, rng.randf_range(-370, 370))
 		if absf(p.x) < he.x + 14.0 and absf(p.z) < he.y + 14.0:
+			continue
+		# Denser right at the town edge, thinner far away (fog hides the rest).
+		var edge := maxf(absf(p.x) - he.x, absf(p.z) - he.y)
+		if edge > 120.0 and rng.randf() < 0.45:
 			continue
 		var s := rng.randf_range(0.8, 1.6)
 		pine_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.25), s)), p))
-	_multimesh("Pines", PropsKit.pine_tree_mesh(), pine_spots, 0.0, view_distance + 260.0)
+	_build_forest_chunks()
 	_multimesh("Trees", PropsKit.round_tree_mesh(), tree_spots, 0.0, view_distance)
 	# Collision for trees close to the town edge only.
 	var cols := ColliderSet.new()
@@ -206,7 +210,27 @@ func _build_vegetation() -> void:
 	root.add_child(cols.build("TreeCollision"))
 
 
-func _multimesh(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) -> void:
+## Forest split into 120 m chunks, each with a near (detailed, shadowed) and a far
+## (simple, unshadowed) MultiMesh. Visibility ranges pick one per chunk.
+func _build_forest_chunks() -> void:
+	var near_mesh := PropsKit.pine_tree_mesh(0)
+	var far_mesh := PropsKit.pine_tree_mesh(1)
+	var cells: Dictionary = {}
+	for t in pine_spots:
+		var o: Vector3 = (t as Transform3D).origin
+		var key := Vector2i(int(floor(o.x / 120.0)), int(floor(o.z / 120.0)))
+		if not cells.has(key):
+			cells[key] = []
+		cells[key].append(t)
+	for key in cells.keys():
+		var arr: Array = cells[key]
+		var near_mi := _multimesh("Pines_%d_%d" % [key.x, key.y], near_mesh, arr, 0.0, 150.0)
+		near_mi.visibility_range_end_margin = 10.0
+		var far_mi := _multimesh("PinesFar_%d_%d" % [key.x, key.y], far_mesh, arr, 150.0, view_distance + 400.0)
+		far_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func _multimesh(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = mesh
@@ -220,6 +244,7 @@ func _multimesh(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) 
 	mmi.visibility_range_begin = begin
 	mmi.visibility_range_end = end
 	root.add_child(mmi)
+	return mmi
 
 
 func _build_backdrop() -> void:

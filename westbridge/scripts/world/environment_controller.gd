@@ -137,6 +137,7 @@ func set_weather(w: String, instant: bool = false) -> void:
 	if not w in WEATHERS:
 		w = "clear"
 	weather = w
+	_next_weather_minutes = GameTime.total_minutes + rng.randf_range(150, 420)
 	if instant:
 		_weather_blend = _weather_target()
 	EventBus.weather_changed.emit(StringName(w))

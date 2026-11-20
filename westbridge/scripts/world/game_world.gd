@@ -28,11 +28,10 @@ func _show_loading() -> void:
 	add_child(_loading)
 	var bg := ColorRect.new()
 	bg.color = Color(0.08, 0.1, 0.13)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_loading.add_child(bg)
 	var l := UIKit.label("Loading Westbridge...", 40, UIKit.ACCENT)
-	l.set_anchors_preset(Control.PRESET_CENTER)
-	l.position = Vector2(-220, -30)
+	UIKit.anchor(l, Control.PRESET_CENTER, Vector2(-220, -30), Vector2(440, 60))
 	_loading.add_child(l)
 
 
@@ -68,7 +67,7 @@ func _build() -> void:
 		return "%s · %s" % [CityMap.district_at(player.global_position), environment.weather.capitalize().replace("_", " ")]
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
-	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.root.add_child(_fade)
 	for a in OS.get_cmdline_user_args():
@@ -83,8 +82,40 @@ func _build() -> void:
 			environment.camera_ref = ac
 		elif a.begins_with("hour="):
 			GameTime.total_minutes = GameTime.get_day() * 1440.0 + float(a.substr(5)) * 60.0
+			environment.set_weather(environment.weather, true)
+		elif a == "demo_talk":
+			get_tree().create_timer(5.0, true, true).timeout.connect(func() -> void:
+				var near: NPCBody = null
+				for b in npcs.body_of.values():
+					if near == null or (b as NPCBody).global_position.distance_to(player.global_position) < near.global_position.distance_to(player.global_position):
+						near = b
+				if near:
+					player.global_position = near.global_position + (-near.global_basis.z) * 1.6
+					player.rotation.y = near.rotation.y + PI
+					near.interact(player)
+					if "inspect" in OS.get_cmdline_user_args():
+						get_tree().create_timer(1.0, true, true).timeout.connect(func() -> void:
+							for c in hud.get_children():
+								if c is NPCDialog:
+									(c as NPCDialog)._inspect()))
 		elif a.begins_with("weather="):
 			environment.set_weather(a.substr(8), true)
+		elif a.begins_with("spawn="):
+			var sv := a.substr(6).split_floats(",")
+			player.global_position = CityMap.block_center(int(sv[0]), int(sv[1])) + Vector3(sv[2], 0.3, sv[3])
+			player.rotation.y = deg_to_rad(sv[4]) if sv.size() > 4 else 0.0
+			cam.set_target(player)
+		elif a == "perf":
+			var timer := Timer.new()
+			timer.wait_time = 2.0
+			timer.autostart = true
+			add_child(timer)
+			timer.timeout.connect(func() -> void:
+				print("PERF fps %d | process %.2f ms | physics %.2f ms | draw calls %d | primitives %d | objects %d | npc bodies %d | npc ticks/s %d" % [
+					Engine.get_frames_per_second(), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+					Performance.get_monitor(Performance.OBJECT_COUNT), npcs.stats.embodied, npcs.stats.ticks_per_sec]))
 	if "overview" in OS.get_cmdline_user_args():
 		cam.pitch = -28.0
 		cam.spring.spring_length = 26.0
@@ -92,6 +123,8 @@ func _build() -> void:
 	print("World built in %d ms: %d places, %d nav nodes, %d NPCs" % [Time.get_ticks_msec() - t0, city.places.size(), city.graph.node_count(), npcs.npcs.size()])
 	Game.on_world_ready(self)
 	_loading.queue_free()
+	if "worldtest" in OS.get_cmdline_user_args():
+		add_child(WorldTest.new())
 
 
 func _unhandled_input(event: InputEvent) -> void:

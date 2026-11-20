@@ -8,7 +8,7 @@ var _prev_mouse: int = Input.MOUSE_MODE_VISIBLE
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	theme = UIKit.theme()
 	visible = false
@@ -100,8 +100,7 @@ func _edit_controls() -> void:
 		hud.touch.set_editing(false)
 		hud.touch.visible = Settings.touch_controls_enabled()
 		GameTime.running = true, Vector2(260, 56))
-	done.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	done.position = Vector2(-130, 90)
+	UIKit.anchor(done, Control.PRESET_CENTER_TOP, Vector2(-130, 90), Vector2(260, 56))
 	done.theme = UIKit.theme()
 	hud.root.add_child(done)
 	done.pressed.connect(done.queue_free)

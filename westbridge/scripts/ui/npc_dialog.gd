@@ -14,7 +14,7 @@ const PID := NPCData.PLAYER_ID
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UIKit.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	PlayerInput.enabled = false
@@ -39,9 +39,8 @@ func _main(said: String = "") -> void:
 	for c in get_children():
 		c.queue_free()
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	panel.position = Vector2(-430, -330)
 	panel.custom_minimum_size = Vector2(860, 300)
+	UIKit.anchor(panel, Control.PRESET_CENTER_BOTTOM, Vector2(-430, -330), Vector2(860, 300))
 	add_child(panel)
 	_vb = VBoxContainer.new()
 	panel.add_child(_vb)

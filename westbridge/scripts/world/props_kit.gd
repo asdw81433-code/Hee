@@ -187,15 +187,33 @@ static func crate_stack(b: GeoBatch, cols: ColliderSet, pos: Vector3, rng: Rando
 	cols.add_box(pos + Vector3(0, n * 0.3, 0), Vector3(0.7, n * 0.6, 0.7))
 
 
-static func pine_tree_mesh() -> ArrayMesh:
+## Pine tree. detail 0 = near (~80 triangles), 1 = far (~20 triangles).
+static func pine_tree_mesh(detail: int = 0) -> ArrayMesh:
 	var b := GeoBatch.new()
-	b.cylinder(Vector3(0, 1.0, 0), 0.14, 0.22, 2.0, Color(0.33, 0.23, 0.15), K.WOOD, 6)
 	var greens := [Color(0.16, 0.34, 0.2), Color(0.19, 0.38, 0.22), Color(0.22, 0.43, 0.25)]
-	for k in 4:
-		var y := 1.6 + k * 1.55
-		var r := 2.2 - k * 0.45
-		b.cylinder(Vector3(0, y + 1.0, 0), 0.0, r, 2.6, greens[mini(k, 2)], K.FOLIAGE, 9)
+	if detail == 0:
+		_cone(b, Vector3(0, 1.0, 0), 0.14, 0.22, 2.0, Color(0.33, 0.23, 0.15), K.WOOD, 6)
+		for k in 4:
+			var y := 1.6 + k * 1.55
+			var r := 2.2 - k * 0.45
+			_cone(b, Vector3(0, y + 1.0, 0), 0.0, r, 2.6, greens[mini(k, 2)], K.FOLIAGE, 8)
+	else:
+		_cone(b, Vector3(0, 3.6, 0), 0.0, 2.2, 5.2, greens[0], K.FOLIAGE, 5)
+		_cone(b, Vector3(0, 6.4, 0), 0.0, 1.5, 3.6, greens[1], K.FOLIAGE, 5)
 	return b.build_mesh()
+
+
+## Capless cylinder/cone (cheaper than CylinderMesh for foliage).
+static func _cone(b: GeoBatch, center: Vector3, r_top: float, r_bot: float, height: float, color: Color, kind: int, segs: int) -> void:
+	var cm := CylinderMesh.new()
+	cm.top_radius = r_top
+	cm.bottom_radius = r_bot
+	cm.height = height
+	cm.radial_segments = segs
+	cm.rings = 1
+	cm.cap_top = false
+	cm.cap_bottom = false
+	b.primitive(cm, Transform3D(Basis.IDENTITY, center), color, kind)
 
 
 static func round_tree_mesh() -> ArrayMesh:

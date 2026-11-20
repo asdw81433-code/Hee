@@ -192,10 +192,6 @@ func _build_torso() -> void:
 		if a.jacket == 0:
 			var py: float = g["Spine"].y + 0.04
 			mb.add_box(Transform3D(Basis.IDENTITY, Vector3(0, py, front_z.call(py) + 0.004)), Vector3(0.16, 0.08, 0.012), a.top_color.darkened(0.08), B("Spine"))
-	# Cargo pockets
-	if a.pants == 4:
-		for side in [1.0, -1.0]:
-			pass
 
 
 func _jacket_open_half() -> float:
@@ -233,8 +229,6 @@ func _torso_color(y: float, phi: float) -> Color:
 	var base := shirt if y >= _waist_line() else a.pants_color
 	if a.pants == 3 and y < _waist_line():
 		base = a.pants_color   # skirt waistband
-	if a.top == 3:   # tank top: bare upper shoulders/neck area handled by arms
-		pass
 	if a.jacket != 0 and y >= _jacket_hem():
 		var open := _jacket_open_half()
 		var show_shirt := open > 0.0 and absf(phi) < open
@@ -421,7 +415,7 @@ func _build_head() -> void:
 	var hb := B("Head")
 	var skin := a.skin_color
 	var deform := Callable(self, "_head_deform")
-	mb.add_ellipsoid(Transform3D(Basis.IDENTITY, head_center), head_radii, skin, hb, {"deform": deform, "rings": 12, "segs": 18})
+	mb.add_ellipsoid(Transform3D(Basis.IDENTITY, head_center), head_radii, skin, hb, {"deform": deform, "rings": 10, "segs": 16})
 	# Ears
 	for sgn in [1.0, -1.0]:
 		var ep := head_center + Vector3(head_radii.x * 0.93 * sgn, -0.015, -0.005)
@@ -451,7 +445,7 @@ func _build_face() -> void:
 		var lb := B("Lid" + side)
 		var ep: Vector3 = g["Eye" + side]
 		var r := 0.047 * es
-		mb.add_ellipsoid(Transform3D(Basis.IDENTITY, ep), Vector3(r, r, r * 0.95), white, eb, {"rings": 8, "segs": 12})
+		mb.add_ellipsoid(Transform3D(Basis.IDENTITY, ep), Vector3(r, r, r * 0.95), white, eb, {"rings": 7, "segs": 11})
 		mb.add_ellipsoid(Transform3D(Basis.IDENTITY, ep + Vector3(0, 0, r * 0.86)), Vector3(0.017, 0.017, 0.008) * es, a.eye_color.darkened(0.25), eb, {"rings": 4, "segs": 8})
 		mb.add_ellipsoid(Transform3D(Basis.IDENTITY, ep + Vector3(0, 0, r * 0.97)), Vector3(0.0095, 0.0095, 0.005) * es, PUPIL, eb, {"rings": 3, "segs": 7})
 		# Upper lid: upper half shell; FaceRig rotates it to open / close.
@@ -537,8 +531,6 @@ func _build_hair() -> void:
 			var bob := func(lon: float) -> float:
 				return lerpf(32.0, -34.0, smoothstep(0.25, 0.85, absf(lon) / PI))
 			_hair_shell(1.075, 0.0, 0.0, hc, {"lat_min_fn": bob})
-	if a.brow_style < 0:
-		pass
 
 
 func _build_beard() -> void:

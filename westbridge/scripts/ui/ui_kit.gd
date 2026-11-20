@@ -61,6 +61,17 @@ static func _box(c: Color, radius: int, border: Color = Color(0, 0, 0, 0)) -> St
 	return s
 
 
+## Anchors `c` to a preset point of its parent and places it with an offset from that
+## point (works no matter when the parent gets its final size).
+static func anchor(c: Control, preset: int, offset: Vector2, size: Vector2 = Vector2.ZERO) -> void:
+	c.set_anchors_preset(preset)
+	var sz := size if size != Vector2.ZERO else c.get_combined_minimum_size()
+	c.offset_left = offset.x
+	c.offset_top = offset.y
+	c.offset_right = offset.x + sz.x
+	c.offset_bottom = offset.y + sz.y
+
+
 static func panel_style(c: Color = PANEL, radius: int = 18) -> StyleBoxFlat:
 	return _box(c, radius)
 
@@ -161,11 +172,11 @@ static func color_row(title: String, palette: Array, current: Color, cb: Callabl
 static func modal(parent: Node, title: String, width: float = 760.0) -> VBoxContainer:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	parent.add_child(dim)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.add_child(center)
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(width, 0)

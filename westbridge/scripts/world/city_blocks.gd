@@ -371,7 +371,6 @@ func _diner_block() -> void:
 	b.box(dxf * Transform3D(Basis.IDENTITY, Vector3(3.5, 1.6, -5.1)), Vector3(8.0, 1.0, 0.4), Color(0.85, 0.85, 0.87), K.METAL)
 	var spots: Array = []
 	for k in 4:
-		var bxf := dxf * Transform3D(Basis.IDENTITY, Vector3(-7.0 + k * 0.0, 0, -3.6 + k * 2.2))
 		var t_xf := dxf * Transform3D(Basis.IDENTITY, Vector3(-6.0, 0, -3.6 + k * 2.2))
 		BuildingKit.table(b, cols, t_xf, Vector2(1.0, 1.2), Color(0.85, 0.85, 0.82))
 		for side in [-1.0, 1.0]:
@@ -382,7 +381,6 @@ func _diner_block() -> void:
 			seat.transform = seat_xf * Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0.0, 0.05))
 			node.add_child(seat)
 			spots.append({"pos": seat.transform.origin, "yaw": seat.transform.basis.get_euler().y, "kind": "seat", "seat": seat})
-		var _unused := bxf
 	for k in 5:
 		var st := dxf * Transform3D(Basis.IDENTITY, Vector3(0.8 + k * 1.3, 0, -1.6))
 		b.cylinder((st * Transform3D(Basis.IDENTITY, Vector3(0, 0.38, 0))).origin, 0.22, 0.22, 0.08, Color(0.75, 0.15, 0.15), K.PAINT, 10)

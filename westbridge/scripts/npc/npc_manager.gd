@@ -440,7 +440,8 @@ func _update_lod() -> void:
 	for id in want.keys():
 		if body_of.has(id):
 			var bd: NPCBody = body_of[id]
-			bd.set_lod(0 if want[id][0] < NEAR else 1)
+			# Full mesh + face/IK only up close; everyone else uses the light mesh.
+			bd.set_lod(0 if want[id][0] < 20.0 else 1)
 			continue
 		if assigned >= 2:
 			break   # spread the cost of building characters over frames

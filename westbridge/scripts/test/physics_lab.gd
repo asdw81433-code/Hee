@@ -167,7 +167,9 @@ func push(dir_name: String, impulse: float, height: float = 1.25) -> void:
 
 func throw_object(ball: bool) -> void:
 	var t := _target()
-	var from := t.global_position + Vector3(4, 1.4, 0).rotated(Vector3.UP, randf() * TAU)
+	# Tests throw from straight in front (nobody in between); the button picks a random side.
+	var angle := 0.0 if _test_mode else randf() * TAU
+	var from := t.global_position + Vector3(0, 1.4, 4).rotated(Vector3.UP, angle)
 	var body: RigidBody3D
 	if ball:
 		body = Geo.rigid_ball(self, from, 0.18, 2.5, Color(0.9, 0.3, 0.2))
@@ -175,7 +177,10 @@ func throw_object(ball: bool) -> void:
 		body = Geo.rigid_box(self, from, Vector3(0.5, 0.5, 0.5), 18.0, Color(0.7, 0.5, 0.25))
 	body.add_child(ThrownObject.new())
 	var aim := t.global_position + Vector3(0, 1.2, 0)
-	body.linear_velocity = (aim - from).normalized() * (14.0 if ball else 9.0) + Vector3(0, 1.0, 0)
+	var speed := 14.0 if ball else 9.0
+	var flight := from.distance_to(aim) / speed
+	# Compensate gravity so the object actually reaches the chest.
+	body.linear_velocity = (aim - from).normalized() * speed + Vector3(0, 0.5 * 9.8 * flight, 0)
 	get_tree().create_timer(8.0).timeout.connect(body.queue_free)
 
 
@@ -201,8 +206,7 @@ func reset_all() -> void:
 func _build_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.theme = UIKit.theme()
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-560, 50)
+	UIKit.anchor(panel, Control.PRESET_TOP_RIGHT, Vector2(-560, 50), Vector2(260, 600))
 	panel.add_theme_stylebox_override("panel", UIKit.panel_style(Color(0.06, 0.08, 0.1, 0.8), 12))
 	hud.root.add_child(panel)
 	var vb := VBoxContainer.new()
@@ -285,8 +289,10 @@ func _run_tests() -> void:
 	var valid := true
 	var knee_ok := true
 	var elbow_ok := true
+	var saw_blend := false
 	for i in 30:
 		await _wait(0.05)
+		saw_blend = saw_blend or avg.phys.recovery == HumanoidPhysics.Recovery.BLENDING
 		if avg.phys.ragdoll and avg.phys.ragdoll.simulating:
 			valid = valid and avg.phys.ragdoll.is_valid_state()
 			knee_ok = knee_ok and _bend_ok(avg, "LeftUpperLeg", "LeftLowerLeg", true) and _bend_ok(avg, "RightUpperLeg", "RightLowerLeg", true)
@@ -295,7 +301,6 @@ func _run_tests() -> void:
 	_check("knees only bend backwards", knee_ok)
 	_check("elbows only bend forwards", elbow_ok)
 	var recovered := false
-	var saw_blend := false
 	for i in 200:
 		await _wait(0.05)
 		saw_blend = saw_blend or avg.phys.recovery == HumanoidPhysics.Recovery.BLENDING

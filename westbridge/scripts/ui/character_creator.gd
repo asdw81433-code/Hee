@@ -19,7 +19,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	theme = UIKit.theme()
 	_rng.randomize()
@@ -28,10 +28,10 @@ func _ready() -> void:
 		edit_appearance.hat = 0
 	var bg := ColorRect.new()
 	bg.color = Color(0.1, 0.12, 0.15, 1.0 if not wardrobe_mode else 0.92)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var hb := HBoxContainer.new()
-	hb.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hb.add_theme_constant_override("separation", 0)
 	add_child(hb)
 	hb.add_child(_build_preview())

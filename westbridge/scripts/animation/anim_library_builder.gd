@@ -233,8 +233,6 @@ static func _build() -> AnimationLibrary:
 	var stop1 := P({"H": Vector3(-6, 0, 0), "S": Vector3(-10, 0, 0), "C": Vector3(-4, 0, 0), "LUL": Vector3(-44, 0, 2), "LLL": Vector3(6, 0, 0), "LF": Vector3(-22, 0, 0), "RUL": Vector3(22, 0, -2), "RLL": Vector3(58, 0, 0), "RF": Vector3(10, 0, 0), "LUA": Vector3(-34, 0, 18), "RUA": Vector3(-20, 0, -18), "LLA": Vector3(-60, 0, 0), "RLA": Vector3(-60, 0, 0), "P": Vector3(0, -0.08, 0)})
 	add.call("stop_run", _clip("stop_run", 0.6, false, [[0.0, stop1], [0.3, blend(stop1, P({}), 0.5)], [0.6, P({})]]))
 
-	var hit := func(over: Dictionary) -> Animation:
-		return null
 	var hf := P({"S": Vector3(-8, 0, 0), "C": Vector3(-12, 0, 0), "Hd": Vector3(-22, 0, 0), "LUA": Vector3(-30, 0, 24), "RUA": Vector3(-26, 0, -24), "LLA": Vector3(-60, 0, 0), "RLA": Vector3(-60, 0, 0)})
 	add.call("hit_front", _clip("hit_front", 0.55, false, [[0.0, P({})], [0.1, hf], [0.55, P({})]]))
 	var hb := P({"S": Vector3(12, 0, 0), "C": Vector3(14, 0, 0), "Hd": Vector3(20, 0, 0), "LUA": Vector3(26, 0, 22), "RUA": Vector3(26, 0, -22)})

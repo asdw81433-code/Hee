@@ -1,3 +1,7 @@
+> **โปรเจกต์ใหม่ในรีโปนี้: [`westbridge/`](westbridge/README.md)** — เกม Open World City Life Simulator สำหรับ Android สร้างด้วย Godot 4 (Phase 1 + 2 + ระบบฟิสิกส์ตัวละคร) ดูวิธีเปิดเล่นที่ `westbridge/README.md`
+>
+> เนื้อหาด้านล่างเป็นของโปรเจกต์ Unity เดิม (Neon Bay) ซึ่งยังเก็บไว้เหมือนเดิม
+
 # NEON BAY: Static Saints
 
 เกม Open World แนวไซเบอร์พังค์ มุมมองบุคคลที่ 1 สร้างด้วย Unity

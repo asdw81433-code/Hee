@@ -8,14 +8,14 @@ var _t: float = 0.0
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UIKit.theme()
 	GameTime.running = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_backdrop()
 	var shade := ColorRect.new()
 	shade.color = Color(0.03, 0.04, 0.06, 0.35)
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(shade)
 	var panel := PanelContainer.new()
@@ -46,7 +46,7 @@ func _ready() -> void:
 func _build_backdrop() -> void:
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
-	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	svc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(svc)
 	var sv := SubViewport.new()
