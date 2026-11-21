@@ -99,16 +99,32 @@ weekday · weather · money · home food stock · job shift · day plan (meetups
 oversleeping) · distance/opening hours/price of places · inertia for the current action.
 `NPCData.last_score_table` keeps the top scores so the in-game inspector shows *why*.
 
-## 5. City
+## 5. City (Priority 1: 10 districts + streaming)
 
-* `CityMap` holds the block grid and district names; `CityBlocks` builds each block into one
-  `GeoBatch` (single mesh + shared `world.gdshader`) and one `StaticBody3D` of boxes.
-* Distant blocks switch to a combined **skyline HLOD** mesh; forest is split into 120 m
-  MultiMesh chunks with near (shadowed) and far (simple) versions; occluders on towers.
-* Only 8 street lights + 3 interior lights are real OmniLights; they follow the camera to the
-  nearest lamps at night. Emissive windows/signs are driven by the `night_factor` global uniform.
-* `PedGraph` (AStar3D) = sidewalk rings + crosswalks + doors + interiors + park benches.
-  `Place` objects (73) carry type, tags, hours, price, jobs, spots and occupants.
+* `CityMap` = the 17x12 grid of 58 m cells (`cell_type`, `cell_kind`, `cell_district`),
+  road kinds on every grid edge (`vedge`/`hedge`: street, dirt, bridge, highway crossing),
+  street names and an analytic terrain `height_at` (hills, river valley, lake, coast, flat
+  harbour quays) + `road_height_at` (level bridges).
+* `CityBuilder` builds in **two passes**. The *data pass* runs every cell generator with
+  `GeoBatch.enabled = false` (same code, same per-cell seed) to create places, jobs, the
+  pedestrian network, lamp positions and the skyline HLOD. The *visual pass* (`load_cell`)
+  replays one cell with geometry enabled and isolates all data side effects (swapped
+  `PedGraph`, restored rings/spots, seats re-bound by position). `update_streaming` loads
+  cells within `view_distance + 70 m` nearest-first under a ~6 ms budget, unloads beyond
+  `+160 m`; cells within 70 m load immediately (teleports, fast movement).
+  `stats.mismatch` counts any cell whose visual pass diverges (tested to stay 0).
+* `CityBlocks` = the original town generators (unchanged output). `DistrictBlocks`
+  extends it for every other cell; on sloped cells `X()/W()` follow the terrain and
+  buildings get stone foundations (`pad`). `RoadBuilder` builds each cell's own edges,
+  intersections, bridges and the Route 9 section, plus a far-LOD road mesh.
+* Network: block rings + crosswalks between neighbouring blocks; intersection nodes chained
+  along dirt roads, bridges, highway crossings and edge-of-town streets and tied to block
+  corners; unused intersections are pruned; remote places link to the nearest node.
+  One connected component (tested).
+* Always loaded: far ground + far roads (1 mesh), skyline, water, outer landscape,
+  forest MultiMesh chunks (near/far), backdrop mountains, world bounds.
+* Only 8 street lights + 3 interior lights are real OmniLights following the camera.
+* `MapScreen` draws the grid, roads, districts, places, player and waypoint.
 
 ## 6. Roadmap (next phases)
 
@@ -123,5 +139,6 @@ oversleeping) · distance/opening hours/price of places · inertia for the curre
 | 6 | Housing market, furniture placement (buy/place/move/rotate/sell) | |
 | 7 | Phone UI: contacts, messages, map, social feed, bank, jobs, calendar, camera | |
 | 8 | Police: wanted levels, witnesses' reports (already emitted as `police_report` events), arrests | |
-| 9 | More districts (Beach, Hillside, Entertainment), activities, NPC Creator | |
+| P1 | 10 districts, 104 blocks, terrain, Route 9, bridges, two-pass generation + streaming, map | ✅ |
+| 9 | Activities, collectibles, NPC Creator | |
 | 10 | Optimization on real devices, Android build, bug fixing | |

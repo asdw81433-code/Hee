@@ -289,7 +289,70 @@ func test_city() -> CityBuilder:
 		for j in (p as Place).jobs:
 			jobs += int(j.slots)
 	check("city: workplaces offer jobs", jobs > 40, "%d job slots" % jobs)
+	test_world_map(cb)
 	return cb
+
+
+## Priority 1: the expanded world (10 districts, ~115 blocks, terrain, roads, streaming).
+func test_world_map(cb: CityBuilder) -> void:
+	var districts: Array = CityMap.district_names().filter(func(d: String) -> bool: return d != "Route 9")
+	check("world: 10 districts", districts.size() == 10, str(districts))
+	var blocks := CityMap.urban_block_count()
+	check("world: 100-120 urban blocks", blocks >= 100 and blocks <= 120, "%d blocks, %d cells" % [blocks, CityMap.all_cells().size()])
+	var per_district := {}
+	for p in cb.places:
+		per_district[(p as Place).district] = per_district.get((p as Place).district, 0) + 1
+	var empty: Array = districts.filter(func(d: String) -> bool: return per_district.get(d, 0) < 3)
+	check("world: every district has places to go", empty.is_empty(), str(per_district))
+	var bridges := 0
+	for bb in range(CityMap.GJ_MIN, CityMap.GJ_MAX + 2):
+		if CityMap.hedge(5, bb) == "bridge":
+			bridges += 1
+	var junctions := 0
+	for a in range(CityMap.GI_MIN, CityMap.GI_MAX + 2):
+		if CityMap.vedge(a, -1) == "crossing":
+			junctions += 1
+	check("world: river bridges + Route 9 junctions", bridges >= 3 and junctions >= 4, "%d bridges, %d junctions" % [bridges, junctions])
+	var peak := -INF
+	for gi in range(-1, 5):
+		peak = maxf(peak, CityMap.height_at(CityMap.block_center(gi, -5).x, CityMap.block_center(gi, -5).z))
+	var deck := CityMap.road_height_at(CityMap.RIVER_X, CityMap.intersection(5, 1).z)
+	check("world: hills + level bridges over the river", peak > 15.0 and deck >= 0.0 and CityMap.height_at(CityMap.RIVER_X, -60.0) < CityMap.RIVER_LEVEL, "summit %.1f m, bridge deck %.1f m" % [peak, deck])
+	# Deterministic two-pass generation: rebuilding gives the same world.
+	var cb2 := CityBuilder.new()
+	cb2.build(self, 1984)
+	var same := cb2.places.size() == cb.places.size()
+	for k in mini(cb.places.size(), cb2.places.size()):
+		if (cb.places[k] as Place).name != (cb2.places[k] as Place).name or (cb.places[k] as Place).entry_pos.distance_to((cb2.places[k] as Place).entry_pos) > 0.01:
+			same = false
+			break
+	check("world: generation is deterministic", same, "%d places" % cb.places.size())
+	# Streaming: the visual pass of every cell replays the data pass exactly.
+	var t0 := Time.get_ticks_msec()
+	for key in CityMap.all_cells():
+		cb2.load_cell(key)
+	var all_ms := Time.get_ticks_msec() - t0
+	var dangling := 0
+	var bound := 0
+	for p in cb2.places:
+		if not cb2.graph.astar.has_point((p as Place).entry_node):
+			dangling += 1
+		for sp in (p as Place).spots:
+			if (sp as Dictionary).has("node") and not cb2.graph.astar.has_point(int(sp.node)):
+				dangling += 1
+			if (sp as Dictionary).has("seat") and sp.seat != null:
+				bound += 1
+	check("world: streamed cells match the data pass", cb2.stats.mismatch == 0 and dangling == 0 and bound > 20, "%d cells in %d ms, %d seats bound" % [cb2.stats.loaded, all_ms, bound])
+	# Moving far away unloads the old area and loads the new one.
+	var town := CityMap.block_center(2, 1)
+	var fort := CityMap.block_center(-6, -4)
+	cb2.update_streaming(town, 1e9)
+	cb2.update_streaming(fort, 1e9)
+	var town_loaded := cb2.is_loaded(Vector2i(2, 1))
+	check("world: streaming loads near / unloads far", not town_loaded and cb2.is_loaded(Vector2i(-6, -4)), "%d cells loaded around Fort Calder" % cb2.stats.loaded)
+	for key in CityMap.all_cells():
+		cb2.unload_cell(key)
+	cb2._world_root.queue_free()
 
 
 func test_npc_generation(cb: CityBuilder) -> void:

@@ -1,13 +1,20 @@
 class_name CityBuilder
 extends RefCounted
-## Builds WESTBRIDGE: ground, roads with markings, raised blocks with sidewalks,
-## buildings/props (via CityBlocks), pedestrian network, places, vegetation and the
-## mountain backdrop. Static geometry is batched per block (1 draw call each) with a
-## low-detail skyline mesh for distance (HLOD), so it stays cheap on phones.
+## Builds WESTBRIDGE in two passes:
+##
+## 1. DATA PASS (at load, every cell of the 17x12 grid): runs the block / district
+##    generators with geometry disabled to create places, jobs, the pedestrian
+##    network, lamp positions and the low-detail skyline (HLOD). Each cell uses its
+##    own deterministic seed (CityMap.cell_seed).
+## 2. VISUAL PASS (streamed): when the player comes within range of a cell the same
+##    generator runs again with the same seed and builds meshes, colliders, labels,
+##    doors, seats, trees, roads and terrain for that cell only. Cells far away are
+##    freed again. Far ground/roads, water, skyline and forests are always loaded.
 
 const K := GeoBatch.Kind
 
 var root: Node3D
+var world_seed: int = 1984
 var graph := PedGraph.new()
 var places: Array = []
 var lamp_positions: Array = []
@@ -18,39 +25,180 @@ var player_spawn: Vector3 = Vector3.ZERO
 var player_home: Place
 var block_rings: Dictionary = {}       ## Vector2i -> ring node ids
 var view_distance: float = 220.0
-var tree_spots: Array = []             ## extra round trees (Transform3D)
-var pine_spots: Array = []
+var tree_spots: Array = []             ## round trees of the cell being built (Transform3D)
+var pine_spots: Array = []             ## all forest pines (render)
+var data_mode: bool = true
+var cells: Dictionary = {}             ## Vector2i -> {"places": [], "pines": [], "node": Node3D}
+var inodes: Dictionary = {}            ## Vector2i intersection -> graph node
+var load_radius: float = 290.0
+var unload_radius: float = 380.0
+var stats := {"loaded": 0, "loads": 0, "unloads": 0, "data_ms": 0, "last_load_ms": 0.0, "mismatch": 0}
+
+var _cur_cell: Vector2i
+var _place_cursor: int = 0
+var _world_root: Node3D
 
 
 func build(parent: Node3D, p_seed: int = 1984) -> void:
-	rng.seed = p_seed
+	world_seed = p_seed
 	view_distance = float(Settings.get_value("view_distance", 220.0))
-	root = Node3D.new()
-	root.name = "City"
-	parent.add_child(root)
-	_build_ground()
-	_build_roads()
-	var blocks := CityBlocks.new(self)
-	for i in CityMap.COLS:
-		for j in CityMap.ROWS:
-			blocks.build_block(i, j)
-	_connect_crosswalks()
-	_build_vegetation()
+	load_radius = view_distance + 70.0
+	unload_radius = view_distance + 160.0
+	_world_root = Node3D.new()
+	_world_root.name = "City"
+	parent.add_child(_world_root)
+	var t0 := Time.get_ticks_msec()
+	# ---- data pass
+	data_mode = true
+	root = Node3D.new()          # throw-away parent: nodes made by the generators are freed below
+	_create_inodes()
+	for key in CityMap.all_cells():
+		if CityMap.cell_kind(key.x, key.y) == "block":
+			_cell_data(key)
+	for key in CityMap.all_cells():
+		if CityMap.cell_kind(key.x, key.y) != "block":
+			_cell_data(key)
+	_link_network()
+	root.free()
+	_bind_seats_all(null)
+	root = _world_root
+	data_mode = false
+	stats.data_ms = Time.get_ticks_msec() - t0
+	# ---- always-loaded far geometry
+	var far := GeoBatch.new()
+	for key in CityMap.all_cells():
+		WorldTerrain.build_far_cell(far, key.x, key.y)
+	RoadBuilder.build_far(far)
+	var far_mi := far.to_instance("FarGround")
+	far_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(far_mi)
+	root.add_child(WorldTerrain.outer_ring())
+	root.add_child(WorldTerrain.water())
+	root.add_child(WorldTerrain.world_bounds())
 	_build_backdrop()
+	_build_forest()
 	var sky_mi := skyline.to_instance("Skyline")
 	sky_mi.visibility_range_begin = view_distance - 25.0
 	sky_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(sky_mi)
 
 
-# ------------------------------------------------------------------ helpers used by CityBlocks
+# ------------------------------------------------------------------ data pass
+func _cell_data(key: Vector2i) -> void:
+	cells[key] = {"places": [], "pines": [], "node": null}
+	_cur_cell = key
+	rng.seed = CityMap.cell_seed(world_seed, key.x, key.y)
+	_run_generator(key)
+
+
+func _run_generator(key: Vector2i) -> void:
+	if CityMap.is_original_town(key.x, key.y):
+		CityBlocks.new(self).build_block(key.x, key.y)
+	elif CityMap.cell_kind(key.x, key.y) == "block":
+		DistrictBlocks.new(self).build_block(key.x, key.y)
+	else:
+		DistrictBlocks.new(self).build_open_cell(key.x, key.y)
+
+
+## One graph node per road intersection (used by rural paths, bridges, crossings).
+func _create_inodes() -> void:
+	for a in range(CityMap.GI_MIN, CityMap.GI_MAX + 2):
+		for bb in range(CityMap.GJ_MIN, CityMap.GJ_MAX + 2):
+			if RoadBuilder.intersection_width(a, bb) > 0.0:
+				var p := CityMap.intersection(a, bb)
+				p.y = CityMap.road_height_at(p.x, p.z) + 0.05
+				inodes[Vector2i(a, bb)] = graph.add_node(p)
+
+
+func _is_block(gi: int, gj: int) -> bool:
+	return CityMap.cell_kind(gi, gj) == "block" and block_rings.has(Vector2i(gi, gj))
+
+
+## Crosswalks between neighbouring blocks; intersection nodes chained along every
+## road that is not a plain street between two blocks (dirt roads, bridges,
+## highway crossings, streets on the edge of town) and tied to the block corners.
+func _link_network() -> void:
+	var net_inodes := {}
+	for a in range(CityMap.GI_MIN, CityMap.GI_MAX + 2):
+		for bb in range(CityMap.GJ_MIN, CityMap.GJ_MAX + 2):
+			# vertical edge between cells (a-1, bb) and (a, bb)
+			var kv := CityMap.vedge(a, bb)
+			if kv != "":
+				if kv == "street" and _is_block(a - 1, bb) and _is_block(a, bb):
+					var w: Array = block_rings[Vector2i(a - 1, bb)]
+					var e: Array = block_rings[Vector2i(a, bb)]
+					_crosswalk(w[4], e[0])
+					_crosswalk(w[8], e[12])
+				else:
+					_chain(Vector2i(a, bb), Vector2i(a, bb + 1), net_inodes)
+			# horizontal edge between cells (a, bb-1) and (a, bb)
+			var kh := CityMap.hedge(a, bb)
+			if kh != "":
+				if kh == "street" and _is_block(a, bb - 1) and _is_block(a, bb):
+					var n: Array = block_rings[Vector2i(a, bb - 1)]
+					var s: Array = block_rings[Vector2i(a, bb)]
+					_crosswalk(n[12], s[0])
+					_crosswalk(n[8], s[4])
+				else:
+					_chain(Vector2i(a, bb), Vector2i(a + 1, bb), net_inodes)
+	# Intersections that only join block-to-block streets carry no paths: drop them.
+	for key in inodes.keys():
+		if not net_inodes.has(key):
+			var lone: int = inodes[key]
+			if graph.astar.get_point_connections(lone).is_empty():
+				graph.astar.remove_point(lone)
+				inodes.erase(key)
+	for key in net_inodes.keys():
+		var nid: int = inodes[key]
+		for corner in [[Vector2i(-1, -1), 8], [Vector2i(0, -1), 12], [Vector2i(-1, 0), 4], [Vector2i(0, 0), 0]]:
+			var ck: Vector2i = key + (corner[0] as Vector2i)
+			if _is_block(ck.x, ck.y):
+				graph.connect_nodes(nid, (block_rings[ck] as Array)[corner[1]])
+
+
+func _crosswalk(a: int, b: int) -> void:
+	graph.connect_nodes(a, b)
+	graph.crosswalk_edges.append([a, b])
+
+
+func _chain(k0: Vector2i, k1: Vector2i, net: Dictionary) -> void:
+	if inodes.has(k0) and inodes.has(k1):
+		graph.connect_nodes(inodes[k0], inodes[k1])
+		net[k0] = true
+		net[k1] = true
+
+
+## Graph nodes an open (rural / beach) cell's places can attach to.
+func open_cell_links(gi: int, gj: int) -> Array:
+	var out: Array = []
+	for d in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
+		var k: Vector2i = Vector2i(gi, gj) + d
+		if inodes.has(k):
+			out.append(inodes[k])
+	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		var k2: Vector2i = Vector2i(gi, gj) + d
+		if block_rings.has(k2):
+			out.append_array(block_rings[k2])
+	return out
+
+
+# ------------------------------------------------------------------ helpers used by the generators
 func add_place(type: String, pname: String, entry: Vector3, ring: Array, opts: Dictionary = {}) -> Place:
+	var cell: Dictionary = cells[_cur_cell]
+	if not data_mode:
+		# Visual pass: hand back the place created by the data pass (same order).
+		if _place_cursor < (cell.places as Array).size():
+			_place_cursor += 1
+			return cell.places[_place_cursor - 1]
+		return Place.new()
 	var p := Place.new()
 	p.id = places.size()
 	p.type = type
 	p.name = pname
 	p.district = CityMap.district_at(entry)
-	p.entry_pos = Vector3(entry.x, CityMap.CURB_H, entry.z)
+	p.entry_pos = Vector3(entry.x, CityMap.ground_y(entry.x, entry.z), entry.z)
+	if ring.is_empty() and graph.node_count() > 0:
+		ring = [graph.nearest(p.entry_pos)]   # remote spot: walk across country to the closest path
 	p.entry_node = graph.add_node(p.entry_pos)
 	graph.link_to_nearest(p.entry_node, ring)
 	p.inside_pos = opts.get("inside", p.entry_pos)
@@ -62,11 +210,14 @@ func add_place(type: String, pname: String, entry: Vector3, ring: Array, opts: D
 	p.jobs = opts.get("jobs", [])
 	p.enterable = opts.get("enterable", false)
 	places.append(p)
+	(cell.places as Array).append(p)
 	return p
 
 
 ## Interior walkable spots connected to the door.
 func add_interior(p: Place, door_inside: Vector3, spots: Array) -> void:
+	if not data_mode:
+		return
 	var din := graph.add_node(door_inside)
 	graph.connect_nodes(p.entry_node, din)
 	p.interior_nodes.append(din)
@@ -98,136 +249,181 @@ func sign_label(parent: Node3D, text: String, pos: Vector3, yaw: float, size: in
 
 
 func add_to_skyline(center: Vector3, size: Vector3, color: Color, kind: int) -> void:
-	skyline.abox(center + Vector3(0, size.y * 0.5, 0), size, color, kind, 0.0, rng.randf())
+	if not data_mode:
+		return
+	skyline.abox(center + Vector3(0, size.y * 0.5, 0), size, color, kind, 0.0, 0.5)
 
 
-# ------------------------------------------------------------------ ground & roads
-func _build_ground() -> void:
-	var b := GeoBatch.new()
-	b.floor_quad(Vector3(0, -0.02, 0), Vector2(1400, 1400), Color(0.36, 0.5, 0.27), K.GRASS)
-	var mi := b.to_instance("Ground")
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(mi)
+## Forest pine at a world position (data pass only; collision comes with the cell).
+func add_pine(pos: Vector3, s: float, yaw: float) -> void:
+	if not data_mode:
+		return
+	var t := Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3(s, s * (0.95 + fposmod(yaw, 0.3)), s)), pos)
+	pine_spots.append(t)
+	(cells[_cur_cell].pines as Array).append(t)
+
+
+# ------------------------------------------------------------------ streaming
+func is_loaded(key: Vector2i) -> bool:
+	return cells.has(key) and cells[key].node != null
+
+
+func load_cell(key: Vector2i) -> void:
+	if not cells.has(key) or cells[key].node != null:
+		return
+	var t0 := Time.get_ticks_usec()
+	var cell_node := Node3D.new()
+	cell_node.name = "Cell_%d_%d" % [key.x, key.y]
+	_world_root.add_child(cell_node)
+	# Re-run the generator in visual mode, isolating every data-pass side effect.
+	var saved := [graph, block_rings.get(key), lamp_positions, interior_light_positions, player_spawn, player_home]
+	var spot_sizes: Array = []
+	var spot_arrays: Array = []
+	for p in cells[key].places:
+		spot_sizes.append((p as Place).spots.size())
+		spot_arrays.append((p as Place).spots)
+	root = cell_node
+	graph = PedGraph.new()
+	lamp_positions = []
+	interior_light_positions = []
+	tree_spots = []
+	_cur_cell = key
+	_place_cursor = 0
+	data_mode = false
+	rng.seed = CityMap.cell_seed(world_seed, key.x, key.y)
+	_run_generator(key)
+	if _place_cursor != (cells[key].places as Array).size():
+		stats.mismatch += 1     # visual pass diverged from the data pass (must stay 0)
+		push_warning("Cell %s: visual pass made %d places, data pass %d" % [str(key), _place_cursor, (cells[key].places as Array).size()])
+	graph = saved[0]
+	if saved[1] != null:
+		block_rings[key] = saved[1]
+	lamp_positions = saved[2]
+	interior_light_positions = saved[3]
+	player_spawn = saved[4]
+	player_home = saved[5]
+	root = _world_root
+	# Generators may append spots directly; keep the data-pass spots and point the
+	# seat spots at the Seat nodes that now exist in this cell.
+	for k in spot_sizes.size():
+		var pl := cells[key].places[k] as Place
+		pl.spots = spot_arrays[k]          # generators may replace the array...
+		pl.spots.resize(spot_sizes[k])     # ...or append to it
+	_place_cursor = 0
+	_bind_seats(cells[key].places, cell_node)
+	# Terrain, roads, trees and tree collision of the cell.
+	var tb := GeoBatch.new()
 	var cols := ColliderSet.new()
-	cols.add_box(Vector3(0, -0.5, 0), Vector3(1400, 1.0, 1400))
-	root.add_child(cols.build("GroundCollision"))
-
-
-func _build_roads() -> void:
-	var b := GeoBatch.new()
-	var he := CityMap.half_extent()
-	var asphalt := Color(0.24, 0.25, 0.27)
-	var white := Color(0.92, 0.92, 0.88)
-	var yellow := Color(0.95, 0.75, 0.2)
-	var rw := CityMap.ROAD
-	for x in CityMap.road_xs():
-		b.floor_quad(Vector3(x, 0.0, 0), Vector2(rw, he.y * 2.0), asphalt, K.ASPHALT)
-	for z in CityMap.road_zs():
-		b.floor_quad(Vector3(0, 0.001, z), Vector2(he.x * 2.0, rw), asphalt, K.ASPHALT)
-	# Centre dashes + edge lines between intersections, crosswalks at each intersection.
-	for x in CityMap.road_xs():
-		var zs := CityMap.road_zs()
-		for k in zs.size() - 1:
-			var z0: float = zs[k] + rw * 0.5 + 2.2
-			var z1: float = zs[k + 1] - rw * 0.5 - 2.2
-			var z := z0
-			while z < z1 - 1.5:
-				b.floor_quad(Vector3(x, 0.012, z + 1.25), Vector2(0.15, 2.5), yellow, K.ROAD_PAINT)
-				z += 5.0
-			for side in [-1.0, 1.0]:
-				b.floor_quad(Vector3(x + side * (rw * 0.5 - 0.35), 0.012, (z0 + z1) * 0.5), Vector2(0.12, z1 - z0), white, K.ROAD_PAINT)
-	for z in CityMap.road_zs():
-		var xs := CityMap.road_xs()
-		for k in xs.size() - 1:
-			var x0: float = xs[k] + rw * 0.5 + 2.2
-			var x1: float = xs[k + 1] - rw * 0.5 - 2.2
-			var x := x0
-			while x < x1 - 1.5:
-				b.floor_quad(Vector3(x + 1.25, 0.012, z), Vector2(2.5, 0.15), yellow, K.ROAD_PAINT)
-				x += 5.0
-			for side in [-1.0, 1.0]:
-				b.floor_quad(Vector3((x0 + x1) * 0.5, 0.012, z + side * (rw * 0.5 - 0.35)), Vector2(x1 - x0, 0.12), white, K.ROAD_PAINT)
-	for x in CityMap.road_xs():
-		for z in CityMap.road_zs():
-			for k in 6:
-				var off := -rw * 0.5 + 1.0 + k * 1.6
-				b.floor_quad(Vector3(x + off, 0.013, z - rw * 0.5 - 1.1), Vector2(0.8, 2.0), white, K.ROAD_PAINT)
-				b.floor_quad(Vector3(x + off, 0.013, z + rw * 0.5 + 1.1), Vector2(0.8, 2.0), white, K.ROAD_PAINT)
-				b.floor_quad(Vector3(x - rw * 0.5 - 1.1, 0.013, z + off), Vector2(2.0, 0.8), white, K.ROAD_PAINT)
-				b.floor_quad(Vector3(x + rw * 0.5 + 1.1, 0.013, z + off), Vector2(2.0, 0.8), white, K.ROAD_PAINT)
-			# manhole
-			b.cylinder(Vector3(x + 2.0, 0.005, z + 2.0), 0.4, 0.4, 0.01, Color(0.2, 0.2, 0.21), K.METAL, 10)
-	var mi := b.to_instance("Roads")
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(mi)
-
-
-func _connect_crosswalks() -> void:
-	# Each block ring has per_side = 4 nodes -> corners at 0, 4, 8, 12:
-	# 0 = (-h,-h) NW, 4 = (h,-h) NE, 8 = (h,h) SE, 12 = (-h,h) SW
-	for i in CityMap.COLS:
-		for j in CityMap.ROWS:
-			var r: Array = block_rings[Vector2i(i, j)]
-			if i + 1 < CityMap.COLS:
-				var e: Array = block_rings[Vector2i(i + 1, j)]
-				graph.connect_nodes(r[4], e[0])
-				graph.connect_nodes(r[8], e[12])
-				graph.crosswalk_edges.append([r[4], e[0]])
-				graph.crosswalk_edges.append([r[8], e[12]])
-			if j + 1 < CityMap.ROWS:
-				var s: Array = block_rings[Vector2i(i, j + 1)]
-				graph.connect_nodes(r[12], s[0])
-				graph.connect_nodes(r[8], s[4])
-				graph.crosswalk_edges.append([r[12], s[0]])
-				graph.crosswalk_edges.append([r[8], s[4]])
-
-
-# ------------------------------------------------------------------ vegetation & backdrop
-func _build_vegetation() -> void:
-	var he := CityMap.half_extent()
-	# Forest ring around the town.
-	var attempts := 2200
-	for k in attempts:
-		var p := Vector3(rng.randf_range(-400, 400), 0, rng.randf_range(-370, 370))
-		if absf(p.x) < he.x + 14.0 and absf(p.z) < he.y + 14.0:
-			continue
-		# Denser right at the town edge, thinner far away (fog hides the rest).
-		var edge := maxf(absf(p.x) - he.x, absf(p.z) - he.y)
-		if edge > 120.0 and rng.randf() < 0.45:
-			continue
-		var s := rng.randf_range(0.8, 1.6)
-		pine_spots.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.9, 1.25), s)), p))
-	_build_forest_chunks()
-	_multimesh("Trees", PropsKit.round_tree_mesh(), tree_spots, 0.0, view_distance)
-	# Collision for trees close to the town edge only.
-	var cols := ColliderSet.new()
-	for t in pine_spots:
-		var o: Vector3 = (t as Transform3D).origin
-		if absf(o.x) < he.x + 60.0 and absf(o.z) < he.y + 60.0:
-			cols.add_box(o + Vector3(0, 1.5, 0), Vector3(0.5, 3.0, 0.5))
+	if CityMap.cell_kind(key.x, key.y) != "block":
+		WorldTerrain.build_cell_ground(tb, key.x, key.y)
+	RoadBuilder.build_cell(tb, cols, key.x, key.y, [])
+	if not tb.is_empty():
+		var mi := tb.to_instance("Ground")
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = view_distance + 40.0
+		cell_node.add_child(mi)
+	for t in cells[key].pines:
+		cols.add_box((t as Transform3D).origin + Vector3(0, 1.5, 0), Vector3(0.5, 3.0, 0.5))
 	for t in tree_spots:
 		cols.add_box((t as Transform3D).origin + Vector3(0, 1.3, 0), Vector3(0.4, 2.6, 0.4))
-	root.add_child(cols.build("TreeCollision"))
+	var body := cols.build("RoadsTreesCollision")
+	body.add_child(WorldTerrain.cell_collision(key.x, key.y))
+	cell_node.add_child(body)
+	if not tree_spots.is_empty():
+		var mm := _multimesh("Trees", PropsKit.round_tree_mesh(), tree_spots, 0.0, view_distance)
+		cell_node.add_child(mm)
+	tree_spots = []
+	cells[key].node = cell_node
+	stats.loaded += 1
+	stats.loads += 1
+	stats.last_load_ms = (Time.get_ticks_usec() - t0) / 1000.0
 
 
-## Forest split into 120 m chunks, each with a near (detailed, shadowed) and a far
-## (simple, unshadowed) MultiMesh. Visibility ranges pick one per chunk.
-func _build_forest_chunks() -> void:
+func unload_cell(key: Vector2i) -> void:
+	if not is_loaded(key):
+		return
+	_bind_seats(cells[key].places, null)
+	(cells[key].node as Node3D).queue_free()
+	cells[key].node = null
+	stats.loaded -= 1
+	stats.unloads += 1
+
+
+## Loads cells near `pos` (nearest first, within a per-frame time budget) and
+## unloads far ones. Cells within 70 m are always loaded immediately so the
+## player never stands on missing ground (teleports, fast vehicles).
+func update_streaming(pos: Vector3, budget_ms: float = 6.0) -> void:
+	var t0 := Time.get_ticks_usec()
+	var want: Array = []
+	for key in cells.keys():
+		var c := CityMap.block_center(key.x, key.y)
+		var d := Vector2(c.x - pos.x, c.z - pos.z).length()
+		if d > unload_radius:
+			unload_cell(key)
+		elif d < load_radius and cells[key].node == null:
+			want.append([d, key])
+	want.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for w in want:
+		if w[0] > 70.0 and (Time.get_ticks_usec() - t0) / 1000.0 > budget_ms:
+			break
+		load_cell(w[1])
+
+
+## Seat spots reference Seat nodes, which only exist while the cell is loaded.
+func _bind_seats(cell_places: Array, cell_node: Node3D) -> void:
+	var seats: Array = cell_node.find_children("*", "Seat", true, false) if cell_node else []
+	for p in cell_places:
+		for spot in (p as Place).spots:
+			if not (spot as Dictionary).has("seat"):
+				continue
+			spot["seat"] = null
+			for st in seats:
+				if (st as Node3D).transform.origin.distance_to(spot["pos"]) < 0.08 or (st as Node3D).global_transform.origin.distance_to(spot["pos"]) < 0.08:
+					spot["seat"] = st
+					break
+
+
+func _bind_seats_all(_n: Variant) -> void:
+	for key in cells.keys():
+		_bind_seats(cells[key].places, null)
+
+
+func load_all_near(pos: Vector3) -> void:
+	update_streaming(pos, 1e9)
+
+
+# ------------------------------------------------------------------ always-loaded scenery
+func _build_forest() -> void:
+	# Extra pines outside the playable grid (render only).
+	var r := CityMap.world_rect()
+	var orng := RandomNumberGenerator.new()
+	orng.seed = world_seed + 99
+	for k in 1500:
+		var p := Vector3(orng.randf_range(r.position.x - 260.0, r.end.x + 260.0), 0, orng.randf_range(r.position.y - 260.0, r.end.y + 40.0))
+		if r.grow(CityMap.PITCH * 0.6).has_point(Vector2(p.x, p.z)):
+			continue
+		p.y = CityMap.height_at(p.x, p.z)
+		if p.y < CityMap.SEA_LEVEL + 0.3:
+			continue
+		var s := orng.randf_range(0.9, 1.7)
+		pine_spots.append(Transform3D(Basis(Vector3.UP, orng.randf() * TAU).scaled(Vector3(s, s * orng.randf_range(0.9, 1.25), s)), p))
 	var near_mesh := PropsKit.pine_tree_mesh(0)
 	var far_mesh := PropsKit.pine_tree_mesh(1)
-	var cells: Dictionary = {}
+	var chunks: Dictionary = {}
 	for t in pine_spots:
 		var o: Vector3 = (t as Transform3D).origin
 		var key := Vector2i(int(floor(o.x / 120.0)), int(floor(o.z / 120.0)))
-		if not cells.has(key):
-			cells[key] = []
-		cells[key].append(t)
-	for key in cells.keys():
-		var arr: Array = cells[key]
+		if not chunks.has(key):
+			chunks[key] = []
+		chunks[key].append(t)
+	for key in chunks.keys():
+		var arr: Array = chunks[key]
 		var near_mi := _multimesh("Pines_%d_%d" % [key.x, key.y], near_mesh, arr, 0.0, 150.0)
 		near_mi.visibility_range_end_margin = 10.0
-		var far_mi := _multimesh("PinesFar_%d_%d" % [key.x, key.y], far_mesh, arr, 150.0, view_distance + 400.0)
+		root.add_child(near_mi)
+		var far_mi := _multimesh("PinesFar_%d_%d" % [key.x, key.y], far_mesh, arr, 150.0, view_distance + 500.0)
 		far_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(far_mi)
 
 
 func _multimesh(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) -> MultiMeshInstance3D:
@@ -243,20 +439,25 @@ func _multimesh(n: String, mesh: Mesh, xforms: Array, begin: float, end: float) 
 	mmi.material_override = GeoBatch.material()
 	mmi.visibility_range_begin = begin
 	mmi.visibility_range_end = end
-	root.add_child(mmi)
 	return mmi
 
 
 func _build_backdrop() -> void:
 	var b := GeoBatch.new()
-	var n := 18
-	for k in n:
-		var a := TAU * k / n + rng.randf_range(-0.1, 0.1)
-		var dist := rng.randf_range(560, 720)
-		var h := rng.randf_range(90, 210)
-		var r := rng.randf_range(160, 260)
-		var c := Color(0.32, 0.42, 0.36).lerp(Color(0.45, 0.52, 0.6), rng.randf())
-		b.cylinder(Vector3(cos(a) * dist, h * 0.5 - 5.0, sin(a) * dist), rng.randf_range(10, 40), r, h, c, K.GRASS, 9)
+	var brng := RandomNumberGenerator.new()
+	brng.seed = world_seed + 7
+	var centre := CityMap.world_rect().get_center()
+	for k in 26:
+		var a := TAU * k / 26.0 + brng.randf_range(-0.08, 0.08)
+		var dir := Vector2(cos(a), sin(a))
+		if dir.y > 0.35:
+			continue    # open sea to the south
+		var dist := brng.randf_range(1000, 1200)
+		var p := centre + dir * dist
+		var h := brng.randf_range(120, 260)
+		var r := brng.randf_range(200, 320)
+		var col := Color(0.32, 0.42, 0.36).lerp(Color(0.45, 0.52, 0.6), brng.randf())
+		b.cylinder(Vector3(p.x, h * 0.5 - 5.0, p.y), brng.randf_range(10, 40), r, h, col, K.GRASS, 9)
 	var mi := b.to_instance("Mountains")
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mi)

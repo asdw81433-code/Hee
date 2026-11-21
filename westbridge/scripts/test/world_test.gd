@@ -75,7 +75,7 @@ func _run() -> void:
 	var impacts_before := target.phys.impact_count
 	p.attack()
 	await _wait(0.8)
-	_check("punch lands as a physical impact", target.phys.impact_count > impacts_before, "dv %.2f part %s" % [target.phys.last_impact_dv, target.phys.last_impact_part])
+	_check("punch lands as a physical impact", target.phys.impact_count > impacts_before, "dv %.2f part %s  (target %s at %s, player at %s, district %s)" % [target.phys.last_impact_dv, target.phys.last_impact_part, victim.action, str(target.global_position.snapped(Vector3.ONE * 0.1)), str(p.global_position.snapped(Vector3.ONE * 0.1)), CityMap.district_at(target.global_position)])
 	_check("victim reacts (confront / flee / shout)", victim.reaction in ["confront", "flee", "shout"], "reaction=%s" % victim.reaction)
 	var mem := victim.memory.about(NPCData.PLAYER_ID)
 	_check("victim remembers being assaulted by the player", mem.any(func(e: Dictionary) -> bool: return e.event == "assaulted"))
@@ -112,6 +112,18 @@ func _run() -> void:
 	var restored: NPCData = m.npcs[victim_id]
 	_check("load restores NPC memories & relationships", restored.memory.about(NPCData.PLAYER_ID).size() > 0 and float(restored.rel(NPCData.PLAYER_ID).anger) > 0.3)
 	SaveSystem.delete_slot(2)
+	# --- big world: teleport across town (streaming) and swim in the river ---
+	world.teleport_player(CityMap.block_center(7, 2) + Vector3(-23.0, 0, 0))
+	await _wait(1.5)
+	world.city.update_streaming(p.global_position, 1e9)
+	_check("teleport to Downtown streams the area in", world.city.is_loaded(Vector2i(7, 2)) and p.is_on_floor() and CityMap.district_at(p.global_position) == "Downtown",
+		"%d cells loaded, y %.2f, %s" % [world.city.stats.loaded, p.global_position.y, CityMap.district_at(p.global_position)])
+	var river := Vector3(CityMap.RIVER_X, 0, -29.0)   # open water between two bridges
+	world.city.load_all_near(river)
+	p.global_position = Vector3(river.x, 0.5, river.z)
+	await _wait(3.0)
+	var surface := CityMap.water_level_at(p.global_position.x, p.global_position.z)
+	_check("falling into the river -> swimming at the surface", p.swimming and p.global_position.y > surface - 1.6 and p.global_position.y < surface, "y %.2f, water %.2f" % [p.global_position.y, surface])
 	_finish()
 
 

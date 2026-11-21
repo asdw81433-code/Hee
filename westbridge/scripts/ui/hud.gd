@@ -116,6 +116,13 @@ func _update_money() -> void:
 	_money.text = "  $%d" % Game.get_money()
 
 
+## Small MAP button under the status panel (works with touch and mouse).
+func add_map_button(map: MapScreen) -> void:
+	var btn := UIKit.button("MAP", func() -> void: map.toggle(), Vector2(110, 52))
+	btn.position = Vector2(14, 168)
+	root.add_child(btn)
+
+
 func show_toast(text: String) -> void:
 	var l := UIKit.label(text, 22)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

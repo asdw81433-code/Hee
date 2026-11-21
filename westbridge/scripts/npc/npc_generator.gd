@@ -17,7 +17,13 @@ const GOALS := ["get promoted", "save $5,000", "make new friends", "find a partn
 static func generate(places: Array, count: int, seed_value: int) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
-	var homes: Array = places.filter(func(p: Place) -> bool: return p.type in ["home", "apartment"])
+	var homes: Array = places.filter(func(p: Place) -> bool: return p.type in ["home", "apartment", "barracks"])
+	# Deterministic shuffle so households spread over every district.
+	for k in range(homes.size() - 1, 0, -1):
+		var r := rng.randi_range(0, k)
+		var tmp = homes[k]
+		homes[k] = homes[r]
+		homes[r] = tmp
 	var job_slots: Array = []
 	for p in places:
 		for jdef in (p as Place).jobs:
@@ -57,15 +63,25 @@ static func generate(places: Array, count: int, seed_value: int) -> Array:
 					a.change_rel(b2.id, {"friendship": 0.6, "trust": 0.6, "familiarity": 1.0, "type": "family"})
 				else:
 					a.change_rel(b2.id, {"friendship": 0.3, "trust": 0.3, "familiarity": 0.8, "type": "roommate"})
-	# Jobs
-	job_slots.shuffle()
+	# Jobs: each worker takes the closest of a few random openings (short commutes
+	# in a big city, but still some people crossing town).
 	for n in npcs:
 		var nn := n as NPCData
 		if nn.age >= 66 or job_slots.is_empty():
 			continue
 		if rng.randf() < 0.12:
 			continue   # unemployed, looking for work
-		var slot: Dictionary = job_slots.pop_back()
+		var home_pos: Vector3 = (places[nn.home_place] as Place).entry_pos
+		var best_k := rng.randi_range(0, job_slots.size() - 1)
+		var best_d := INF
+		for t in 8:
+			var k2 := rng.randi_range(0, job_slots.size() - 1)
+			var d: float = home_pos.distance_to((places[int(job_slots[k2].place)] as Place).entry_pos)
+			if d < best_d:
+				best_d = d
+				best_k = k2
+		var slot: Dictionary = job_slots[best_k]
+		job_slots.remove_at(best_k)
 		var days := [0, 1, 2, 3, 4]
 		if rng.randf() < 0.35:
 			days = [rng.randi_range(0, 2), 3, 4, 5, 6]

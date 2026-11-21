@@ -94,8 +94,20 @@ func _physics_process(delta: float) -> void:
 	_animate(delta)
 
 
+## True while the body is in deep water (river, lake, sea).
+var swimming: bool = false
+const SWIM_SPEED := 1.9
+const SWIM_DEPTH := 1.15      ## surface height minus body origin while floating
+
+
+func _water_surface() -> float:
+	return CityMap.water_level_at(global_position.x, global_position.z)
+
+
 func _move(delta: float) -> void:
-	var on_floor := is_on_floor()
+	var surface := _water_surface()
+	swimming = surface > -50.0 and global_position.y < surface - SWIM_DEPTH + 0.15
+	var on_floor := is_on_floor() and not swimming
 	var hvel := Vector3(velocity.x, 0, velocity.z)
 	var speed_now := hvel.length()
 	var target := Vector3.ZERO
@@ -104,6 +116,8 @@ func _move(delta: float) -> void:
 		var spd := desired_speed * clampf(move_dir.length(), 0.0, 1.0)
 		if crouching:
 			spd = minf(spd, 1.4)
+		if swimming:
+			spd = minf(spd, SWIM_SPEED)
 		spd *= lerpf(1.0, 0.55, phys.injury)
 		target = move_dir.normalized() * spd
 	# Balance step overrides input: the body is pushed into a corrective step.
@@ -124,8 +138,16 @@ func _move(delta: float) -> void:
 	horizontal_accel = (new_h - hvel) / maxf(delta, 0.0001)
 	velocity.x = new_h.x
 	velocity.z = new_h.z
-	# Gravity / jump
-	if on_floor:
+	# Gravity / jump (buoyancy while swimming: float with the head above water,
+	# jump or push into a bank to climb out)
+	if swimming:
+		airborne_time = 0.0
+		_fall_peak_speed = 0.0
+		var target_y := surface - SWIM_DEPTH
+		velocity.y = clampf((target_y - global_position.y) * 4.0, -2.0, 3.0)
+		if can_control and (wants_jump or (is_on_wall() and target.length() > 0.5)):
+			velocity.y = 6.5
+	elif on_floor:
 		airborne_time = 0.0
 		if wants_jump and can_control and not crouching:
 			velocity.y = jump_velocity

@@ -111,13 +111,15 @@ static func build_far_cell(b: GeoBatch, gi: int, gj: int) -> void:
 ## Landscape outside the playable grid (low detail, always visible).
 static func outer_ring() -> MeshInstance3D:
 	var b := GeoBatch.new()
-	var r := CityMap.world_rect().grow(CELL)
+	var r := CityMap.world_rect()
 	var s := 40.0
 	var x := -1300.0
 	while x < 1300.0:
 		var z := -1300.0
 		while z < 1300.0:
-			var inside := x + s > r.position.x and x < r.end.x and z + s > r.position.y and z < r.end.y
+			# Skip only quads fully inside the grid (the far cell ground covers those);
+			# quads straddling the edge overlap it slightly so there is never a gap.
+			var inside := x >= r.position.x and x + s <= r.end.x and z >= r.position.y and z + s <= r.end.y
 			if not inside:
 				var hh := CityMap.height_at(x, z)
 				var col := Color(0.29, 0.42, 0.22) if hh > CityMap.SEA_LEVEL else Color(0.7, 0.66, 0.5)

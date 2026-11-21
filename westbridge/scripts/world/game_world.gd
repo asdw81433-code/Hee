@@ -11,6 +11,10 @@ var hud: HUD
 var npcs: NPCManager
 var _fade: ColorRect
 var _loading: CanvasLayer
+var map_screen: MapScreen
+## Point the world streams around (the player; an aerial test camera's target).
+var stream_focus: Node3D
+var _stream_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -42,6 +46,7 @@ func _build() -> void:
 	add_child(environment)
 	city = CityBuilder.new()
 	city.build(self, 1984)
+	city.load_all_near(city.player_spawn)
 	environment.lamp_positions = city.lamp_positions
 	environment.interior_positions = city.interior_light_positions
 	player = PlayerController.new()
@@ -49,6 +54,7 @@ func _build() -> void:
 	add_child(player)
 	player.global_position = city.player_spawn
 	player.rotation.y = PI * 0.5
+	stream_focus = player
 	cam = ThirdPersonCamera.new()
 	cam.name = "Camera"
 	add_child(cam)
@@ -64,7 +70,22 @@ func _build() -> void:
 	add_child(hud)
 	hud.player = player
 	hud.extra_info = func() -> String:
-		return "%s · %s" % [CityMap.district_at(player.global_position), environment.weather.capitalize().replace("_", " ")]
+		var s := "%s · %s" % [CityMap.district_at(player.global_position), environment.weather.capitalize().replace("_", " ")]
+		if map_screen and map_screen.waypoint != null:
+			var to: Vector3 = (map_screen.waypoint as Vector3) - player.global_position
+			if Vector2(to.x, to.z).length() < 6.0:
+				map_screen.set_waypoint(null)
+				EventBus.toast.emit("Waypoint reached")
+			else:
+				var ang := fposmod(rad_to_deg(atan2(to.x, -to.z)), 360.0)
+				var dirs := ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+				s += "\n> %dm %s" % [int(Vector2(to.x, to.z).length()), dirs[int(round(ang / 45.0)) % 8]]
+		return s
+	map_screen = MapScreen.new()
+	map_screen.name = "MapScreen"
+	map_screen.world = self
+	hud.add_map_button(map_screen)
+	hud.root.add_child(map_screen)     # added last: covers the HUD while open
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
 	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -79,6 +100,12 @@ func _build() -> void:
 			add_child(ac)
 			ac.look_at_from_position(Vector3(v[0], v[1], v[2]), Vector3(v[3], v[4], v[5]))
 			ac.current = true
+			# Stream around the camera itself (like the player), far areas use the skyline LOD.
+			var focus := Node3D.new()
+			add_child(focus)
+			focus.global_position = Vector3(v[0], 0.0, v[2]).lerp(Vector3(v[3], 0.0, v[5]), 0.35)
+			stream_focus = focus
+			city.load_all_near(focus.global_position)
 			environment.camera_ref = ac
 		elif a.begins_with("hour="):
 			GameTime.total_minutes = GameTime.get_day() * 1440.0 + float(a.substr(5)) * 60.0
@@ -102,7 +129,10 @@ func _build() -> void:
 			environment.set_weather(a.substr(8), true)
 		elif a.begins_with("spawn="):
 			var sv := a.substr(6).split_floats(",")
-			player.global_position = CityMap.block_center(int(sv[0]), int(sv[1])) + Vector3(sv[2], 0.3, sv[3])
+			var sp := CityMap.block_center(int(sv[0]), int(sv[1])) + Vector3(sv[2], 0.0, sv[3])
+			city.load_all_near(sp)
+			sp.y = maxf(CityMap.ground_y(sp.x, sp.z), CityMap.road_height_at(sp.x, sp.z)) + 0.4
+			player.global_position = sp
 			player.rotation.y = deg_to_rad(sv[4]) if sv.size() > 4 else 0.0
 			cam.set_target(player)
 		elif a == "perf":
@@ -116,6 +146,9 @@ func _build() -> void:
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 					Performance.get_monitor(Performance.OBJECT_COUNT), npcs.stats.embodied, npcs.stats.ticks_per_sec]))
+	if "openmap" in OS.get_cmdline_user_args():
+		map_screen.set_waypoint(city.places.filter(func(pl: Place) -> bool: return pl.type == "hospital")[0].entry_pos)
+		map_screen.open()
 	if "overview" in OS.get_cmdline_user_args():
 		cam.pitch = -28.0
 		cam.spring.spring_length = 26.0
@@ -127,7 +160,31 @@ func _build() -> void:
 		add_child(WorldTest.new())
 
 
+func _process(delta: float) -> void:
+	if city == null or stream_focus == null or not is_instance_valid(stream_focus):
+		return
+	_stream_timer -= delta
+	if _stream_timer <= 0.0:
+		_stream_timer = 0.1
+		city.update_streaming(stream_focus.global_position)
+
+
+## Teleport helper (map screen, tests): loads the destination first.
+func teleport_player(pos: Vector3) -> void:
+	city.load_all_near(pos)
+	player.global_position = Vector3(pos.x, maxf(CityMap.ground_y(pos.x, pos.z), CityMap.road_height_at(pos.x, pos.z)) + 0.4, pos.z)
+	player.velocity = Vector3.ZERO
+
+
+func player_home() -> Place:
+	return city.player_home
+
+
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("map") and map_screen:
+		map_screen.toggle()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("quicksave"):
 		SaveSystem.save_game(0, "Quick save")
 	elif event.is_action_pressed("quickload"):

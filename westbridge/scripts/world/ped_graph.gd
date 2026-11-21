@@ -78,6 +78,10 @@ func link_to_nearest(id: int, candidates: Array) -> int:
 
 ## Every node reachable from node 0? (used by tests)
 func is_connected_graph() -> bool:
+	return component_count() <= 1
+
+
+func _old_is_connected_graph() -> bool:
 	if node_count() == 0:
 		return true
 	var ids := astar.get_point_ids()
@@ -88,3 +92,55 @@ func is_connected_graph() -> bool:
 		if astar.get_id_path(start, id).is_empty():
 			return false
 	return true
+
+
+## Number of connected components (BFS over the AStar connections).
+func component_count() -> int:
+	var seen := {}
+	var comps := 0
+	for id in astar.get_point_ids():
+		if seen.has(id):
+			continue
+		comps += 1
+		var stack: Array = [id]
+		seen[id] = true
+		while not stack.is_empty():
+			var cur: int = stack.pop_back()
+			for nb in astar.get_point_connections(cur):
+				if not seen.has(nb):
+					seen[nb] = true
+					stack.append(nb)
+	return comps
+
+
+## Component id per node (for diagnostics).
+func components() -> Dictionary:
+	var comp := {}
+	var n := 0
+	for id in astar.get_point_ids():
+		if comp.has(id):
+			continue
+		var stack: Array = [id]
+		comp[id] = n
+		while not stack.is_empty():
+			var cur: int = stack.pop_back()
+			for nb in astar.get_point_connections(cur):
+				if not comp.has(nb):
+					comp[nb] = n
+					stack.append(nb)
+		n += 1
+	return comp
+
+
+## Random walk of `steps` hops from `start`, never ending further than max_dist from origin.
+func random_walk(start: int, rng: RandomNumberGenerator, steps: int, origin: Vector3, max_dist: float) -> int:
+	var cur := start
+	for k in steps:
+		var nbs := astar.get_point_connections(cur)
+		if nbs.is_empty():
+			break
+		var nxt: int = nbs[rng.randi() % nbs.size()]
+		if pos(nxt).distance_to(origin) > max_dist:
+			continue
+		cur = nxt
+	return cur

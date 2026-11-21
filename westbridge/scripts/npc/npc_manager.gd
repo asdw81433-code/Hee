@@ -42,13 +42,13 @@ func setup(p_world: Node3D, p_city: CityBuilder) -> void:
 	add_to_group("savable")
 	match int(Settings.get_value("graphics_quality", 1)):
 		0:
-			population = 40
+			population = 90
 			max_bodies = 10
 		2:
-			population = 85
+			population = 220
 			max_bodies = 22
 		_:
-			population = 60
+			population = 150
 			max_bodies = 16
 	npcs = NPCGenerator.generate(places, population, 777)
 	for n in npcs:
@@ -235,15 +235,8 @@ func route_to(n: NPCData, place_id: int) -> void:
 	var from := city.graph.nearest(n.pos)
 	var to: int
 	if place_id < 0:
-		# wander: random node within ~120 m
-		var tries := 0
-		to = from
-		while tries < 10:
-			var cand := rng.randi_range(0, city.graph.node_count() - 1)
-			if city.graph.pos(cand).distance_to(n.pos) < 140.0:
-				to = cand
-				break
-			tries += 1
+		# wander: a short random walk along the network (stays within ~150 m)
+		to = city.graph.random_walk(from, rng, rng.randi_range(4, 14), n.pos, 150.0)
 	else:
 		to = (places[place_id] as Place).entry_node
 	n.path = city.graph.path(from, to)

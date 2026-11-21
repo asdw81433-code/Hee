@@ -49,6 +49,10 @@ const LAYOUT := [
 const DISTRICTS := ["Maple Heights", "Maple Heights", "Old Town", "Old Town", "Downtown"]
 const STREETS_NS := ["Cedar Ln", "Birch Ave", "Main St", "Mill Rd", "Harbor Rd", "Lake Dr"]
 const STREETS_EW := ["Pine St", "Oak St", "Elm St", "Market St", "Quarry Rd"]
+const _NS_POOL := ["Ridge Rd", "Fort Rd", "Sawmill Ln", "Hollow Rd", "Linden Ave", "Aspen Way", "Willow Ln",
+	"River Rd", "Grand Ave", "Bay St", "Lighthouse Rd", "Canal St", "Summit Rd"]
+const _EW_POOL := ["Vista Dr", "Crest Rd", "Overlook Rd", "Hillcrest Ave", "Route 9 South", "Sycamore St",
+	"Shore Dr", "Beach Blvd", "Dock St", "Pier Rd", "Highland Ave", "Neon Blvd"]
 
 ## Colour of each district on the map.
 const DISTRICT_COLORS := {
@@ -203,6 +207,58 @@ static func cell_district(gi: int, gj: int) -> String:
 	return "Countryside"
 
 
+## Street name of vertical grid line a (x = (a-2.5)*58) / horizontal line b.
+static func street_ns(a: int) -> String:
+	if a >= 0 and a < STREETS_NS.size():
+		return STREETS_NS[a]
+	return _NS_POOL[posmod(a + 7, _NS_POOL.size())]
+
+
+static func street_ew(b: int) -> String:
+	if b >= 0 and b < STREETS_EW.size():
+		return STREETS_EW[b]
+	return _EW_POOL[posmod(b + 5, _EW_POOL.size())]
+
+
+## Every cell of the playable grid (row-major, north to south).
+static func all_cells() -> Array:
+	var out: Array = []
+	for gj in range(GJ_MIN, GJ_MAX + 1):
+		for gi in range(GI_MIN, GI_MAX + 1):
+			out.append(Vector2i(gi, gj))
+	return out
+
+
+static func is_original_town(gi: int, gj: int) -> bool:
+	return gi >= 0 and gi < COLS and gj >= 0 and gj < ROWS
+
+
+## Deterministic per-cell seed so the data pass and the streamed visual pass of a
+## cell replay exactly the same random sequence.
+static func cell_seed(world_seed: int, gi: int, gj: int) -> int:
+	return hash([world_seed, gi, gj])
+
+
+## Number of urban blocks (raised blocks with sidewalks) in the world.
+static func urban_block_count() -> int:
+	var n := 0
+	for c in all_cells():
+		if cell_kind(c.x, c.y) == "block":
+			n += 1
+	return n
+
+
+## All district names that contain at least one cell.
+static func district_names() -> Array:
+	var d := {}
+	for c in all_cells():
+		var k := cell_kind(c.x, c.y)
+		if k == "water" or k == "outside":
+			continue
+		d[cell_district(c.x, c.y)] = true
+	return d.keys()
+
+
 static func block_center(i: int, j: int) -> Vector3:
 	return Vector3((i - (COLS - 1) * 0.5) * PITCH, 0.0, (j - (ROWS - 1) * 0.5) * PITCH)
 
@@ -334,9 +390,11 @@ static func height_at(x: float, z: float) -> float:
 		h = lerpf(h, -3.8, valley)
 	var lake := Vector2(x - RIVER_X, z + 377.0).length()
 	h = lerpf(h, -3.8, 1.0 - smoothstep(24.0, 30.0, lake))
-	# Coast: sand slopes into the sea south of the coastal road.
-	h -= smoothstep(178.0, 234.0, z) * 1.7
-	h -= smoothstep(232.0, 320.0, z) * 5.5
+	# Coast: sand slopes into the sea south of the coastal road. The Harbor Industrial
+	# quays (x -377..-145) stay flat; the sea starts right at the quay wall.
+	var coast := smoothstep(178.0, 234.0, z) * 1.7 + smoothstep(232.0, 320.0, z) * 5.5
+	var quay := smoothstep(-392.0, -377.0, x) * (1.0 - smoothstep(-145.0, -130.0, x)) * (1.0 - smoothstep(232.0, 236.0, z))
+	h -= coast * (1.0 - quay)
 	return h
 
 
@@ -346,6 +404,11 @@ static func road_height_at(x: float, z: float) -> float:
 	if absf(x - RIVER_X) < 26.0 and z < 236.0:
 		return maxf(h, 0.0)
 	return h
+
+
+## Walkable surface height of a lot/sidewalk at (x, z): terrain + curb.
+static func ground_y(x: float, z: float) -> float:
+	return height_at(x, z) + CURB_H
 
 
 static func is_water(x: float, z: float) -> bool:

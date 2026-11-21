@@ -13,6 +13,9 @@ var normals := PackedVector3Array()
 var colors := PackedColorArray()
 var uvs := PackedVector2Array()
 var indices := PackedInt32Array()
+## When false every call is ignored: the city's data pass runs the same generator
+## code as the visual pass (same RNG sequence) without building any geometry.
+var enabled: bool = true
 
 
 static func material() -> ShaderMaterial:
@@ -41,6 +44,8 @@ func _quad(a: int, b: int, c: int, d: int) -> void:
 
 ## Oriented box. Faces listed in `skip` ("top","bottom","+x"...) are not generated.
 func box(xform: Transform3D, size: Vector3, color: Color, kind: int = Kind.PAINT, rnd: float = 0.0, skip: Array = ["bottom"]) -> void:
+	if not enabled:
+		return
 	var h := size * 0.5
 	var faces := [
 		["+z", Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0)],
@@ -74,6 +79,8 @@ func abox(center: Vector3, size: Vector3, color: Color, kind: int = Kind.PAINT, 
 
 ## Flat horizontal quad (y up).
 func floor_quad(center: Vector3, size: Vector2, color: Color, kind: int, yaw: float = 0.0) -> void:
+	if not enabled:
+		return
 	var b := Basis(Vector3.UP, yaw)
 	var hx := b * Vector3(size.x * 0.5, 0, 0)
 	var hz := b * Vector3(0, 0, size.y * 0.5)
@@ -87,6 +94,8 @@ func floor_quad(center: Vector3, size: Vector2, color: Color, kind: int, yaw: fl
 ## Quad from 4 world points: a = bottom-left, b = bottom-right, c = top-right, d = top-left
 ## (seen from the side the normal points to).
 func quad_pts(a: Vector3, b: Vector3, c: Vector3, d: Vector3, color: Color, kind: int, rnd: float = 0.0) -> void:
+	if not enabled:
+		return
 	var n := (b - a).cross(d - a).normalized()
 	if n.y < 0.0 and absf(n.y) > 0.5:
 		n = -n
@@ -98,6 +107,8 @@ func quad_pts(a: Vector3, b: Vector3, c: Vector3, d: Vector3, color: Color, kind
 
 
 func tri_pts(a: Vector3, b: Vector3, c: Vector3, color: Color, kind: int) -> void:
+	if not enabled:
+		return
 	var n := (b - a).cross(c - a).normalized()
 	if n.y < 0.0:
 		n = -n
@@ -109,6 +120,8 @@ func tri_pts(a: Vector3, b: Vector3, c: Vector3, color: Color, kind: int) -> voi
 
 ## Gable roof along local X, ridge height `rise`.
 func gable_roof(xform: Transform3D, size: Vector3, rise: float, color: Color, gable_color: Color) -> void:
+	if not enabled:
+		return
 	var hx := size.x * 0.5
 	var hz := size.z * 0.5
 	var p := [
@@ -143,6 +156,8 @@ func gable_roof(xform: Transform3D, size: Vector3, rise: float, color: Color, ga
 
 
 func primitive(mesh: PrimitiveMesh, xform: Transform3D, color: Color, kind: int = Kind.PAINT, rnd: float = 0.0) -> void:
+	if not enabled:
+		return
 	var arr := mesh.get_mesh_arrays()
 	var pv: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var pn: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
@@ -155,6 +170,8 @@ func primitive(mesh: PrimitiveMesh, xform: Transform3D, color: Color, kind: int 
 
 
 func cylinder(center: Vector3, r_top: float, r_bot: float, height: float, color: Color, kind: int = Kind.PAINT, segs: int = 10, xform_basis: Basis = Basis.IDENTITY) -> void:
+	if not enabled:
+		return
 	var cm := CylinderMesh.new()
 	cm.top_radius = r_top
 	cm.bottom_radius = r_bot
@@ -165,6 +182,8 @@ func cylinder(center: Vector3, r_top: float, r_bot: float, height: float, color:
 
 
 func sphere(center: Vector3, radius: Vector3, color: Color, kind: int = Kind.PAINT, segs: int = 10) -> void:
+	if not enabled:
+		return
 	var sm := SphereMesh.new()
 	sm.radius = 1.0
 	sm.height = 2.0
@@ -174,6 +193,8 @@ func sphere(center: Vector3, radius: Vector3, color: Color, kind: int = Kind.PAI
 
 
 func append(other: GeoBatch) -> void:
+	if not enabled:
+		return
 	var base := verts.size()
 	verts.append_array(other.verts)
 	normals.append_array(other.normals)

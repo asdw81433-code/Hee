@@ -3,13 +3,18 @@ extends RefCounted
 ## Collects static collision boxes for a chunk and turns them into one StaticBody3D.
 
 var boxes: Array = []   ## [Transform3D, Vector3 size]
+var enabled: bool = true
 
 
 func add(xform: Transform3D, size: Vector3) -> void:
+	if not enabled:
+		return
 	boxes.append([xform, size])
 
 
 func add_box(center: Vector3, size: Vector3, yaw: float = 0.0) -> void:
+	if not enabled:
+		return
 	boxes.append([Transform3D(Basis(Vector3.UP, yaw), center), size])
 
 

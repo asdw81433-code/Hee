@@ -43,20 +43,7 @@ static func face_yaw(p: Vector3, target: Vector3) -> float:
 
 
 func build_block(p_i: int, p_j: int) -> void:
-	i = p_i
-	j = p_j
-	c = CityMap.block_center(i, j)
-	b = GeoBatch.new()
-	cols = ColliderSet.new()
-	node = Node3D.new()
-	node.name = "Block_%d_%d" % [i, j]
-	cb.root.add_child(node)
-	# Raised platform (sidewalk ring + lot).
-	b.abox(c + Vector3(0, (Y - 0.3) * 0.5, 0), Vector3(CityMap.BLOCK, Y + 0.3, CityMap.BLOCK), Color(0.7, 0.69, 0.66), K.TILES)
-	b.abox(c + Vector3(0, Y * 0.5, 0) + Vector3(0, 0.001, 0), Vector3(CityMap.BLOCK + 0.05, Y, CityMap.BLOCK + 0.05), Color(0.62, 0.61, 0.58), K.CONCRETE, 0.0, 0.0, ["bottom", "top"])
-	cols.add_box(c + Vector3(0, (Y - 0.3) * 0.5, 0), Vector3(CityMap.BLOCK, Y + 0.3, CityMap.BLOCK))
-	ring = cb.graph.add_ring(c, 22.5, 4, Y)
-	cb.block_rings[Vector2i(i, j)] = ring
+	_begin(p_i, p_j)
 	var t := CityMap.block_type(i, j)
 	match t:
 		"houses": _houses()
@@ -76,12 +63,47 @@ func build_block(p_i: int, p_j: int) -> void:
 		"bank_hotel": _bank_hotel()
 		"parking": _parking()
 	_street_furniture(t)
+	_finish()
+
+
+## Common start of a block: frame, batches (disabled in the data pass), platform, ring.
+func _begin(p_i: int, p_j: int) -> void:
+	i = p_i
+	j = p_j
+	c = CityMap.block_center(i, j)
+	c.y = CityMap.height_at(c.x, c.z)
+	b = GeoBatch.new()
+	b.enabled = not cb.data_mode
+	cols = ColliderSet.new()
+	cols.enabled = not cb.data_mode
+	node = Node3D.new()
+	node.name = "Block_%d_%d" % [i, j]
+	cb.root.add_child(node)
+	_platform()
+	ring = _make_ring()
+	cb.block_rings[Vector2i(i, j)] = ring
+
+
+func _finish() -> void:
+	if cb.data_mode:
+		return
 	var mi := b.to_instance("Geometry")
 	mi.visibility_range_end = cb.view_distance
 	mi.visibility_range_end_margin = 20.0
 	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	node.add_child(mi)
 	node.add_child(cols.build("Collision"))
+
+
+## Raised platform (sidewalk ring + lot).
+func _platform() -> void:
+	b.abox(c + Vector3(0, (Y - 0.3) * 0.5, 0), Vector3(CityMap.BLOCK, Y + 0.3, CityMap.BLOCK), Color(0.7, 0.69, 0.66), K.TILES)
+	b.abox(c + Vector3(0, Y * 0.5, 0) + Vector3(0, 0.001, 0), Vector3(CityMap.BLOCK + 0.05, Y, CityMap.BLOCK + 0.05), Color(0.62, 0.61, 0.58), K.CONCRETE, 0.0, 0.0, ["bottom", "top"])
+	cols.add_box(c + Vector3(0, (Y - 0.3) * 0.5, 0), Vector3(CityMap.BLOCK, Y + 0.3, CityMap.BLOCK))
+
+
+func _make_ring() -> Array:
+	return cb.graph.add_ring(c, 22.5, 4, c.y + Y)
 
 
 func _lot_ground(color: Color, kind: int, inset: float = 21.0) -> void:
@@ -91,7 +113,7 @@ func _lot_ground(color: Color, kind: int, inset: float = 21.0) -> void:
 # ------------------------------------------------------------------ residential
 func _houses() -> void:
 	_lot_ground(Color(0.38, 0.55, 0.28), K.GRASS)
-	var street: String = CityMap.STREETS_EW[j]
+	var street: String = CityMap.street_ew(j)
 	var k := 0
 	for side in [1.0, -1.0]:
 		var yaw: float = 0.0 if side > 0 else PI
@@ -240,7 +262,8 @@ func _park() -> void:
 		cb.lamp_positions.append(PropsKit.lamp(b, cols, W(p), 0.0))
 	for p in [Vector3(6, 0, 6), Vector3(-6, 0, -6)]:
 		PropsKit.planter(b, cols, W(p), Color.from_hsv(rng.randf(), 0.6, 0.9))
-	var park := cb.add_place("park", "Maple Park", W(Vector3(0, 0, 20.5)), ring, {"tags": ["leisure", "social", "free", "outdoor", "jog"], "capacity": 30})
+	var park_name: String = "Maple Park" if CityMap.is_original_town(i, j) else ["Birchwood Park", "Pine Grove Commons", "Elm Hollow Park"][posmod(i + j, 3)]
+	var park := cb.add_place("park", park_name, W(Vector3(0, 0, 20.5)), ring, {"tags": ["leisure", "social", "free", "outdoor", "jog"], "capacity": 30})
 	park.spots = spots
 	for s in park.spots:
 		s["taken_by"] = -1
@@ -248,7 +271,7 @@ func _park() -> void:
 		var nid := cb.graph.add_node(s["pos"])
 		cb.graph.link_to_nearest(nid, ring)
 		s["node"] = nid
-	cb.sign_label(node, "MAPLE PARK", W(Vector3(0, 2.2, 21.5)), 0.0, 80, Color(0.95, 0.9, 0.7))
+	cb.sign_label(node, park_name.to_upper(), W(Vector3(0, 2.2, 21.5)), 0.0, 80, Color(0.95, 0.9, 0.7))
 	b.box(X(Vector3(0, 1.2, 21.4)), Vector3(4.0, 1.2, 0.15), Color(0.35, 0.25, 0.15), K.WOOD)
 
 
@@ -726,8 +749,9 @@ func _parking() -> void:
 
 # ------------------------------------------------------------------ sidewalk furniture
 func _street_furniture(t: String) -> void:
-	var residential := t in ["houses", "apartments", "sports_park"]
-	var downtown := t in ["offices", "offices2", "bank_hotel", "parking", "shops", "shops2", "quickstop"]
+	var residential := t in ["houses", "apartments", "sports_park", "sub_houses", "beach_houses", "villas", "mansion", "sub_park", "school", "church", "vineyard"]
+	var downtown := t in ["offices", "offices2", "bank_hotel", "parking", "shops", "shops2", "quickstop", "towers", "towers_tall", "res_towers",
+		"police_hq", "hospital", "central_station", "city_mall", "central_plaza", "nightlife", "cinema", "arcade_bowling", "arena", "concert_hall", "beach_shops", "pier_plaza", "resort", "supermarket"]
 	var edge := 23.3
 	for side in 4:
 		var yaw: float = [PI, PI * 0.5, 0.0, -PI * 0.5][side]   # lamp arm points to the road
@@ -766,8 +790,8 @@ func _street_furniture(t: String) -> void:
 	# hydrants, bins, corner signs
 	PropsKit.hydrant(b, W(Vector3(-21.5, 0, 22.4)))
 	PropsKit.trash_bin(b, cols, W(Vector3(22.4, 0, -21.5)), Color(0.2, 0.35, 0.6) if downtown else Color(0.2, 0.45, 0.25))
-	var ns: String = CityMap.STREETS_NS[i + 1]
-	var ew: String = CityMap.STREETS_EW[clampi(j, 0, CityMap.STREETS_EW.size() - 1)]
+	var ns: String = CityMap.street_ns(i + 1)
+	var ew: String = CityMap.street_ew(j + 1) if not CityMap.is_original_town(i, j) else CityMap.STREETS_EW[clampi(j, 0, CityMap.STREETS_EW.size() - 1)]
 	var corner := W(Vector3(23.2, 0, 23.2))
 	b.cylinder(corner + Vector3(0, 1.4, 0), 0.04, 0.04, 2.8, Color(0.3, 0.35, 0.3), K.METAL, 6)
 	b.box(Transform3D(Basis.IDENTITY, corner + Vector3(0, 2.75, 0)), Vector3(0.05, 0.22, 1.3), Color(0.15, 0.45, 0.25), K.PAINT)
