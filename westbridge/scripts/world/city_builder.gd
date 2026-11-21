@@ -37,6 +37,7 @@ var stats := {"loaded": 0, "loads": 0, "unloads": 0, "data_ms": 0, "last_load_ms
 var _cur_cell: Vector2i
 var _place_cursor: int = 0
 var _world_root: Node3D
+var game_world: Node                  ## GameWorld (service points open its menus)
 
 
 func build(parent: Node3D, p_seed: int = 1984) -> void:
@@ -333,10 +334,35 @@ func load_cell(key: Vector2i) -> void:
 		var mm := _multimesh("Trees", PropsKit.round_tree_mesh(), tree_spots, 0.0, view_distance)
 		cell_node.add_child(mm)
 	tree_spots = []
+	_add_service_points(cells[key].places, cell_node)
 	cells[key].node = cell_node
 	stats.loaded += 1
 	stats.loads += 1
 	stats.last_load_ms = (Time.get_ticks_usec() - t0) / 1000.0
+
+
+## Shop counters / job boards / ATMs at every place that offers the player something.
+func _add_service_points(cell_places: Array, cell_node: Node3D) -> void:
+	var others: Array = []
+	for n in cell_node.find_children("*", "SimpleInteractable", true, false):
+		others.append(n)
+	for p in cell_places:
+		var pl := p as Place
+		if not ServicePoint.wants(pl):
+			continue
+		var pos := pl.inside_pos if pl.enterable else pl.entry_pos
+		# A quick-buy counter right at the same door is folded into the menu ("Use now").
+		for o in others:
+			var si := o as SimpleInteractable
+			var gp: Vector3 = si.global_position if si.is_inside_tree() else si.position
+			if si.place == pl and Vector2(gp.x - pos.x, gp.z - pos.z).length() < 1.6:
+				si.enabled = false
+		var sp := ServicePoint.new()
+		sp.name = "Service_%d" % pl.id
+		sp.place = pl
+		sp.world = game_world
+		sp.position = pos
+		cell_node.add_child(sp)
 
 
 func unload_cell(key: Vector2i) -> void:

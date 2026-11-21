@@ -12,6 +12,7 @@ var npcs: NPCManager
 var _fade: ColorRect
 var _loading: CanvasLayer
 var map_screen: MapScreen
+var economy: Economy
 ## Point the world streams around (the player; an aerial test camera's target).
 var stream_focus: Node3D
 var _stream_timer: float = 0.0
@@ -44,7 +45,12 @@ func _build() -> void:
 	environment = EnvironmentController.new()
 	environment.name = "Environment"
 	add_child(environment)
+	economy = Economy.new()
+	economy.name = "Economy"
+	economy.world = self
+	add_child(economy)
 	city = CityBuilder.new()
+	city.game_world = self
 	city.build(self, 1984)
 	city.load_all_near(city.player_spawn)
 	environment.lamp_positions = city.lamp_positions
@@ -71,6 +77,7 @@ func _build() -> void:
 	hud.player = player
 	hud.extra_info = func() -> String:
 		var s := "%s · %s" % [CityMap.district_at(player.global_position), environment.weather.capitalize().replace("_", " ")]
+		s += _job_line()
 		if map_screen and map_screen.waypoint != null:
 			var to: Vector3 = (map_screen.waypoint as Vector3) - player.global_position
 			if Vector2(to.x, to.z).length() < 6.0:
@@ -85,6 +92,7 @@ func _build() -> void:
 	map_screen.name = "MapScreen"
 	map_screen.world = self
 	hud.add_map_button(map_screen)
+	hud.add_bag_button(func() -> void: open_inventory())
 	hud.root.add_child(map_screen)     # added last: covers the HUD while open
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
@@ -146,6 +154,7 @@ func _build() -> void:
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 					Performance.get_monitor(Performance.OBJECT_COUNT), npcs.stats.embodied, npcs.stats.ticks_per_sec]))
+	_economy_demos()
 	if "openmap" in OS.get_cmdline_user_args():
 		map_screen.set_waypoint(city.places.filter(func(pl: Place) -> bool: return pl.type == "hospital")[0].entry_pos)
 		map_screen.open()
@@ -185,6 +194,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		map_screen.toggle()
 		get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("inventory") and PlayerInput.enabled:
+		open_inventory()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("quicksave"):
 		SaveSystem.save_game(0, "Quick save")
 	elif event.is_action_pressed("quickload"):
@@ -214,3 +227,128 @@ func open_wardrobe() -> void:
 			player.rebuild_appearance(ap)
 			Game.player_profile["appearance"] = ap.to_dict()
 			EventBus.toast.emit("Outfit changed"))
+
+
+# ------------------------------------------------------------------ economy (Priority 2)
+## Shop / jobs / bank / hotel menu of a place (opened by its ServicePoint).
+func open_place_menu(p: Place) -> PlaceMenu:
+	var m := PlaceMenu.new()
+	m.world = self
+	m.place = p
+	m.eco = economy
+	hud.add_child(m)
+	return m
+
+
+func open_inventory() -> InventoryUI:
+	for c in hud.get_children():
+		if c is InventoryUI or c is PlaceMenu or c is WorkMinigame or c is NPCDialog:
+			return null
+	var inv := InventoryUI.new()
+	inv.world = self
+	inv.eco = economy
+	hud.add_child(inv)
+	return inv
+
+
+## Called when a shift starts: the work itself (a playable minigame) or a delivery run.
+func begin_work(p: Place) -> WorkMinigame:
+	if economy.shift.is_empty():
+		return null
+	if String(economy.shift.mode) == "delivery":
+		EventBus.toast.emit("Courier run: deliver %d parcels before %s" % [(economy.shift.targets as Array).size(), _clock_at(float(economy.shift.deadline))])
+		return null
+	var g := WorkMinigame.new()
+	g.mode = String(economy.shift.mode)
+	g.place = p
+	g.job_title = economy.job_title()
+	g.done.connect(func(perf: float, tips: int) -> void:
+		fade_sleep(func() -> void: economy.finish_shift(perf, tips)))
+	hud.add_child(g)
+	return g
+
+
+## Testing aids for screenshots: demo_shop=<place type>, demo_work=<orders|timing|typing>,
+## demo_bag, demo_courier. Each stands the player at a real place and opens the real UI.
+func _economy_demos() -> void:
+	var args: Array = Array(OS.get_cmdline_user_args())
+	var want_type := ""
+	for a in args:
+		if a.begins_with("demo_shop="):
+			want_type = a.substr(10)
+	var demo := want_type != "" or "demo_bag" in args or "demo_courier" in args or args.any(func(a: String) -> bool: return a.begins_with("demo_work="))
+	if not demo:
+		return
+	Game.add_money(340 - Game.get_money(), "demo")
+	var pick: Place = null
+	for pl in city.places:
+		var q := pl as Place
+		var ok := q.type == want_type if want_type != "" else (q.name == "Westbridge Central Station" if "demo_courier" in args else q.type == "cafe")
+		if ok and not q.enterable and (pick == null or q.entry_pos.distance_to(city.player_spawn) < pick.entry_pos.distance_to(city.player_spawn)):
+			pick = q
+	if pick == null:
+		return
+	# Stand in front of the door, facing it, camera over the shoulder.
+	var away := Vector3(pick.entry_pos.x - pick.inside_pos.x, 0, pick.entry_pos.z - pick.inside_pos.z)
+	if away.length() < 0.5:
+		var links := city.graph.astar.get_point_connections(pick.entry_node)
+		var nn: Vector3 = city.graph.pos(links[0]) if links.size() > 0 else pick.entry_pos + Vector3(0, 0, 3)
+		away = Vector3(nn.x - pick.entry_pos.x, 0, nn.z - pick.entry_pos.z)
+	away = away.normalized() if away.length() > 0.01 else Vector3.BACK
+	teleport_player(pick.entry_pos + away * 2.2)
+	player.rotation.y = atan2(away.x, away.z) + PI
+	cam.yaw = player.rotation.y + PI
+	cam.set_target(player)
+	for k in ["coffee", "sandwich", "apple", "flowers", "lottery", "bandage"]:
+		economy.add_item(k, 1 + int(k == "apple") * 3)
+	get_tree().create_timer(4.0, true, true).timeout.connect(func() -> void:
+		if "demo_bag" in args:
+			economy.experience = 3
+			economy.apply(pick, pick.jobs[0])
+			open_inventory()
+			return
+		if "demo_courier" in args:
+			economy.experience = 10
+			var cj: Array = pick.jobs.filter(func(j: Dictionary) -> bool: return Economy.shift_mode(String(j.title)) == "delivery")
+			economy.apply(pick, cj[0])
+			GameTime.total_minutes = (GameTime.get_day() + (7 - GameTime.get_weekday()) % 7) * 1440.0 + float(cj[0].start) * 60.0
+			economy.start_shift(pick)
+			begin_work(pick)
+			return
+		for a in args:
+			if a.begins_with("demo_work="):
+				economy.experience = 12
+				economy.apply(pick, pick.jobs[0])
+				economy.job.mode = a.substr(10)
+				GameTime.total_minutes = (GameTime.get_day() + (7 - GameTime.get_weekday()) % 7) * 1440.0 + float(pick.jobs[0].start) * 60.0
+				economy.start_shift(pick)
+				var g := begin_work(pick)
+				if g and a.substr(10) == "orders":
+					g.get_tree().create_timer(0.5, true, true).timeout.connect(func() -> void:
+						var btns := g.find_children("*", "Button", true, false)
+						if btns.size() > 2:
+							(btns[1] as Button).pressed.emit())
+				return
+		open_place_menu(pick))
+
+
+func _clock_at(total_min: float) -> String:
+	var m := int(total_min) % 1440
+	return "%02d:%02d" % [m / 60, m % 60]
+
+
+## Short job reminder for the HUD info line.
+func _job_line() -> String:
+	if economy == null or economy.job.is_empty():
+		return ""
+	var j := economy.job
+	if not economy.shift.is_empty():
+		if String(economy.shift.mode) == "delivery":
+			return "\nCourier run %d/%d · due %s" % [int(economy.shift.done), (economy.shift.targets as Array).size(), _clock_at(float(economy.shift.deadline))]
+		return "\nAt work"
+	match economy.shift_state():
+		"open":
+			return "\nWORK NOW: %s at %s" % [economy.job_title(), j.place_name]
+		"off":
+			return "\nWork %02d:00 · %s" % [int(j.start), j.place_name]
+	return ""

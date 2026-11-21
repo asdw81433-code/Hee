@@ -57,7 +57,7 @@ func _main(said: String = "") -> void:
 			body.model.face.talking = false)
 	var row := HFlowContainer.new()
 	_vb.add_child(row)
-	for opt in [["Chat", _chat], ["How's your day?", _day], ["Compliment", _compliment], ["Insult", _insult], ["Give $10", _gift], ["Inspect (AI)", _inspect], ["Bye", _close]]:
+	for opt in [["Chat", _chat], ["How's your day?", _day], ["Compliment", _compliment], ["Insult", _insult], ["Give $10", _gift], ["Give item", _gift_menu], ["Inspect (AI)", _inspect], ["Bye", _close]]:
 		row.add_child(UIKit.button(opt[0], opt[1], Vector2(180, 52)))
 
 
@@ -180,6 +180,49 @@ func _gift() -> void:
 	npc.memory.add("gift", PID, GameTime.total_minutes, manager.place_name(npc.at_place), 0.45, 0.7)
 	npc.emotion.add("happy", 0.35)
 	_main("For me? Wow, thank you!" if p.get_trait("honesty") > 0.4 else "Heh. Don't mind if I do.")
+
+
+## Give something from your bag. Gifts mean more than snacks; generous people
+## care less about the value, greedy people more.
+func _gift_menu() -> void:
+	var eco: Economy = Game.current_world.economy if Game.current_world and Game.current_world.get("economy") else null
+	if eco == null:
+		return
+	for c in get_children():
+		c.queue_free()
+	var panel := PanelContainer.new()
+	UIKit.anchor(panel, Control.PRESET_CENTER_BOTTOM, Vector2(-430, -330), Vector2(860, 300))
+	add_child(panel)
+	var vb := VBoxContainer.new()
+	panel.add_child(vb)
+	vb.add_child(UIKit.label("Give %s something:" % (npc.first_name if npc.knows(PID) else "them"), 24, UIKit.ACCENT))
+	var row := HFlowContainer.new()
+	vb.add_child(row)
+	var any := false
+	for id in eco.inventory.keys():
+		var it := ItemDB.get_item(id)
+		if String(it.kind) in ["gift", "consumable"]:
+			any = true
+			row.add_child(UIKit.button(String(it.name), func() -> void: give_item(id, eco), Vector2(260, 52)))
+	if not any:
+		vb.add_child(UIKit.label("You have nothing to give. Flowers, chocolates and teddies are sold at the mall and markets.", 20, UIKit.MUTED))
+	row.add_child(UIKit.button("Back", func() -> void: _main(), Vector2(160, 52)))
+
+
+func give_item(id: String, eco: Economy) -> void:
+	var it := ItemDB.get_item(id)
+	if not eco.remove_item(id):
+		return
+	var p := npc.personality
+	var value: float = float(it.get("gift", 0.03 + 0.004 * float(it.get("price", 1))))
+	var greed := p.get_trait("selfishness")
+	npc.change_rel(PID, {"friendship": value * (0.8 + greed * 0.5), "trust": value * 0.4, "familiarity": 0.12})
+	npc.memory.add("gift", PID, GameTime.total_minutes, manager.place_name(npc.at_place), 0.3 + value, 0.7)
+	npc.emotion.add("happy", 0.2 + value)
+	if String(it.kind) == "consumable":
+		npc.needs["hunger"] = minf(100.0, float(npc.needs.get("hunger", 50.0)) + float((it.get("effects", {}) as Dictionary).get("hunger", 10)))
+	var line := "Oh, %s! That's so sweet of you." % String(it.name).to_lower() if value >= 0.12 else ("Thanks, I was getting hungry." if String(it.kind) == "consumable" else "Thanks!")
+	_main(line)
 
 
 func _inspect() -> void:

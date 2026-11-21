@@ -28,8 +28,16 @@ func _ready() -> void:
 	test_npc_generation(city)
 	test_utility_ai(city)
 	test_day_simulation(city)
+	await test_economy(city)
 	print("TESTS %d passed, %d failed" % [_pass, _fail])
 	get_tree().quit(0 if _fail == 0 else 1)
+
+
+class FakeWorld extends Node:
+	var city: CityBuilder
+	var npcs: Variant = null
+	var player: Variant = null
+	var map_screen: Variant = null
 
 
 # ------------------------------------------------------------------
@@ -524,3 +532,172 @@ func test_day_simulation(cb: CityBuilder) -> void:
 
 static func hour_in(h: float, a: float, b: float) -> bool:
 	return NPCBrain.hour_in(h, a, b)
+
+
+# ------------------------------------------------------------------ Priority 2
+## Shopping, inventory, bank, jobs (experience, shifts, pay, promotion, firing), rent.
+func test_economy(cb: CityBuilder) -> void:
+	var saved_time := GameTime.total_minutes
+	var saved_profile: Dictionary = Game.player_profile.duplicate(true)
+	var fw := FakeWorld.new()
+	fw.city = cb
+	add_child(fw)
+	var eco := Economy.new()
+	eco.world = fw
+	add_child(eco)
+	# every catalogued item exists
+	var missing: Array = []
+	for t in ItemDB.BY_TYPE.keys():
+		for id in ItemDB.BY_TYPE[t]:
+			if ItemDB.get_item(id).is_empty():
+				missing.append(id)
+	check("economy: every shop item exists", missing.is_empty(), str(missing))
+	var sellers := cb.places.filter(func(p: Place) -> bool: return not ItemDB.catalog_for(p).is_empty())
+	var homes_selling := cb.places.filter(func(p: Place) -> bool: return p.type in ["home", "apartment"] and not ItemDB.catalog_for(p).is_empty())
+	check("economy: many places sell things, homes don't", sellers.size() > 60 and homes_selling.is_empty(), "%d shops" % sellers.size())
+	# buying
+	var cafe: Place = cb.places.filter(func(p: Place) -> bool: return p.type == "cafe")[0]
+	GameTime.total_minutes = 7 * 1440.0 + 10.0 * 60.0      # Monday 10:00
+	Game.player_profile["money"] = 100
+	var price := ItemDB.price_at("coffee", cafe)
+	var err := eco.buy("coffee", cafe)
+	check("economy: buy coffee at a cafe", err == "" and eco.count("coffee") == 1 and Game.get_money() == 100 - price, "%s $%d" % [err, Game.get_money()])
+	check("economy: can't buy what isn't sold", eco.buy("first_aid", cafe) != "")
+	GameTime.total_minutes = 7 * 1440.0 + 3.0 * 60.0       # 03:00, closed
+	check("economy: closed shop refuses", eco.buy("coffee", cafe) != "" if not cafe.is_open(3.0) else true)
+	GameTime.total_minutes = 7 * 1440.0 + 10.0 * 60.0
+	Game.player_profile["money"] = 1
+	check("economy: not enough cash refuses", eco.buy("pastry", cafe) != "" and eco.count("pastry") == 0)
+	# luxury prices
+	var lux := Place.new()
+	lux.type = "cafe"
+	lux.price_level = 3
+	check("economy: price level scales prices", ItemDB.price_at("coffee", lux) > ItemDB.price_at("coffee", cafe))
+	# using an item
+	eco.use_item("coffee", null)
+	check("economy: using a consumable removes it", eco.count("coffee") == 0)
+	# capacity
+	eco.inventory = {}
+	for k in Economy.BASE_SLOTS:
+		eco.add_item(ItemDB.ITEMS.keys()[k], 1)
+	check("economy: bag holds %d slots" % Economy.BASE_SLOTS, eco.slots_used() == Economy.BASE_SLOTS and not eco.can_add("scrap"))
+	check("economy: stacks of 10 share a slot", eco.add_item(ItemDB.ITEMS.keys()[0], 9) and not eco.add_item(ItemDB.ITEMS.keys()[0], 1))
+	eco.inventory.erase(ItemDB.ITEMS.keys()[1])
+	eco.add_item("backpack")
+	check("economy: backpack adds 10 slots", eco.capacity() == Economy.BASE_SLOTS + 10 and eco.can_add("scrap", 30))
+	# selling
+	eco.inventory = {"scrap": 3}
+	var yard: Array = cb.places.filter(func(p: Place) -> bool: return p.type == "scrapyard")
+	Game.player_profile["money"] = 0
+	check("economy: scrapyard buys scrap", not yard.is_empty() and eco.sell("scrap", yard[0]) == "" and Game.get_money() == ItemDB.sell_price("scrap") and eco.count("scrap") == 2)
+	check("economy: cafe doesn't buy scrap", eco.sell("scrap", cafe) != "")
+	# bank
+	Game.player_profile["money"] = 500
+	eco.deposit(400)
+	check("economy: deposit", eco.bank == 400 and Game.get_money() == 100)
+	eco.withdraw(150)
+	check("economy: withdraw", eco.bank == 250 and Game.get_money() == 250)
+	eco._on_day(GameTime.get_day())
+	check("economy: daily interest", eco.bank > 250 or 250 * 0.0005 < 1.0, "bank $%d" % eco.bank)
+	# jobs: experience requirement
+	var rich := {"title": "Test surgeon", "wage": 40, "start": 9.0, "end": 17.0, "slots": 1}
+	var shop := Place.new()
+	shop.id = 99999
+	shop.type = "cafe"
+	shop.name = "Test Cafe"
+	shop.jobs = [{"title": "Barista", "wage": 14, "start": 9.0, "end": 17.0, "slots": 1}, rich]
+	eco.experience = 0
+	check("economy: experience required for well-paid jobs", Economy.required_experience(40) > 0 and eco.apply(shop, rich) != "")
+	GameTime.total_minutes = 7 * 1440.0 + 12.0 * 60.0        # hired at noon, after the 09:00 start
+	check("economy: entry job hires you", eco.apply(shop, shop.jobs[0]) == "" and eco.job.title == "Barista" and eco.job.mode == "orders")
+	check("economy: filled job has no opening", eco.openings(shop).size() == 1)
+	check("economy: shift modes", Economy.shift_mode("Parcel courier") == "delivery" and Economy.shift_mode("Bank teller") == "typing" and Economy.shift_mode("Forklift driver") == "timing")
+	check("economy: hired after today's start -> not a missed shift", eco.shift_state() == "off", eco.shift_state())
+	eco._check_missed(7)
+	check("economy: no warning for the day you were hired", int(eco.job.misses) == 0)
+	eco.job.hired_min = 6 * 1440.0                            # (pretend you were hired the day before)
+	# shift: before / during / after the window
+	GameTime.total_minutes = 7 * 1440.0 + 6.0 * 60.0
+	check("economy: too early -> off", eco.shift_state() == "off")
+	GameTime.total_minutes = 7 * 1440.0 + 9.2 * 60.0
+	check("economy: on time -> open", eco.shift_state() == "open")
+	Game.player_profile["money"] = 0
+	check("economy: start shift", eco.start_shift(shop) == "" and eco.shift_state() == "working")
+	var res := eco.finish_shift(1.0, 3)
+	var expect := int(round(14 * (8.0 - 0.2) * 1.2)) + 3     # clocked in 12 min late
+	check("economy: shift pay = wage x hours worked x performance + tips", int(res.pay) == expect and Game.get_money() == expect, "pay %d expected %d" % [int(res.get("pay", 0)), expect])
+	check("economy: time skips to the end of the shift", absf(GameTime.get_hour_float() - 17.0) < 0.05, GameTime.get_clock_string())
+	check("economy: can't work twice a day", eco.shift_state() == "done" and eco.start_shift(shop) != "")
+	# promotion after 5 good shifts
+	for d in [8, 9, 10, 11]:
+		GameTime.total_minutes = d * 1440.0 + 9.0 * 60.0
+		eco.start_shift(shop)
+		eco.finish_shift(0.9, 0)
+	check("economy: promoted after 5 good shifts", int(eco.job.rank) == 1 and eco.job_title() == "Senior Barista" and eco.wage_now() == int(round(14 * 1.2)), eco.job_title())
+	# poor performance pays less
+	GameTime.total_minutes = 14 * 1440.0 + 9.0 * 60.0
+	eco.start_shift(shop)
+	var poor := eco.finish_shift(0.0, 0)
+	check("economy: poor work pays less", int(poor.pay) < int(res.pay), "%d" % int(poor.pay))
+	# missed shifts -> warnings -> fired
+	for d in [15, 16, 17]:
+		GameTime.total_minutes = d * 1440.0 + 12.0 * 60.0
+		eco._check_missed(d)
+	check("economy: fired after %d missed shifts" % Economy.FIRE_AFTER, eco.job.is_empty())
+	check("economy: experience is kept", eco.experience == 6)
+	# weekend is off
+	eco.apply(shop, shop.jobs[0])
+	GameTime.total_minutes = 19 * 1440.0 + 9.0 * 60.0      # day 19 = Saturday
+	check("economy: weekends off", eco.shift_state() == "off")
+	# rent
+	eco.bank = 0
+	Game.player_profile["money"] = 100
+	eco.rent_due_min = GameTime.total_minutes - 1.0
+	eco._on_day(GameTime.get_day())
+	check("economy: weekly rent paid", Game.get_money() == 30 and eco.debt == 0)
+	Game.player_profile["money"] = 0
+	eco.rent_due_min = GameTime.total_minutes - 1.0
+	eco._on_day(GameTime.get_day())
+	check("economy: unpaid rent becomes debt", eco.debt == Economy.RENT)
+	Game.player_profile["money"] = 200
+	eco._on_day(GameTime.get_day())
+	check("economy: debt paid off when you have money", eco.debt == 0 and Game.get_money() == 200 - Economy.RENT)
+	# save / load
+	eco.inventory = {"apple": 4, "flowers": 1}
+	var snap: Dictionary = JSON.parse_string(JSON.stringify(eco.save_state()))
+	var eco2 := Economy.new()
+	add_child(eco2)
+	eco2.load_state(snap)
+	check("economy: save/load round trip", eco2.count("apple") == 4 and eco2.job.title == "Barista" and eco2.experience == eco.experience and typeof(eco2.job.place) == TYPE_INT)
+	eco2.queue_free()
+	# courier job: deliveries planned on the real map
+	var station: Array = cb.places.filter(func(p: Place) -> bool: return p.name == "Westbridge Central Station")
+	var courier: Array = (station[0] as Place).jobs.filter(func(j: Dictionary) -> bool: return j.title == "Parcel courier") if not station.is_empty() else []
+	check("economy: courier jobs exist", not courier.is_empty())
+	if not courier.is_empty():
+		eco.experience = 10
+		eco.apply(station[0], courier[0])
+		GameTime.total_minutes = 21 * 1440.0 + 9.0 * 60.0
+		var e2 := eco.start_shift(station[0])
+		var targets: Array = eco.shift.get("targets", [])
+		check("economy: courier run plans 3 deliveries with a deadline", e2 == "" and targets.size() == 3 and float(eco.shift.deadline) > GameTime.total_minutes + 45.0, "%s %s" % [e2, str(targets)])
+		eco.finish_shift(0.0, 0)
+	# the playable shift (auto-played)
+	var g := WorkMinigame.new()
+	g.mode = "typing"
+	g.place = cafe
+	g.job_title = "Clerk"
+	g.auto_play = 1.0
+	var out := [-1.0]
+	g.done.connect(func(perf: float, _tips: int) -> void: out[0] = perf)
+	add_child(g)
+	for f in 120:
+		await get_tree().process_frame
+		if out[0] >= 0.0:
+			break
+	check("economy: work minigame plays 6 tasks and reports performance", absf(out[0] - 1.0) < 0.001, "perf %.2f" % out[0])
+	PlayerInput.enabled = true
+	eco.queue_free()
+	fw.queue_free()
+	GameTime.total_minutes = saved_time
+	Game.player_profile = saved_profile

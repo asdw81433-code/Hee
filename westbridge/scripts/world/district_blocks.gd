@@ -473,7 +473,7 @@ func _station() -> void:
 	var sp: Array = []
 	for k in 4:
 		sp.append(_bench_seat(Vector3(-12 + k * 8.0, 0, 14.0), PI))
-	var p := _place("transit", "Westbridge Central Station", e, {"tags": ["transit", "shelter", "work"], "capacity": 50, "jobs": [_job("Ticket agent", 16, 6.0, 14.0, 2), _job("Ticket agent (late)", 17, 14.0, 22.0, 2), _job("Train conductor", 23, 7.0, 17.0, 3)]})
+	var p := _place("transit", "Westbridge Central Station", e, {"tags": ["transit", "shelter", "work"], "capacity": 50, "jobs": [_job("Ticket agent", 16, 6.0, 14.0, 2), _job("Ticket agent (late)", 17, 14.0, 22.0, 2), _job("Train conductor", 23, 7.0, 17.0, 3), _job("Parcel courier", 15, 9.0, 15.0, 3)]})
 	if cb.data_mode:
 		p.spots.append_array(sp)
 
@@ -843,7 +843,7 @@ func _warehouses() -> void:
 		for d in 3:
 			b.box(xf * Transform3D(Basis.IDENTITY, Vector3(-10 + d * 10.0, 2.2, 7.02)), Vector3(4.0, 4.4, 0.1), Color(0.35, 0.36, 0.38), K.METAL)
 		_sky(xf, Vector3(32, 8, 14), Color(0.55, 0.6, 0.66), K.METAL)
-		_place("warehouse", ["Harbor Logistics", "Bayside Storage"][k], e, {"tags": ["work"], "capacity": 30, "jobs": [_job("Warehouse worker", 15, 6.0, 14.0, 4), _job("Forklift driver", 17, 14.0, 22.0, 2)]})
+		_place("warehouse", ["Harbor Logistics", "Bayside Storage"][k], e, {"tags": ["work"], "capacity": 30, "jobs": [_job("Warehouse worker", 15, 6.0, 14.0, 4), _job("Forklift driver", 17, 14.0, 22.0, 2), _job("Delivery courier", 16, 10.0, 16.0, 2)]})
 		k += 1
 	PropsKit.car(b, cols, X(Vector3(16, 0, 0), PI * 0.5), Color(0.75, 0.75, 0.72), 1)
 

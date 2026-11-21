@@ -126,7 +126,31 @@ oversleeping) · distance/opening hours/price of places · inertia for the curre
 * Only 8 street lights + 3 interior lights are real OmniLights following the camera.
 * `MapScreen` draws the grid, roads, districts, places, player and waypoint.
 
-## 6. Roadmap (next phases)
+## 6. Economy (Priority 2: jobs, money, shopping)
+
+```
+ItemDB (static data)          Economy (Node, savable "economy")              UI
+  ITEMS ~50 items               inventory {id: count}, bank, debt              ServicePoint (Interactable at each
+  BY_TYPE: what each            job {place, title, wage, start, end,             place's door; spawned in
+    place type sells              rank, shifts, good, misses, mode...}           CityBuilder.load_cell)
+  BUYS: buy-back lists          experience, history, rent_due_min                  -> GameWorld.open_place_menu
+  PRICE_MULT by price level     buy / sell / use_item / deposit / withdraw     PlaceMenu: Shop/Sell/Work/Bank/Room/Bag
+                                apply / quit / shift_state / start_shift       WorkMinigame (orders/timing/typing)
+                                finish_shift (pay, time skip, promotion)         -> done(perf, tips)
+                                _on_hour/_on_day: missed shifts, interest,       -> fade_sleep -> finish_shift
+                                  rent, debt                                   InventoryUI (BAG / I)
+                                delivery shifts: 3 targets, waypoint,          NPCDialog "Give item"
+                                  arrival check in _process, deadline
+```
+
+- Job openings are counted against the NPCs who actually hold that job (`NPCData.job`), so a full workplace has no opening for the player.
+- `required_experience(wage) = clamp((wage-17)/2, 0, 12)` shifts.
+- Shift window: 45 min before → 1.5 h after the start. Lateness is deducted from paid hours. A day the player was hired after the shift began is never counted as missed.
+- Pay: `wage × 1.2^rank × hours × (0.6 + 0.6 × performance) + tips`. A good shift (perf ≥ 0.65, < 30 min late) counts toward promotion (every 5) and clears a warning every 3. 3 missed shifts gets the player fired.
+- Courier jobs exist at Central Station, Harbor Logistics and the Post Office. Their deadline is the route length / 3 m per game minute + 45 min.
+- The old quick-buy counters at a door (`SimpleInteractable` coffee/food) are disabled when a ServicePoint takes that spot. The menu's "Have now" button does the same thing. Counters inside interiors stay as they were.
+
+## 7. Roadmap (next phases)
 
 | Phase | Content | Status |
 |---|---|---|
@@ -134,7 +158,7 @@ oversleeping) · distance/opening hours/price of places · inertia for the curre
 | 2 | NPCs, personality, utility AI, routines, LOD simulation | ✅ |
 | Physics/Anim | Hybrid animation, balance PID, impacts, partial/full ragdoll, recovery, foot IK, lab | ✅ |
 | 3 | Deeper memory use, gossip/rumours, social groups (leader, meeting place, rules), jealousy, forgiveness, emotional contagion, more reactions | next |
-| 4 | Jobs with gameplay (delivery, cashier, warehouse), economy, shops, inventory, rent | |
+| 4 / P2 | Jobs with gameplay (orders/timing/typing minigames, courier runs), economy, shops, sell-back, inventory, bank, rent, gifts | ✅ |
 | 5 | Drivable cars (sedan, pickup, van, bike), traffic AI with lights, accidents | |
 | 6 | Housing market, furniture placement (buy/place/move/rotate/sell) | |
 | 7 | Phone UI: contacts, messages, map, social feed, bank, jobs, calendar, camera | |

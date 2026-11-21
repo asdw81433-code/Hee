@@ -17,6 +17,8 @@ var _debug: Label
 var _debug_on: bool = false
 var pause_menu: PauseMenu
 var extra_info: Callable = Callable()
+var _status_panel: PanelContainer
+var _side_buttons: Array = []           ## MAP / BAG: kept just below the status panel
 
 
 func _ready() -> void:
@@ -74,6 +76,7 @@ func _build_top_left() -> void:
 	panel.position = Vector2(14, 12)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(panel)
+	_status_panel = panel
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	panel.add_child(vb)
@@ -121,6 +124,15 @@ func add_map_button(map: MapScreen) -> void:
 	var btn := UIKit.button("MAP", func() -> void: map.toggle(), Vector2(110, 52))
 	btn.position = Vector2(14, 168)
 	root.add_child(btn)
+	_side_buttons.append(btn)
+
+
+## BAG button next to MAP: inventory, money, job.
+func add_bag_button(cb: Callable) -> void:
+	var btn := UIKit.button("BAG", cb, Vector2(110, 52))
+	btn.position = Vector2(132, 168)
+	root.add_child(btn)
+	_side_buttons.append(btn)
 
 
 func show_toast(text: String) -> void:
@@ -165,6 +177,9 @@ func _process(_delta: float) -> void:
 	_clock.text = GameTime.get_clock_string()
 	if extra_info.is_valid():
 		_clock.text += "  " + str(extra_info.call())
+	if _status_panel:
+		for b in _side_buttons:
+			(b as Control).position.y = _status_panel.position.y + _status_panel.size.y + 12.0
 	_fps.visible = bool(Settings.get_value("show_fps", true))
 	if _fps.visible:
 		_fps.text = "%d FPS  %d dc" % [Engine.get_frames_per_second(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)]

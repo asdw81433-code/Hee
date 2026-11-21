@@ -578,7 +578,7 @@ func _shops(variant: String) -> void:
 			var close := 23.0 if "nightlife" in tags else (21.0 if "food" in tags else 19.0)
 			var ptype := "cafe" if "coffee" in tags else ("restaurant" if "food" in tags and not "groceries" in tags else ("gym" if "sports" in tags else "shop"))
 			var p := cb.add_place(ptype, names[k], e, ring, {"tags": tags, "open": open, "close": close,
-				"jobs": [{"title": "Staff", "wage": 13 + k, "start": open, "end": minf(open + 8.0, close), "slots": 2}]})
+				"jobs": [{"title": "Postal courier" if names[k] == "Post Office" else "Staff", "wage": 13 + k, "start": open, "end": minf(open + 8.0, close), "slots": 2}]})
 			if ptype in ["cafe", "restaurant"]:
 				var act := SimpleInteractable.new()
 				act.action = "coffee" if ptype == "cafe" else "food"

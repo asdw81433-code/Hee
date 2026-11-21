@@ -124,7 +124,128 @@ func _run() -> void:
 	await _wait(3.0)
 	var surface := CityMap.water_level_at(p.global_position.x, p.global_position.z)
 	_check("falling into the river -> swimming at the surface", p.swimming and p.global_position.y > surface - 1.6 and p.global_position.y < surface, "y %.2f, water %.2f" % [p.global_position.y, surface])
+	await _economy_test(world, p)
 	_finish()
+
+
+## Priority 2 in the real world: walk up to a shop door, open its menu, buy
+## something, get hired, come back at shift time, play the shift, get paid.
+func _economy_test(world: Node, p: PlayerController) -> void:
+	var eco: Economy = world.economy
+	# a weekday morning
+	var d := GameTime.get_day() + 1
+	while d % 7 >= 5:
+		d += 1
+	GameTime.total_minutes = d * 1440.0 + 10.0 * 60.0
+	# a cafe / shop with an opening that needs no experience, close to home
+	var home: Vector3 = world.city.player_spawn
+	var best: Place = null
+	var best_job: Dictionary = {}
+	for pl in world.city.places:
+		var q := pl as Place
+		if ItemDB.catalog_for(q).is_empty() or not q.is_open(10.0) or q.enterable:
+			continue
+		for jd in eco.openings(q):
+			if Economy.required_experience(int(jd.wage)) == 0 and Economy.shift_mode(String(jd.title)) == "orders" and float(jd.start) >= 6.0 and float(jd.start) <= 12.0:
+				if best == null or q.entry_pos.distance_to(home) < best.entry_pos.distance_to(home):
+					best = q
+					best_job = jd
+	_check("found a shop that is hiring", best != null, best.name if best else "")
+	if best == null:
+		return
+	world.teleport_player(best.entry_pos + Vector3(0.5, 0, 0.5))
+	await _wait(1.2)
+	var sp: Node = p.interactor.current
+	_check("shop door offers a service point", sp is ServicePoint and (sp as ServicePoint).place == best, "%s -> %s" % [best.name, str(sp)])
+	Game.player_profile["money"] = 200
+	p.interactor.interact()
+	await _wait(0.3)
+	var menu: PlaceMenu = null
+	for c in world.hud.get_children():
+		if c is PlaceMenu:
+			menu = c
+	_check("interact opens the place menu", menu != null)
+	if menu == null:
+		return
+	# press the first "Buy" button like a player would
+	var item: String = ItemDB.catalog_for(best)[0]
+	var cash0 := Game.get_money()
+	var buy_btn := _find_button(menu, "Buy")
+	if buy_btn:
+		buy_btn.pressed.emit()
+	await _wait(0.2)
+	_check("buying from the menu takes cash and fills the bag", eco.count(item) == 1 and Game.get_money() == cash0 - ItemDB.price_at(item, best), "%s x%d, $%d -> $%d" % [item, eco.count(item), cash0, Game.get_money()])
+	# apply for the job
+	menu._show("jobs")
+	await _wait(0.2)
+	var applied := false
+	for row in menu._body.get_children():
+		var l := row.get_child(0) as Label
+		if l and l.text.begins_with(String(best_job.title) + "  -"):
+			for b in row.get_children():
+				if b is Button and (b as Button).text == "Apply" and not (b as Button).disabled:
+					(b as Button).pressed.emit()
+					applied = true
+	await _wait(0.2)
+	_check("apply in the menu -> hired", applied and not eco.job.is_empty() and int(eco.job.place) == best.id, eco.job_title())
+	menu._close()
+	await _wait(0.2)
+	# inventory screen
+	var inv: InventoryUI = world.open_inventory()
+	await _wait(0.2)
+	_check("bag screen lists the item", inv != null and _find_label(inv, ItemDB.item_name(item)) != null)
+	if inv:
+		inv._close()
+	await _wait(0.2)
+	if eco.job.is_empty():
+		return
+	# come back at shift time, clock in, play the shift
+	var d2 := GameTime.get_day() + 1
+	while d2 % 7 >= 5:
+		d2 += 1
+	GameTime.total_minutes = d2 * 1440.0 + float(eco.job.start) * 60.0 - 10.0
+	await _wait(0.5)
+	_check("shift is open at the start time", eco.shift_state() == "open", eco.shift_state())
+	_check("prompt says Start shift", sp != null and is_instance_valid(sp) and String(sp.get_prompt(p)).begins_with("Start shift"), String(sp.get_prompt(p)) if is_instance_valid(sp) else "")
+	p.interactor.interact()
+	await _wait(0.3)
+	menu = null
+	for c in world.hud.get_children():
+		if c is PlaceMenu:
+			menu = c
+	var start_btn := _find_button(menu, "Start shift") if menu else null
+	_check("menu offers Start shift", start_btn != null and not start_btn.disabled)
+	if start_btn == null:
+		return
+	var cash1 := Game.get_money()
+	start_btn.pressed.emit()
+	await _wait(0.3)
+	var game: WorkMinigame = null
+	for c in world.hud.get_children():
+		if c is WorkMinigame:
+			game = c
+	_check("shift opens the work minigame", game != null and game.mode == "orders")
+	if game == null:
+		return
+	game.auto_play = 0.85
+	await _wait(6.0)
+	_check("finishing the shift pays and gives experience", Game.get_money() > cash1 and eco.experience == 1 and eco.shift.is_empty(),
+		"$%d -> $%d, %s" % [cash1, Game.get_money(), str(eco.history[0]) if not eco.history.is_empty() else "no result"])
+	_check("clock jumps to the end of the shift", absf(GameTime.get_hour_float() - fmod(float(eco.job.end), 24.0)) < 0.3, GameTime.get_clock_string())
+
+
+func _find_button(root: Node, text: String) -> Button:
+	for n in root.find_children("*", "Button", true, false):
+		if (n as Button).text == text:
+			return n
+	return null
+
+
+func _find_label(root: Node, prefix: String) -> Label:
+	for n in root.find_children("*", "Label", true, false):
+		if (n as Label).text.begins_with(prefix):
+			return n
+	return null
 
 
 func _finish() -> void:

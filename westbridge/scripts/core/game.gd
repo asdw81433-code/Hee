@@ -82,6 +82,7 @@ func _setup_input_map() -> void:
 	_add_action("quickload", [KEY_F9])
 	_add_action("inspect", [KEY_TAB])
 	_add_action("map", [KEY_M])
+	_add_action("inventory", [KEY_I])
 
 
 func _add_action(action: String, keys: Array, mouse_buttons: Array = []) -> void:
