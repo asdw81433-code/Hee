@@ -141,7 +141,9 @@
 ## หมายเหตุตรงไปตรงมา
 
 - **Animation เป็น keyframe ที่เขียนด้วยโค้ด ไม่ใช่ motion capture** ดูเป็นธรรมชาติในระดับเกม stylized เพราะมี blending, procedural layer และฟิสิกส์ช่วย แต่ไม่ละเอียดเท่า mocap ระบบรองรับการใส่ animation จริง (Mixamo/glTF ที่ใช้ humanoid rig) โดยตั้งชื่อ clip เดิม
-- **ยังไม่ได้ build เป็น APK และยังไม่ได้ทดสอบบนมือถือจริง** มี `export_presets.cfg` (Android, arm64, landscape) ให้แล้ว ต้องติดตั้ง Android export templates + SDK + JDK 17 เอง ตัวเลขประสิทธิภาพข้างบนวัดบน PC ยังต้องวัดบนเครื่องจริงใน Phase 10
+- **APK เบต้า 0.3.0-beta** (Android 7.0+ / arm64-v8a, ~29 MB) build ได้แล้วด้วย `tools/build_apk.sh` (release, เซ็นแบบ APK Signature v2) **แต่ยังไม่ได้ทดสอบบนมือถือจริงหรือ emulator** ตัวเลขประสิทธิภาพข้างบนวัดบน PC
+  - ในเซิร์ฟเวอร์ที่ build ไม่มี Android SDK (เข้าเว็บดาวน์โหลดของ Google ไม่ได้) จึงเซ็นด้วยไลบรารี `apksig` ของ Android (จาก Maven Central) แทน `apksigner` และตรวจลายเซ็น/alignment/manifest แล้ว
+  - ต้องใช้มือถือที่รองรับ Vulkan เพื่อให้ได้ภาพ Mobile renderer ถ้าไม่รองรับจะสลับไป OpenGL ES 3 อัตโนมัติ (ภาพอาจต่างไปบ้าง)
 - ภาพหน้าจอระหว่างพัฒนาเรนเดอร์ด้วย software renderer ในเซิร์ฟเวอร์ ค่า FPS ในภาพจึงไม่ใช่ FPS จริง
 - UI ยังเป็นภาษาอังกฤษ ถ้าจะใช้ภาษาไทยต้องใส่ฟอนต์ไทย (เช่น Noto Sans Thai)
 - อาคารในย่านใหม่ส่วนใหญ่ยัง **เข้าไปข้างในไม่ได้** (NPC ใช้งานได้แบบ abstract) — อาคารที่เข้าได้ยังเป็นของเมืองเดิม
