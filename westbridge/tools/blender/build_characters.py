@@ -50,6 +50,9 @@ COVER_BITS = {"Top_TShirt": 0, "Top_LongSleeve": 1, "Top_ButtonShirt": 2, "Top_P
               "Top_Hoodie": 5, "Top_Sweater": 6, "Pants_Long": 7, "Pants_Shorts": 8, "Pants_Cargo": 9,
               "Socks": 10, "Shoes": 11}
 COVER = {}                    # garment name -> per-body-vertex keep flags (filled by garment())
+HEM_FINAL = {"Top_TShirt": 0.752, "Top_Polo": 0.752}   # level hem height in the final proportions
+DRAPE_DEPTH_FLARE = 1.1        # tops get deeper (front/back) towards the hem
+COLLAR_FINAL = {"Top_TShirt": (1.305, 1.36)}   # neckline plane (front, back height) trims the jagged edge
 
 
 def G(x, y, z):
@@ -109,33 +112,36 @@ BONE_ORDER = ["Root", "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head",
 # NEW_JOINTS must stay identical to HumanoidDef.bone_list({}) in the game.
 NEW_JOINTS = {
     "Root": (0, 0, 0), "Hips": (0, 0.77, 0), "Spine": (0, 0.89, 0), "Chest": (0, 1.03, 0),
-    "UpperChest": (0, 1.19, 0), "Neck": (0, 1.33, 0), "Head": (0, 1.385, 0),
+    "UpperChest": (0, 1.19, 0), "Neck": (0, 1.32, -0.004), "Head": (0, 1.372, 0.0),
 }
 for side, sg in (("Left", 1), ("Right", -1)):
-    NEW_JOINTS[side + "Shoulder"] = (0.04 * sg, 1.31, 0)
-    NEW_JOINTS[side + "UpperArm"] = (0.155 * sg, 1.265, 0)
-    NEW_JOINTS[side + "LowerArm"] = (0.155 * sg, 0.99, 0)
-    NEW_JOINTS[side + "Hand"] = (0.155 * sg, 0.76, 0)
-    NEW_JOINTS[side + "UpperLeg"] = (0.084 * sg, 0.71, 0)
-    NEW_JOINTS[side + "LowerLeg"] = (0.084 * sg, 0.40, 0)
-    NEW_JOINTS[side + "Foot"] = (0.084 * sg, 0.08, 0)
-    NEW_JOINTS[side + "Toes"] = (0.084 * sg, 0.025, 0.13)
-HEAD_SCALE = (1.12, 1.06, 1.06)     # head width / height / depth (Godot axes) - bigger, wider skull
+    NEW_JOINTS[side + "Shoulder"] = (0.04 * sg, 1.32, 0)
+    NEW_JOINTS[side + "UpperArm"] = (0.142 * sg, 1.29, 0)
+    NEW_JOINTS[side + "LowerArm"] = (0.142 * sg, 0.99, 0)
+    NEW_JOINTS[side + "Hand"] = (0.142 * sg, 0.73, 0)
+    NEW_JOINTS[side + "UpperLeg"] = (0.095 * sg, 0.71, -0.03)
+    NEW_JOINTS[side + "LowerLeg"] = (0.093 * sg, 0.40, -0.045)
+    NEW_JOINTS[side + "Foot"] = (0.1 * sg, 0.08, -0.05)
+    NEW_JOINTS[side + "Toes"] = (0.1 * sg, 0.025, 0.08)
+HEAD_SCALE = (1.1, 1.1, 1.18)       # head width / height / depth (Godot axes) - bigger, wider skull
 EYE_PUSH = 0.008                    # eyes sit a little further out of the face
-BROW_SCALE = (1.3, 1.6, 1.0)        # longer, thicker brows (Godot axes)
-EYE_SCALE = 0.95                    # eyeball size vs the build mesh (lids and lower lids follow)
+BROW_SCALE = (1.5, 2.0, 1.0)        # longer, thicker brows (Godot axes)
+EYE_SCALE = 1.04                    # eyeball size vs the build mesh (lids and lower lids follow)
+EYE_X = 0.88                        # eye spacing vs the (widened) head
+EYE_RAISE = 0.014                   # eyes/brows sit higher on the face
+MOUTH_RAISE = 0.01                  # mouth sits higher on the (longer) face
 # Thickness across each bone (1 = unchanged), as (width, height, depth) in Godot axes,
 # and tips for the end bones (build -> final).
-BONE_K = {"Neck": (1.25, 1.25, 1.3), "Hips": (1.08, 1.0, 1.06), "Spine": (1.04, 1.0, 1.1), "Chest": (1.08, 1.0, 1.12),
-          "UpperChest": (1.08, 1.0, 1.08)}
+BONE_K = {"Neck": (1.16, 1.35, 1.12), "Hips": (1.1, 1.0, 1.14), "Spine": (1.0, 1.0, 1.24), "Chest": (0.96, 1.0, 1.12),
+          "UpperChest": (1.12, 1.0, 1.08)}
 for side in ("Left", "Right"):
-    BONE_K.update({side + "UpperArm": (1.38, 1.38, 1.38), side + "LowerArm": (1.42, 1.42, 1.42),
-                   side + "UpperLeg": (1.06, 1.0, 1.0),
-                   side + "Hand": (1.45, 1.45, 1.45), side + "Foot": (1.72, 1.14, 1.14), side + "Toes": (1.72, 1.14, 1.14)})
+    BONE_K.update({side + "UpperArm": (1.3, 1.3, 1.3), side + "LowerArm": (1.6, 1.6, 1.6),
+                   side + "UpperLeg": (1.14, 1.0, 1.08), side + "LowerLeg": (1.12, 1.0, 1.06),
+                   side + "Hand": (1.4, 1.9, 1.75), side + "Foot": (1.62, 1.18, 1.14), side + "Toes": (1.62, 1.18, 1.14)})
 TIPS = {}
 for side, sg in (("Left", 1), ("Right", -1)):
-    TIPS[side + "Hand"] = ((0.18 * sg, 0.70, 0), (0.155 * sg, 0.61, 0))
-    TIPS[side + "Toes"] = ((0.09 * sg, 0.02, 0.18), (0.084 * sg, 0.025, 0.215))
+    TIPS[side + "Hand"] = ((0.18 * sg, 0.70, 0), (0.142 * sg, 0.575, 0))
+    TIPS[side + "Toes"] = ((0.09 * sg, 0.02, 0.18), (0.1 * sg, 0.025, 0.165))
 CHILD = {"Hips": "Spine", "Spine": "Chest", "Chest": "UpperChest", "UpperChest": "Neck", "Neck": "Head"}
 for side in ("Left", "Right"):
     CHILD.update({side + "Shoulder": side + "UpperArm", side + "UpperArm": side + "LowerArm", side + "LowerArm": side + "Hand",
@@ -171,13 +177,16 @@ def bone_maps():
     push = Matrix.Translation(G(0, 0, EYE_PUSH))
     for s_ in ("L", "R"):
         e = G(*JOINTS["Eye" + s_])
-        maps["Eye" + s_] = push @ Matrix.Translation(hm @ e) @ Matrix.Scale(EYE_SCALE, 4) @ Matrix.Translation(-e)
+        ep = hm @ e
+        ep.x *= EYE_X
+        ep.z += EYE_RAISE
+        maps["Eye" + s_] = push @ Matrix.Translation(ep) @ Matrix.Scale(EYE_SCALE, 4) @ Matrix.Translation(-e)
         maps["Lid" + s_] = maps["Eye" + s_]
         b = G(*JOINTS["Brow" + s_])
-        maps["Brow" + s_] = Matrix.Translation(hm @ b + G(0, 0, -0.008)) @ Matrix.Diagonal((BROW_SCALE[0], BROW_SCALE[2], BROW_SCALE[1], 1.0)) @ Matrix.Translation(-b)
+        maps["Brow" + s_] = Matrix.Translation(hm @ b + G(0, EYE_RAISE - 0.026, -0.006)) @ Matrix.Diagonal((BROW_SCALE[0], BROW_SCALE[2], BROW_SCALE[1], 1.0)) @ Matrix.Translation(-b)
     for m in ("Mouth", "MouthL", "MouthR"):
         p = G(*JOINTS[m])
-        maps[m] = Matrix.Translation(hm @ p - p + G(0, 0, -0.003))
+        maps[m] = Matrix.Translation(hm @ p - p + G(0, MOUTH_RAISE, -0.003))
     maps["_HeadFace"] = push @ hm         # glasses: follow the head, stay in front of the eyes
     return maps
 
@@ -230,7 +239,7 @@ def reproportion(ob, maps):
 
 HEAD_C = G(0, HEAD[1] + 0.15, 0.005)            # centre of the head ellipsoid
 HEAD_R = Vector((0.118, 0.125, 0.168))          # x width, y depth, z height (Blender)
-JAW = 0.97
+JAW = 1.0
 
 
 # --------------------------------------------------------------------------- scene utils
@@ -370,7 +379,7 @@ def prim(kind, name, coll, loc=(0, 0, 0), scale=(1, 1, 1), rot=(0, 0, 0), **kw):
 
 def head_fullness(uz):
     """Superellipse skull: broad U-shaped jaw (n=2.8) and a fuller, squarer cranium (n=2.4)."""
-    n = 2.8 if uz < 0.0 else 2.4
+    n = 2.9 if uz < 0.0 else 2.7
     a = min(abs(uz), 0.9999)
     return min(1.6, (1.0 - a ** n) ** (1.0 / n) / math.sqrt(1.0 - a * a))
 
@@ -379,7 +388,7 @@ def head_point(lon, lat, s=1.0):
     """Point on the (tapered) head surface; lon 0 = front, lat 90 = top."""
     la, lo = math.radians(lat), math.radians(lon)
     u = Vector((math.cos(la) * math.sin(lo), -math.cos(la) * math.cos(lo), math.sin(la)))
-    taper = lerp(JAW, 1.0, smoothstep(-0.95, 0.25, u.z)) * head_fullness(u.z)
+    taper = lerp(JAW, 1.0, smoothstep(-0.95, 0.2, u.z)) * head_fullness(u.z)
     zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z)) * lerp(1.0, head_fullness(u.z), 0.6)
     return HEAD_C + Vector((u.x * HEAD_R.x * taper * s, u.y * HEAD_R.y * zt * s, u.z * HEAD_R.z * s))
 
@@ -403,13 +412,13 @@ def body_graph(variant):
     node("hip", (0, 0.97, 0), (0.135, 0.100))
     node("waist", (0, 1.08, 0), (0.12, 0.092))
     node("chest", (0, 1.22, 0), (0.138, 0.10))
-    node("upper", (0, 1.33, 0), (0.134, 0.092))
-    node("nbase", (0, 1.415, 0), (0.09, 0.074))
-    node("neck", (0, 1.49, 0), (0.07, 0.066))
+    node("upper", (0, 1.32, 0), (0.125, 0.092))
+    node("nbase", (0, 1.415, 0), (0.07, 0.064))
+    node("neck", (0, 1.49, 0), (0.064, 0.062))
     node("headb", (0, 1.59, 0), (0.066, 0.062))
     chain("pelvis", "hip", "waist", "chest", "upper", "nbase", "neck", "headb")
     for s, sg in (("L", 1), ("R", -1)):
-        node("sh" + s, (0.125 * sg, 1.335, 0), (0.056, 0.054))      # sloping shoulders
+        node("sh" + s, (0.12 * sg, 1.29, 0), (0.058, 0.056))       # sloping shoulders
         node("ua" + s, (0.18 * sg, 1.305, 0), (0.046, 0.044))
         node("el" + s, (0.18 * sg, 1.10, 0), (0.033, 0.033))
         node("fa" + s, (0.18 * sg, 1.0, 0.0), (0.035, 0.033))
@@ -417,13 +426,13 @@ def body_graph(variant):
         node("pa" + s, (0.182 * sg, 0.80, 0.0), (0.017, 0.031))
         chain("upper", "sh" + s, "ua" + s, "el" + s, "fa" + s, "wr" + s, "pa" + s)
         # four fingers (curled slightly forward) + thumb
-        for k, (fz, ln, rr) in enumerate(((0.021, 0.068, 0.0118), (0.007, 0.075, 0.0124), (-0.007, 0.071, 0.0121), (-0.02, 0.056, 0.011))):
+        for k, (fz, ln, rr) in enumerate(((0.026, 0.068, 0.0108), (0.009, 0.076, 0.0112), (-0.008, 0.072, 0.011), (-0.024, 0.058, 0.0102))):
             b0 = "fb%d%s" % (k, s)
             b1 = "fm%d%s" % (k, s)
             b2 = "ft%d%s" % (k, s)
             node(b0, (0.182 * sg, 0.778, fz), (rr, rr))
-            node(b1, (0.181 * sg, 0.778 - ln * 0.5, fz + 0.004), (rr * 0.95, rr * 0.95))
-            node(b2, (0.178 * sg, 0.778 - ln, fz + 0.011), (rr * 0.8, rr * 0.8))
+            node(b1, (0.18 * sg, 0.778 - ln * 0.5, fz + 0.001), (rr * 0.95, rr * 0.95))
+            node(b2, (0.177 * sg, 0.778 - ln, fz + 0.003), (rr * 0.8, rr * 0.8))
             chain("pa" + s, b0, b1, b2)
         node("th" + s, (0.17 * sg, 0.83, 0.03), (0.014, 0.014))
         node("tt" + s, (0.164 * sg, 0.79, 0.046), (0.012, 0.012))
@@ -498,7 +507,7 @@ def build_body(coll):
     vg = body.vertex_groups.new(name="_HandDecimate")
     vg.add(hand_v, 1.0, "REPLACE")
     dec = body.modifiers.new("HandDec", "DECIMATE")
-    dec.ratio = (total_f - hand_f + hand_f * (0.42 if LOD == 0 else 0.12)) / total_f
+    dec.ratio = (total_f - hand_f + hand_f * (0.62 if LOD == 0 else 0.12)) / total_f
     dec.vertex_group = vg.name
     dec.vertex_group_factor = 10.0
     apply_modifiers(body)
@@ -790,7 +799,41 @@ def region_of(seg):
     return "foot"
 
 
-def garment(name, body, cls, coll, keep, offset):
+def drape(coords, used, z0, flare=0.0, bins=48, body=None):
+    """Below z0 the garment hangs like a straight tube: every vertex is moved to the radius
+    (around the torso axis) the garment has at z0 - never closer than 8 mm to the body."""
+    ring = [0.0] * bins
+    def ang(c):
+        return int(((math.atan2(c.y, c.x) + math.pi) / (2 * math.pi)) * bins) % bins
+    for i, c in enumerate(coords):
+        if i in used and abs(c.z - z0) < 0.04:
+            b = ang(c)
+            ring[b] = max(ring[b], math.hypot(c.x, c.y))
+    filled = [k for k in range(bins) if ring[k] > 0]
+    if filled:                                  # empty bins: interpolate between the nearest filled ones
+        out = list(ring)
+        for k in range(bins):
+            if ring[k] > 0:
+                continue
+            prev = max((f for f in filled if f < k), default=filled[-1] - bins)
+            nxt = min((f for f in filled if f > k), default=filled[0] + bins)
+            t = (k - prev) / max(nxt - prev, 1)
+            out[k] = ring[prev % bins] * (1 - t) + ring[nxt % bins] * t
+        ring = out
+    ring = [(ring[(k - 1) % bins] + 2 * ring[k] + ring[(k + 1) % bins]) / 4 for k in range(bins)]
+    for i, c in enumerate(coords):
+        if i in used and c.z < z0:
+            r = math.hypot(c.x, c.y)
+            want = ring[ang(c)] + flare * (z0 - c.z)
+            if body is not None:
+                want = max(want, math.hypot(body[i].x, body[i].y) + 0.008)
+            if r > 1e-5:
+                k = want / r
+                c.x *= k
+                c.y *= k * (1.0 + DRAPE_DEPTH_FLARE * (z0 - c.z))   # hangs out over belly / back
+
+
+def garment(name, body, cls, coll, keep, offset, drape_z=None, hem_z=None):
     """Copy body faces where keep(co, seg, t) holds for every vertex, push along normals."""
     ob = body.copy()
     ob.data = body.data.copy()
@@ -813,11 +856,20 @@ def garment(name, body, cls, coll, keep, offset):
             used.update(p.vertices)
     normals = [v.normal.copy() for v in me.vertices]
     offs = [offset(v.co, cls[i][0], cls[i][1]) if i in used else 0.0 for i, v in enumerate(me.vertices)]
+    body_keys = {kb.name: [d.co.copy() for d in kb.data] for kb in me.shape_keys.key_blocks}
     for kb in me.shape_keys.key_blocks:
         for i in range(len(me.vertices)):
             kb.data[i].co = kb.data[i].co + normals[i] * offs[i]
     for i, v in enumerate(me.vertices):
         v.co = v.co + normals[i] * offs[i]
+    if drape_z is not None:
+        for kb in me.shape_keys.key_blocks:
+            cs = [d.co.copy() for d in kb.data]
+            drape(cs, used, drape_z, body=body_keys[kb.name])
+            for i, d in enumerate(kb.data):
+                d.co = cs[i]
+        for i, v in enumerate(me.vertices):
+            v.co = me.shape_keys.key_blocks[0].data[i].co.copy()
     bm = bmesh.new()
     bm.from_mesh(me)
     bm.verts.ensure_lookup_table()
@@ -826,6 +878,10 @@ def garment(name, body, cls, coll, keep, offset):
     bmesh.ops.delete(bm, geom=kill, context="FACES")
     loose = [v for v in bm.verts if not v.link_faces]
     bmesh.ops.delete(bm, geom=loose, context="VERTS")
+    if hem_z is not None:
+        # clean, level hem: cut with a plane (shape keys + weights are interpolated on the cut)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, hem_z), plane_no=(0, 0, 1), clear_inner=True)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
     bm.to_mesh(me)
     bm.free()
     me.update()
@@ -834,12 +890,19 @@ def garment(name, body, cls, coll, keep, offset):
 
 def build_garments(body, cls, coll):
     """All fitted clothing. Returns {name: object}."""
+    def collar_drop(x):
+        """Crew neck: the neckline falls away beside the neck, but never cuts the shoulders."""
+        a = abs(x)
+        return 0.5 * min(max(0.0, a - 0.035), 0.05)
+
     def torso_top(co, seg, t, bottom=0.93, sleeve=0.3, neck_open=1.405):
         r = region_of(seg)
         if r == "torso" or r == "neck":          # crew necks reach up onto the neck base, dipping at the front
-            return bottom <= co.z <= neck_open - 0.016 * smoothstep(0.0, 0.08, -co.y) - 0.3 * max(0.0, abs(co.x) - 0.045)
+            return bottom <= co.z <= neck_open - 0.012 * smoothstep(0.0, 0.08, -co.y) - collar_drop(co.x)
+        if r in ("hipjoint", "leg"):             # long tops hang over the top of the hips
+            return co.z >= bottom
         if r == "shoulder":
-            return co.z <= neck_open
+            return co.z <= neck_open - collar_drop(co.x)
         if r == "arm":
             return arm_s(seg, t) < sleeve
         return False
@@ -857,21 +920,27 @@ def build_garments(body, cls, coll):
     out = {}
     hem = lambda co, base, extra, z0=0.93, z1=1.12: base + extra * (1.0 - smoothstep(z0, z1, co.z))
     boxy = lambda c, base, extra: base + extra * (1.0 - smoothstep(0.93, 1.32, c.z))     # loose, trapezoid shirt body
-    out["Top_TShirt"] = garment("Top_TShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.4, neck_open=1.44),
-                                lambda c, s, t: boxy(c, 0.03, 0.015) if region_of(s) in ("torso", "neck") else (0.02 + 0.016 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.02))
+    out["Top_TShirt"] = garment("Top_TShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, bottom=0.86, sleeve=0.285, neck_open=1.53),
+                                lambda c, s, t: boxy(c, 0.02, 0.016 + 0.022 * smoothstep(0.04, 0.12, abs(c.x))) if region_of(s) in ("torso", "neck", "hipjoint", "leg") else (0.022 + 0.024 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.026),
+                                drape_z=1.0)
     out["Top_LongSleeve"] = garment("Top_LongSleeve", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.95),
-                                    lambda c, s, t: hem(c, 0.010, 0.008) if region_of(s) == "torso" else 0.009)
+                                    lambda c, s, t: hem(c, 0.010, 0.008) if region_of(s) == "torso" else 0.009,
+                                drape_z=1.0)
     out["Top_ButtonShirt"] = garment("Top_ButtonShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.95, neck_open=1.415),
-                                     lambda c, s, t: hem(c, 0.011, 0.01) if region_of(s) == "torso" else 0.011)
+                                     lambda c, s, t: hem(c, 0.011, 0.01) if region_of(s) == "torso" else 0.011,
+                                drape_z=1.0)
     out["Top_Polo"] = garment("Top_Polo", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.36, neck_open=1.425),
-                              lambda c, s, t: boxy(c, 0.016, 0.04) if region_of(s) == "torso" else (0.018 + 0.05 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.018))
+                              lambda c, s, t: boxy(c, 0.016, 0.04) if region_of(s) == "torso" else (0.018 + 0.05 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.018),
+                                drape_z=1.0)
     out["Top_Tank"] = garment("Top_Tank", body, cls, coll,
                               lambda c, s, t: region_of(s) == "torso" and 0.975 <= c.z <= 1.39 and not (c.z > 1.3 and abs(c.x) > 0.075),
                               lambda c, s, t: hem(c, 0.008, 0.008))
     out["Top_Hoodie"] = garment("Top_Hoodie", body, cls, coll, lambda c, s, t: torso_top(c, s, t, bottom=0.94, sleeve=0.97),
-                                lambda c, s, t: hem(c, 0.02, 0.012, 0.94, 1.1) if region_of(s) == "torso" else 0.017)
+                                lambda c, s, t: hem(c, 0.02, 0.012, 0.94, 1.1) if region_of(s) == "torso" else 0.017,
+                                drape_z=1.0)
     out["Top_Sweater"] = garment("Top_Sweater", body, cls, coll, lambda c, s, t: torso_top(c, s, t, bottom=0.95, sleeve=0.97, neck_open=1.43),
-                                 lambda c, s, t: hem(c, 0.016, 0.006, 0.95, 1.1) if region_of(s) == "torso" else 0.015)
+                                 lambda c, s, t: hem(c, 0.016, 0.006, 0.95, 1.1) if region_of(s) == "torso" else 0.015,
+                                drape_z=1.0)
     # Jackets (worn over a top)
     def jacket_keep(c, s, t, sleeves=True, gap=0.048, bottom=0.865):
         r = region_of(s)
@@ -897,7 +966,7 @@ def build_garments(body, cls, coll):
     # Legwear
     flare = lambda c, s, t, base, extra: base + (extra * leg_s(s, t) if region_of(s) == "leg" else 0.0)
     out["Pants_Long"] = garment("Pants_Long", body, cls, coll, lambda c, s, t: pants(c, s, t),
-                                lambda c, s, t: flare(c, s, t, 0.016, 0.022))
+                                lambda c, s, t: flare(c, s, t, 0.013, 0.03))
     out["Pants_Shorts"] = garment("Pants_Shorts", body, cls, coll, lambda c, s, t: pants(c, s, t, end=0.36),
                                   lambda c, s, t: flare(c, s, t, 0.014, 0.03))
     out["Pants_Cargo"] = garment("Pants_Cargo", body, cls, coll, lambda c, s, t: pants(c, s, t),
@@ -915,9 +984,9 @@ def build_head(coll):
     base = [v.co.copy() for v in ob.data.vertices]
 
     def shape(u, jaw=JAW, w=1.0, h=1.0):
-        taper = lerp(jaw, 1.0, smoothstep(-0.95, 0.25, u.z)) * head_fullness(u.z)
+        taper = lerp(jaw, 1.0, smoothstep(-0.95, 0.2, u.z)) * head_fullness(u.z)
         zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z)) * lerp(1.0, head_fullness(u.z), 0.6)
-        chin = 0.012 * smoothstep(-0.55, -0.95, u.z) * max(0.0, -u.y)   # chin pokes forward a bit
+        chin = 0.022 * smoothstep(-0.45, -0.95, u.z) * max(0.0, -u.y)   # chin pokes forward a bit
         return HEAD_C + Vector((u.x * HEAD_R.x * taper * w, u.y * HEAD_R.y * zt - chin, u.z * HEAD_R.z * h))
 
     for i, v in enumerate(ob.data.vertices):
@@ -931,7 +1000,7 @@ def build_head(coll):
     # Ears (separate so they can be swapped/edited)
     ears = []
     for sg in (1, -1):
-        e = ellipsoid("Ears" if sg > 0 else "EarR", head_point(90 * sg, -6, 0.93), Vector((0.017, 0.022, 0.031)), coll, 10, 6)
+        e = ellipsoid("Ears" if sg > 0 else "EarR", head_point(90 * sg, -2, 0.88), Vector((0.009, 0.015, 0.021)), coll, 10, 6)
         ears.append(e)
     ear = join(ears, "Ears")
     rigid(ear, "Head")
@@ -970,7 +1039,7 @@ def build_face(coll):
         rigid(parts["MouthCorner_" + s], "Mouth" + s)
     # Noses
     np_ = head_point(0, -14, 0.995)
-    noses = {"Nose_Round": (np_, Vector((0.012, 0.014, 0.012)), 0),
+    noses = {"Nose_Round": (np_ + Vector((0, 0.004, 0)), Vector((0.01, 0.011, 0.01)), 0),
              "Nose_Long": (np_ + Vector((0, -0.004, -0.008)), Vector((0.013, 0.024, 0.027)), -20),
              "Nose_Button": (np_ + Vector((0, 0.004, -0.01)), Vector((0.012, 0.013, 0.011)), 0),
              "Nose_Wide": (np_, Vector((0.024, 0.016, 0.016)), 0)}
@@ -1010,16 +1079,18 @@ def metaball_part(name, elements, coll, resolution=0.012, decimate=0.22, bone="H
     return mesh_ob
 
 
-def scalp_cover(front=40, side=8, back=-28, step_lon=20, step_lat=14, s=0.97, r=0.05, top_r=0.06):
+def scalp_cover(front=40, side=8, back=-28, step_lon=20, step_lat=14, s=0.97, r=0.05, top_r=0.06, back_from=115, back_to=115):
     els = []
     lat = -40
     while lat <= 90:
         lon = -180
         while lon < 180:
             a = abs(lon)
-            limit = front if a < 60 else (side if a < 115 else back)
-            if a >= 60 and a < 115:
+            limit = front if a < 60 else (side if a < back_from else back)
+            if a >= 60 and a < back_from:
                 limit = lerp(front, side, smoothstep(60, 80, a)) if a < 80 else side
+            if back_to > back_from and back_from <= a < back_to:
+                limit = lerp(side, back, smoothstep(back_from, back_to, a))
             if lat >= limit:
                 els.append({"co": head_point(lon, lat, s), "r": r if lat < 75 else top_r})
             lon += step_lon if lat < 80 else 60
@@ -1073,18 +1144,24 @@ def build_hair(coll, head):
     # Short wavy cut (default style): close on the sides, forehead free, volume + waves on top
     import random
     rnd = random.Random(7)
-    els = scalp_cover(front=48, side=14, back=-30, s=0.99, r=0.048, top_r=0.052)
+    els = scalp_cover(front=56, side=-8, back=-46, s=0.975, r=0.038, top_r=0.046, back_from=110, back_to=165, step_lat=9, step_lon=14)
     for k in range(34):
         lon = rnd.uniform(-165, 165)
         lat = rnd.uniform(46, 78)
-        if abs(lon) < 45 and lat < 56:
+        if (abs(lon) < 45 and lat < 62) or (abs(lon) < 120 and lat < 34):
             continue
-        els.append({"co": head_point(lon, lat, 1.08 + rnd.uniform(0.0, 0.04)), "r": rnd.uniform(0.034, 0.046)})
+        els.append({"co": head_point(lon, lat, 1.04 + rnd.uniform(0.0, 0.02)), "r": rnd.uniform(0.034, 0.04)})
+    for lon in range(100, 261, 16):                 # rounded back of the head, down to the nape
+        for lat in (-30, -15, 0, 15, 30, 45):
+            a = abs(((lon + 180) % 360) - 180)
+            if (a < 135 and lat < 0) or (a < 118 and lat < 30):
+                continue
+            els.append({"co": head_point(lon, lat, 1.03), "r": 0.044})
     for sg in (1, -1):                          # square-ish top corners
-        for lon in (55, 80, 105, 130):
-            els.append({"co": head_point(lon * sg, 62 + rnd.uniform(-3, 3), 1.1), "r": 0.042})
+        for lon in (50, 75, 100, 125, 150):
+            els.append({"co": head_point(lon * sg, 56 + rnd.uniform(-3, 3), 1.07), "r": 0.04})
     for lon in (-38, -20, -2, 16, 34):          # wavy front edge
-        els.append({"co": head_point(lon, 58 + rnd.uniform(-2, 3), 1.08), "r": 0.036})
+        els.append({"co": head_point(lon, 66 + rnd.uniform(-2, 3), 1.1), "r": 0.036})
     parts["Hair_Short"] = metaball_part("Hair_Short", els, coll, decimate=0.42)
     parts["Hair_Buzz"] = scalp_shell("Hair_Buzz", head, coll, front=44, side=6, back=-30, offset=0.005)
     els = scalp_cover(front=44, side=12, back=-26, s=1.0, r=0.05)
@@ -1224,7 +1301,7 @@ def sole_from_shoe(shoe, name, coll, height):
 def build_shoes(coll):
     parts = {}
     styles = {
-        "Shoes_Boots": {"shaft": 0.14, "rs": 0.066, "rh": (0.076, 0.08), "rb": (0.086, 0.074), "rt": (0.08, 0.066), "toe": 0.19, "h": 0.05, "sole": 0.024},
+        "Shoes_Boots": {"shaft": 0.15, "rs": 0.07, "rh": (0.076, 0.086), "rb": (0.084, 0.082), "rt": (0.078, 0.074), "toe": 0.19, "h": 0.058, "sole": 0.024},
         "Shoes_Sneakers": {"shaft": 0.11, "rs": 0.058, "rh": (0.066, 0.064), "rb": (0.076, 0.05), "rt": (0.07, 0.046), "toe": 0.19, "h": 0.054, "sole": 0.026},
         "Shoes_Dress": {"shaft": 0.1, "rs": 0.048, "rh": (0.054, 0.054), "rb": (0.058, 0.036), "rt": (0.044, 0.03), "toe": 0.2, "h": 0.042, "sole": 0.014},
     }
@@ -1549,6 +1626,21 @@ def build_set(lod):
     maps = bone_maps()
     for o in meshes:
         reproportion(o, maps)
+        hz = HEM_FINAL.get(o.name)
+        cz = COLLAR_FINAL.get(o.name)
+        if hz is not None or cz is not None:   # level hem / smooth neckline, cut in final space
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            if hz is not None:
+                bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, hz), plane_no=(0, 0, 1), clear_inner=True)
+            if cz is not None:
+                zf, zb = cz                    # front / back height of the neckline plane (Blender: front = -y)
+                bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, (zf + zb) / 2),
+                                       plane_no=Vector((0, -(zb - zf) / 0.16, 1.0)).normalized(), clear_outer=True)
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+            bm.to_mesh(o.data)
+            bm.free()
+            o.data.update()
     # feet grew: put every shoe (and its sole, same offset) back on the ground
     for o in meshes:
         if o.name.startswith("Shoes_") and not o.name.endswith("_Sole"):

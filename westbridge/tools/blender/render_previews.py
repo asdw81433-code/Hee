@@ -5,21 +5,21 @@ import os
 from mathutils import Matrix, Vector
 
 
-LID_REST_DEG = -38.0     # resting upper-lid angle (game: FaceRig closed 0.21 -> lid covers the top quarter)
+LID_REST_DEG = -20.0     # resting upper-lid angle (game: FaceRig closed 0.32 -> heavy lids)
 
 
 def srgb(c):
     return tuple(pow(max(0.0, x), 2.2) for x in c)
 
 
-SKIN_TONES = {"tan": (0.72, 0.5, 0.31), "light": (0.96, 0.8, 0.66), "brown": (0.62, 0.42, 0.28), "dark": (0.42, 0.27, 0.18), "pale": (0.98, 0.86, 0.74)}
+SKIN_TONES = {"tan": (0.66, 0.47, 0.28), "light": (0.96, 0.8, 0.66), "brown": (0.62, 0.42, 0.28), "dark": (0.42, 0.27, 0.18), "pale": (0.98, 0.86, 0.74)}
 FACE = ["HeadBase", "Ears", "EyeWhite_L", "EyeWhite_R", "Iris_L", "Iris_R", "Pupil_L", "Pupil_R", "Lid_L", "Lid_R",
         "LowerLid_L", "LowerLid_R", "Brow_L", "Brow_R", "MouthCenter", "MouthCorner_L", "MouthCorner_R"]
 
 # Original outfits made from the modular library.
 OUTFITS = {
-    "casual": {"skin": "tan", "nose": "Nose_Round", "hair": ("Hair_Short", (0.3, 0.16, 0.06)),
-               "parts": [("Top_TShirt", (0.16, 0.25, 0.56)), ("Pants_Long", (0.06, 0.08, 0.16)), ("Shoes_Boots", (0.36, 0.2, 0.1)), ("Shoes_Boots_Sole", (0.2, 0.12, 0.07))]},
+    "casual": {"skin": "tan", "nose": "Nose_Round", "hair": ("Hair_Short", (0.24, 0.12, 0.01)),
+               "parts": [("Top_TShirt", (0.13, 0.2, 0.42)), ("Pants_Long", (0.02, 0.04, 0.15)), ("Shoes_Boots", (0.28, 0.15, 0.06)), ("Shoes_Boots_Sole", (0.16, 0.09, 0.04))]},
     "gardener": {"skin": "light", "nose": "Nose_Long", "hair": None,
                  "parts": [("Top_ButtonShirt", (0.2, 0.72, 0.16)), ("Detail_Buttons", (0.08, 0.3, 0.06)), ("Detail_Collar", (0.22, 0.76, 0.18)),
                            ("Pants_Long", (0.2, 0.3, 0.55)), ("Shoes_Boots", (0.33, 0.2, 0.12)), ("Shoes_Boots_Sole", (0.18, 0.11, 0.07))]},
@@ -91,6 +91,7 @@ def instance(name, color, coll, xf, keys=None, rough=0.55, scale_local=None):
 
 
 A_POSE_DEG = 0.0          # arms swung out from the body (character-sheet A-pose); 0 = rest pose
+HAND_TWIST_DEG = 0.0     # in the A-pose the palms turn half-way forward, as on a character sheet
 
 
 def a_pose(ob, deg):
@@ -108,10 +109,17 @@ def a_pose(ob, deg):
     for side, sg in (("Left", 1), ("Right", -1)):     # shoulders follow half way
         p = arm.data.bones[side + "UpperArm"].head_local
         piv[side + "S"] = (Matrix.Translation(p) @ Matrix.Rotation(math.radians(-deg * 0.5 * sg), 4, "Y") @ Matrix.Translation(-p))
+        # hands: twist about the forearm axis first, then swing with the arm
+        h = arm.data.bones[side + "Hand"].head_local
+        e = arm.data.bones[side + "LowerArm"].head_local
+        tw = Matrix.Translation(h) @ Matrix.Rotation(math.radians(HAND_TWIST_DEG * sg), 4, (h - e).normalized()) @ Matrix.Translation(-h)
+        piv[side + "H"] = piv[side] @ tw
 
     def side_of(n):
         for side in ("Left", "Right"):
-            if n.startswith(side) and any(k in n for k in ("UpperArm", "LowerArm", "Hand")):
+            if n == side + "Hand":
+                return side + "H"
+            if n.startswith(side) and any(k in n for k in ("UpperArm", "LowerArm")):
                 return side
             if n == side + "Shoulder":
                 return side + "S"
@@ -206,7 +214,7 @@ def studio(scene, res=(480, 720), ortho=2.15, samples=32):
     nt = w.node_tree
     bg = nt.nodes["Background"]
     bg.inputs[0].default_value = (0.95, 0.95, 0.96, 1)
-    bg.inputs[1].default_value = 0.38
+    bg.inputs[1].default_value = 0.3
     if "CamBG" not in nt.nodes:
         # camera sees a light-grey backdrop, objects are lit by the dimmer environment
         cam_bg = nt.nodes.new("ShaderNodeBackground")
@@ -225,7 +233,7 @@ def studio(scene, res=(480, 720), ortho=2.15, samples=32):
         fl = bpy.context.view_layer.objects.active
         fl.name = "PrevFloor"
         fl.data.materials.append(mat((0.93, 0.93, 0.95), 0.8))
-        for name, loc, energy, size in (("Key", (2.6, -3.6, 3.4), 190, 3.0), ("Fill", (-3.2, -2.4, 2.2), 70, 4.0), ("Rim", (0.5, 3.5, 3.2), 140, 2.5)):
+        for name, loc, energy, size in (("Key", (2.6, -3.6, 3.4), 135, 3.0), ("Fill", (-3.2, -2.4, 2.2), 38, 4.0), ("Rim", (0.5, 3.5, 3.2), 110, 2.5)):
             ld = bpy.data.lights.new(name, "AREA")
             ld.energy = energy
             ld.size = size
@@ -271,7 +279,7 @@ def render_reference_views(out_dir):
     if coll.name not in scene.collection.children:
         scene.collection.children.link(coll)
     global A_POSE_DEG
-    A_POSE_DEG = 19.0
+    A_POSE_DEG = 17.0
     studio(scene, res=(720, 720), ortho=2.34)
     build_outfit("casual", coll, Matrix.Identity(4))
     for name, yaw in (("front", 0), ("back", 180), ("left", 90), ("right", -90)):
