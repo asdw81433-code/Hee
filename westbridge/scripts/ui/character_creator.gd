@@ -200,8 +200,6 @@ func _tab_face() -> void:
 	_slider("Eye spacing", "eye_spacing", 0.85, 1.15)
 	_colors("Eye color", "eye_color", CharacterAppearance.EYE_COLORS)
 	_opt("Brows", "brow_style", CharacterAppearance.BROW_STYLES)
-	_opt("Nose", "nose_shape", CharacterAppearance.NOSE_SHAPES)
-	_slider("Nose size", "nose_size", 0.6, 1.6)
 	_slider("Mouth width", "mouth_width", 0.7, 1.3)
 
 

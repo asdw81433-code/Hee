@@ -428,20 +428,7 @@ func _build_head() -> void:
 	for sgn in [1.0, -1.0]:
 		var ep := head_center + Vector3(head_radii.x * 0.93 * sgn, -0.015, -0.005)
 		mb.add_ellipsoid(Transform3D(Basis.IDENTITY, ep), Vector3(0.017, 0.031, 0.022), skin.darkened(0.05), hb, {"rings": 5, "segs": 8})
-	# Nose
-	var ns := a.nose_size
-	var nose_col := skin.darkened(0.04)
-	var np := head_center + Vector3(0, -0.04 * a.head_height, head_radii.z - 0.002)
-	match a.nose_shape:
-		0:
-			mb.add_ellipsoid(Transform3D(Basis.IDENTITY, np), Vector3(0.02, 0.022, 0.022) * ns, nose_col, hb, {"rings": 6, "segs": 9})
-		1:
-			mb.add_ellipsoid(Transform3D(Basis(Vector3(1, 0, 0), deg_to_rad(20)), np + Vector3(0, -0.008, 0.004)), Vector3(0.016, 0.034, 0.03) * ns, nose_col, hb, {"rings": 6, "segs": 9})
-		2:
-			mb.add_ellipsoid(Transform3D(Basis.IDENTITY, np + Vector3(0, -0.01, -0.004)), Vector3(0.015, 0.014, 0.017) * ns, nose_col, hb, {"rings": 5, "segs": 8})
-		_:
-			mb.add_ellipsoid(Transform3D(Basis.IDENTITY, np), Vector3(0.03, 0.02, 0.02) * ns, nose_col, hb, {"rings": 6, "segs": 9})
-
+	# No nose: matches the character style.
 
 func _build_face() -> void:
 	var es := a.eye_size

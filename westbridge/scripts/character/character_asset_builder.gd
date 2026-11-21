@@ -38,7 +38,7 @@ static func part_list(a: CharacterAppearance) -> Array:
 	L.append(["Body", skin, {}])
 	L.append(["HeadBase", skin, {}])
 	L.append(["Ears", skin.darkened(0.05), {}])
-	L.append([_pick(NOSE, a.nose_shape), skin.darkened(0.04), {"scale": a.nose_size}])
+	# Style: characters have no nose (nose_shape / nose_size are kept only for old saves).
 	for s in ["L", "R"]:
 		L.append(["EyeWhite_" + s, Color(0.96, 0.87, 0.85) if old else EYE_WHITE, {"eye": s}])
 		L.append(["Iris_" + s, a.eye_color.darkened(0.25), {"eye": s}])
