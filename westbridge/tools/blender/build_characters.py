@@ -10,9 +10,10 @@ Blender, rigs everything to one armature that uses the game's bone names
     assets/characters/renders/*.png                 <- preview renders (--render)
 
 Run:
-    blender -b -P tools/blender/build_characters.py -- [--render]
+    blender -b -P tools/blender/build_characters.py -- [--render] [--views]
 or with the bpy module:
-    python tools/blender/build_characters.py [--render]
+    python tools/blender/build_characters.py [--render] [--views]
+(--views = front/back/side/size turnaround in A-pose, used by make_sheets.py)
 
 Modelling techniques used: Skin modifier + Subdivision Surface for the body and
 shoes, deformed quad spheres for the head, Metaballs for organic hair/beards,
@@ -101,9 +102,135 @@ BONE_ORDER = ["Root", "Hips", "Spine", "Chest", "UpperChest", "Neck", "Head",
               "RightUpperLeg", "RightLowerLeg", "RightFoot", "RightToes",
               "EyeL", "EyeR", "LidL", "LidR", "BrowL", "BrowR", "Mouth", "MouthL", "MouthR"]
 
+# --------------------------------------------------------------------------- final proportions
+# Every part is modelled around JOINTS (the "build space" above) and then re-proportioned
+# to NEW_JOINTS through its own skin weights (reproportion()): short legs, long torso,
+# big round head, thick neck, chunky feet - the stylized look of the reference sheets.
+# NEW_JOINTS must stay identical to HumanoidDef.bone_list({}) in the game.
+NEW_JOINTS = {
+    "Root": (0, 0, 0), "Hips": (0, 0.77, 0), "Spine": (0, 0.89, 0), "Chest": (0, 1.03, 0),
+    "UpperChest": (0, 1.19, 0), "Neck": (0, 1.33, 0), "Head": (0, 1.385, 0),
+}
+for side, sg in (("Left", 1), ("Right", -1)):
+    NEW_JOINTS[side + "Shoulder"] = (0.04 * sg, 1.31, 0)
+    NEW_JOINTS[side + "UpperArm"] = (0.155 * sg, 1.265, 0)
+    NEW_JOINTS[side + "LowerArm"] = (0.155 * sg, 0.99, 0)
+    NEW_JOINTS[side + "Hand"] = (0.155 * sg, 0.76, 0)
+    NEW_JOINTS[side + "UpperLeg"] = (0.084 * sg, 0.71, 0)
+    NEW_JOINTS[side + "LowerLeg"] = (0.084 * sg, 0.40, 0)
+    NEW_JOINTS[side + "Foot"] = (0.084 * sg, 0.08, 0)
+    NEW_JOINTS[side + "Toes"] = (0.084 * sg, 0.025, 0.13)
+HEAD_SCALE = (1.12, 1.06, 1.06)     # head width / height / depth (Godot axes) - bigger, wider skull
+EYE_PUSH = 0.008                    # eyes sit a little further out of the face
+BROW_SCALE = (1.3, 1.6, 1.0)        # longer, thicker brows (Godot axes)
+EYE_SCALE = 0.95                    # eyeball size vs the build mesh (lids and lower lids follow)
+# Thickness across each bone (1 = unchanged), as (width, height, depth) in Godot axes,
+# and tips for the end bones (build -> final).
+BONE_K = {"Neck": (1.25, 1.25, 1.3), "Hips": (1.08, 1.0, 1.06), "Spine": (1.04, 1.0, 1.1), "Chest": (1.08, 1.0, 1.12),
+          "UpperChest": (1.08, 1.0, 1.08)}
+for side in ("Left", "Right"):
+    BONE_K.update({side + "UpperArm": (1.38, 1.38, 1.38), side + "LowerArm": (1.42, 1.42, 1.42),
+                   side + "UpperLeg": (1.06, 1.0, 1.0),
+                   side + "Hand": (1.45, 1.45, 1.45), side + "Foot": (1.72, 1.14, 1.14), side + "Toes": (1.72, 1.14, 1.14)})
+TIPS = {}
+for side, sg in (("Left", 1), ("Right", -1)):
+    TIPS[side + "Hand"] = ((0.18 * sg, 0.70, 0), (0.155 * sg, 0.61, 0))
+    TIPS[side + "Toes"] = ((0.09 * sg, 0.02, 0.18), (0.084 * sg, 0.025, 0.215))
+CHILD = {"Hips": "Spine", "Spine": "Chest", "Chest": "UpperChest", "UpperChest": "Neck", "Neck": "Head"}
+for side in ("Left", "Right"):
+    CHILD.update({side + "Shoulder": side + "UpperArm", side + "UpperArm": side + "LowerArm", side + "LowerArm": side + "Hand",
+                  side + "UpperLeg": side + "LowerLeg", side + "LowerLeg": side + "Foot", side + "Foot": side + "Toes"})
+
+
+def _head_map():
+    h, H = G(*JOINTS["Head"]), G(*NEW_JOINTS["Head"])
+    S = Matrix.Diagonal((HEAD_SCALE[0], HEAD_SCALE[2], HEAD_SCALE[1], 1.0))   # Blender x, y(depth), z(up)
+    return Matrix.Translation(H) @ S @ Matrix.Translation(-h)
+
+
+def bone_maps():
+    """Affine map (Blender space) per bone: build-space segment -> final segment."""
+    maps = {"Root": Matrix.Identity(4)}
+    for b in BONE_ORDER:
+        if b in maps:
+            continue
+        if b in CHILD or b in TIPS:
+            h, t = (G(*JOINTS[b]), G(*JOINTS[CHILD[b]])) if b in CHILD else (G(*JOINTS[b]), G(*TIPS[b][0]))
+            H, T = (G(*NEW_JOINTS[b]), G(*NEW_JOINTS[CHILD[b]])) if b in CHILD else (G(*NEW_JOINTS[b]), G(*TIPS[b][1]))
+            u = (t - h).normalized()
+            u2 = (T - H).normalized()
+            s = (T - H).length / (t - h).length
+            kx, ky, kz = BONE_K.get(b, (1.0, 1.0, 1.0))
+            K = Matrix.Diagonal((kx, kz, ky))            # Godot (w, h, d) -> Blender (x, y=depth, z=up)
+            outer = Matrix(((u.x * u.x, u.x * u.y, u.x * u.z), (u.y * u.x, u.y * u.y, u.y * u.z), (u.z * u.x, u.z * u.y, u.z * u.z)))
+            A = outer * s + K @ (Matrix.Identity(3) - outer)
+            R = u.rotation_difference(u2).to_matrix()
+            maps[b] = Matrix.Translation(H) @ (R @ A).to_4x4() @ Matrix.Translation(-h)
+    hm = _head_map()
+    maps["Head"] = hm
+    push = Matrix.Translation(G(0, 0, EYE_PUSH))
+    for s_ in ("L", "R"):
+        e = G(*JOINTS["Eye" + s_])
+        maps["Eye" + s_] = push @ Matrix.Translation(hm @ e) @ Matrix.Scale(EYE_SCALE, 4) @ Matrix.Translation(-e)
+        maps["Lid" + s_] = maps["Eye" + s_]
+        b = G(*JOINTS["Brow" + s_])
+        maps["Brow" + s_] = Matrix.Translation(hm @ b + G(0, 0, -0.008)) @ Matrix.Diagonal((BROW_SCALE[0], BROW_SCALE[2], BROW_SCALE[1], 1.0)) @ Matrix.Translation(-b)
+    for m in ("Mouth", "MouthL", "MouthR"):
+        p = G(*JOINTS[m])
+        maps[m] = Matrix.Translation(hm @ p - p + G(0, 0, -0.003))
+    maps["_HeadFace"] = push @ hm         # glasses: follow the head, stay in front of the eyes
+    return maps
+
+
+def final_joint(name):
+    """Final (game) position of a joint, Godot coordinates."""
+    if name in NEW_JOINTS:
+        return NEW_JOINTS[name]
+    v = bone_maps()[name] @ G(*JOINTS[name])
+    return (v.x, v.z, -v.y)
+
+
+# Objects whose rigid weight is "Head" but that must follow the eyeballs.
+MAP_OVERRIDE = {"LowerLid_L": "EyeL", "LowerLid_R": "EyeR"}
+
+
+def reproportion(ob, maps):
+    """Moves every vertex (and every shape key) from build space to the final proportions
+    by blending the per-bone affine maps with the vertex's own skin weights."""
+    me = ob.data
+    names = {g.index: g.name for g in ob.vertex_groups}
+    base = ob.name.replace("_LOD1", "")
+    forced = MAP_OVERRIDE.get(base) or ("_HeadFace" if base.startswith("Glasses") else None)
+    per_vertex = []
+    for v in me.vertices:
+        if forced:
+            per_vertex.append(maps[forced])
+            continue
+        ws = [(names[g.group], g.weight) for g in v.groups if g.weight > 0.0001 and names.get(g.group) in maps]
+        tot = sum(w for _, w in ws)
+        if tot <= 0:
+            per_vertex.append(Matrix.Identity(4))
+            continue
+        M = Matrix(((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0)))
+        for n_, w in ws:
+            M = M + maps[n_] * (w / tot)
+        per_vertex.append(M)
+    if me.shape_keys:
+        for kb in me.shape_keys.key_blocks:
+            for i, d in enumerate(kb.data):
+                d.co = per_vertex[i] @ d.co
+        basis = me.shape_keys.key_blocks[0].data
+        for i, v in enumerate(me.vertices):
+            v.co = basis[i].co.copy()
+    else:
+        for i, v in enumerate(me.vertices):
+            v.co = per_vertex[i] @ v.co
+    me.update()
+
+
 HEAD_C = G(0, HEAD[1] + 0.15, 0.005)            # centre of the head ellipsoid
 HEAD_R = Vector((0.118, 0.125, 0.168))          # x width, y depth, z height (Blender)
-JAW = 0.84
+JAW = 0.97
 
 
 # --------------------------------------------------------------------------- scene utils
@@ -241,12 +368,19 @@ def prim(kind, name, coll, loc=(0, 0, 0), scale=(1, 1, 1), rot=(0, 0, 0), **kw):
     return ob
 
 
+def head_fullness(uz):
+    """Superellipse skull: broad U-shaped jaw (n=2.8) and a fuller, squarer cranium (n=2.4)."""
+    n = 2.8 if uz < 0.0 else 2.4
+    a = min(abs(uz), 0.9999)
+    return min(1.6, (1.0 - a ** n) ** (1.0 / n) / math.sqrt(1.0 - a * a))
+
+
 def head_point(lon, lat, s=1.0):
     """Point on the (tapered) head surface; lon 0 = front, lat 90 = top."""
     la, lo = math.radians(lat), math.radians(lon)
     u = Vector((math.cos(la) * math.sin(lo), -math.cos(la) * math.cos(lo), math.sin(la)))
-    taper = lerp(JAW, 1.0, smoothstep(-0.95, 0.25, u.z))
-    zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z))
+    taper = lerp(JAW, 1.0, smoothstep(-0.95, 0.25, u.z)) * head_fullness(u.z)
+    zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z)) * lerp(1.0, head_fullness(u.z), 0.6)
     return HEAD_C + Vector((u.x * HEAD_R.x * taper * s, u.y * HEAD_R.y * zt * s, u.z * HEAD_R.z * s))
 
 
@@ -269,21 +403,21 @@ def body_graph(variant):
     node("hip", (0, 0.97, 0), (0.135, 0.100))
     node("waist", (0, 1.08, 0), (0.12, 0.092))
     node("chest", (0, 1.22, 0), (0.138, 0.10))
-    node("upper", (0, 1.33, 0), (0.152, 0.092))
-    node("nbase", (0, 1.415, 0), (0.078, 0.064))
-    node("neck", (0, 1.49, 0), (0.048, 0.047))
-    node("headb", (0, 1.59, 0), (0.046, 0.046))
+    node("upper", (0, 1.33, 0), (0.134, 0.092))
+    node("nbase", (0, 1.415, 0), (0.09, 0.074))
+    node("neck", (0, 1.49, 0), (0.07, 0.066))
+    node("headb", (0, 1.59, 0), (0.066, 0.062))
     chain("pelvis", "hip", "waist", "chest", "upper", "nbase", "neck", "headb")
     for s, sg in (("L", 1), ("R", -1)):
-        node("sh" + s, (0.125 * sg, 1.36, 0), (0.052, 0.05))
-        node("ua" + s, (0.18 * sg, 1.33, 0), (0.046, 0.044))
+        node("sh" + s, (0.125 * sg, 1.335, 0), (0.056, 0.054))      # sloping shoulders
+        node("ua" + s, (0.18 * sg, 1.305, 0), (0.046, 0.044))
         node("el" + s, (0.18 * sg, 1.10, 0), (0.033, 0.033))
         node("fa" + s, (0.18 * sg, 1.0, 0.0), (0.035, 0.033))
         node("wr" + s, (0.18 * sg, 0.86, 0), (0.025, 0.023))
         node("pa" + s, (0.182 * sg, 0.80, 0.0), (0.017, 0.031))
         chain("upper", "sh" + s, "ua" + s, "el" + s, "fa" + s, "wr" + s, "pa" + s)
         # four fingers (curled slightly forward) + thumb
-        for k, (fz, ln, rr) in enumerate(((0.021, 0.07, 0.0085), (0.007, 0.078, 0.009), (-0.007, 0.074, 0.0088), (-0.02, 0.058, 0.008))):
+        for k, (fz, ln, rr) in enumerate(((0.021, 0.068, 0.0118), (0.007, 0.075, 0.0124), (-0.007, 0.071, 0.0121), (-0.02, 0.056, 0.011))):
             b0 = "fb%d%s" % (k, s)
             b1 = "fm%d%s" % (k, s)
             b2 = "ft%d%s" % (k, s)
@@ -291,8 +425,8 @@ def body_graph(variant):
             node(b1, (0.181 * sg, 0.778 - ln * 0.5, fz + 0.004), (rr * 0.95, rr * 0.95))
             node(b2, (0.178 * sg, 0.778 - ln, fz + 0.011), (rr * 0.8, rr * 0.8))
             chain("pa" + s, b0, b1, b2)
-        node("th" + s, (0.17 * sg, 0.83, 0.03), (0.011, 0.011))
-        node("tt" + s, (0.164 * sg, 0.79, 0.046), (0.009, 0.009))
+        node("th" + s, (0.17 * sg, 0.83, 0.03), (0.014, 0.014))
+        node("tt" + s, (0.164 * sg, 0.79, 0.046), (0.012, 0.012))
         e.append(("wr" + s, "th" + s))
         e.append(("th" + s, "tt" + s))
         node("hj" + s, (0.09 * sg, 0.86, 0), (0.068, 0.068))
@@ -364,7 +498,7 @@ def build_body(coll):
     vg = body.vertex_groups.new(name="_HandDecimate")
     vg.add(hand_v, 1.0, "REPLACE")
     dec = body.modifiers.new("HandDec", "DECIMATE")
-    dec.ratio = (total_f - hand_f + hand_f * (0.2 if LOD == 0 else 0.1)) / total_f
+    dec.ratio = (total_f - hand_f + hand_f * (0.42 if LOD == 0 else 0.12)) / total_f
     dec.vertex_group = vg.name
     dec.vertex_group_factor = 10.0
     apply_modifiers(body)
@@ -451,7 +585,83 @@ def classify_body(body, nodes, edges):
             if best is None or d < best[0]:
                 best = (d, a + "-" + b, t)
         out.append((best[1], best[2]))
-    return out
+    return fix_limb_islands(body, out, segs)
+
+
+def limb_of(seg):
+    """'armL' / 'armR' / 'legL' / 'legR' / 'torso' for a skin-graph segment."""
+    b = seg.split("-")[1]
+    if b[:2] in ("sh", "ua", "el", "fa", "wr", "pa", "fb", "fm", "ft", "th", "tt"):
+        return "arm" + b[-1]
+    if b[:2] in ("hj", "kn", "ca", "an", "ba", "to"):
+        return "leg" + b[-1]
+    return "torso"
+
+
+def fix_limb_islands(body, cls, segs):
+    """Nearest-segment classification can put fingertips on the thigh or the inner arm on
+    the torso. Every limb label must form ONE connected patch: smaller islands are given
+    to the label that surrounds them (nearest segment of that limb)."""
+    me = body.data
+    nv = len(me.vertices)
+    adj = [[] for _ in range(nv)]
+    for e in me.edges:
+        a, b = e.vertices
+        adj[a].append(b)
+        adj[b].append(a)
+    label = [limb_of(c[0]) for c in cls]
+    for _ in range(4):
+        seen = [False] * nv
+        comps = []
+        for i in range(nv):
+            if seen[i]:
+                continue
+            stack, comp = [i], []
+            seen[i] = True
+            while stack:
+                v = stack.pop()
+                comp.append(v)
+                for w in adj[v]:
+                    if not seen[w] and label[w] == label[i]:
+                        seen[w] = True
+                        stack.append(w)
+            comps.append((label[i], comp))
+        biggest = {}
+        for lab, comp in comps:
+            if len(comp) > len(biggest.get(lab, [])):
+                biggest[lab] = comp
+        changed = 0
+        for lab, comp in comps:
+            if comp is biggest[lab]:
+                continue
+            inside = set(comp)
+            votes = {}
+            for v in comp:
+                for w in adj[v]:
+                    if w not in inside:
+                        votes[label[w]] = votes.get(label[w], 0) + 1
+            if not votes:
+                continue
+            new = max(votes, key=votes.get)
+            for v in comp:
+                co = me.vertices[v].co
+                best = None
+                for a, b_, pa, pb, ra, rb in segs:
+                    if limb_of(a + "-" + b_) != new:
+                        continue
+                    ab = pb - pa
+                    t = max(0.0, min(1.0, (co - pa).dot(ab) / max(ab.length_squared, 1e-9)))
+                    d = (co - (pa + ab * t)).length / max(lerp(ra, rb, t), 0.005)
+                    if best is None or d < best[0]:
+                        best = (d, a + "-" + b_, t)
+                if best:
+                    cls[v] = (best[1], best[2])
+                    label[v] = new
+                    changed += 1
+        if changed == 0:
+            break
+        print("LIMB islands fixed: %d vertices" % changed)
+    return cls
 
 
 def side_of(seg):
@@ -626,10 +836,10 @@ def build_garments(body, cls, coll):
     """All fitted clothing. Returns {name: object}."""
     def torso_top(co, seg, t, bottom=0.93, sleeve=0.3, neck_open=1.405):
         r = region_of(seg)
-        if r == "torso":
-            return bottom <= co.z <= neck_open
+        if r == "torso" or r == "neck":          # crew necks reach up onto the neck base, dipping at the front
+            return bottom <= co.z <= neck_open - 0.016 * smoothstep(0.0, 0.08, -co.y) - 0.3 * max(0.0, abs(co.x) - 0.045)
         if r == "shoulder":
-            return True
+            return co.z <= neck_open
         if r == "arm":
             return arm_s(seg, t) < sleeve
         return False
@@ -646,14 +856,15 @@ def build_garments(body, cls, coll):
 
     out = {}
     hem = lambda co, base, extra, z0=0.93, z1=1.12: base + extra * (1.0 - smoothstep(z0, z1, co.z))
-    out["Top_TShirt"] = garment("Top_TShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.32),
-                                lambda c, s, t: hem(c, 0.014, 0.016) if region_of(s) == "torso" else (0.012 + 0.03 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.014))
+    boxy = lambda c, base, extra: base + extra * (1.0 - smoothstep(0.93, 1.32, c.z))     # loose, trapezoid shirt body
+    out["Top_TShirt"] = garment("Top_TShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.4, neck_open=1.44),
+                                lambda c, s, t: boxy(c, 0.03, 0.015) if region_of(s) in ("torso", "neck") else (0.02 + 0.016 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.02))
     out["Top_LongSleeve"] = garment("Top_LongSleeve", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.95),
                                     lambda c, s, t: hem(c, 0.010, 0.008) if region_of(s) == "torso" else 0.009)
     out["Top_ButtonShirt"] = garment("Top_ButtonShirt", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.95, neck_open=1.415),
                                      lambda c, s, t: hem(c, 0.011, 0.01) if region_of(s) == "torso" else 0.011)
-    out["Top_Polo"] = garment("Top_Polo", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.26, neck_open=1.415),
-                              lambda c, s, t: hem(c, 0.011, 0.01) if region_of(s) == "torso" else 0.013)
+    out["Top_Polo"] = garment("Top_Polo", body, cls, coll, lambda c, s, t: torso_top(c, s, t, sleeve=0.36, neck_open=1.425),
+                              lambda c, s, t: boxy(c, 0.016, 0.04) if region_of(s) == "torso" else (0.018 + 0.05 * max(0.0, arm_s(s, t)) if region_of(s) == "arm" else 0.018))
     out["Top_Tank"] = garment("Top_Tank", body, cls, coll,
                               lambda c, s, t: region_of(s) == "torso" and 0.975 <= c.z <= 1.39 and not (c.z > 1.3 and abs(c.x) > 0.075),
                               lambda c, s, t: hem(c, 0.008, 0.008))
@@ -686,7 +897,7 @@ def build_garments(body, cls, coll):
     # Legwear
     flare = lambda c, s, t, base, extra: base + (extra * leg_s(s, t) if region_of(s) == "leg" else 0.0)
     out["Pants_Long"] = garment("Pants_Long", body, cls, coll, lambda c, s, t: pants(c, s, t),
-                                lambda c, s, t: flare(c, s, t, 0.012, 0.02))
+                                lambda c, s, t: flare(c, s, t, 0.016, 0.022))
     out["Pants_Shorts"] = garment("Pants_Shorts", body, cls, coll, lambda c, s, t: pants(c, s, t, end=0.36),
                                   lambda c, s, t: flare(c, s, t, 0.014, 0.03))
     out["Pants_Cargo"] = garment("Pants_Cargo", body, cls, coll, lambda c, s, t: pants(c, s, t),
@@ -704,8 +915,8 @@ def build_head(coll):
     base = [v.co.copy() for v in ob.data.vertices]
 
     def shape(u, jaw=JAW, w=1.0, h=1.0):
-        taper = lerp(jaw, 1.0, smoothstep(-0.95, 0.25, u.z))
-        zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z))
+        taper = lerp(jaw, 1.0, smoothstep(-0.95, 0.25, u.z)) * head_fullness(u.z)
+        zt = lerp(0.9, 1.0, smoothstep(-0.95, 0.2, u.z)) * lerp(1.0, head_fullness(u.z), 0.6)
         chin = 0.012 * smoothstep(-0.55, -0.95, u.z) * max(0.0, -u.y)   # chin pokes forward a bit
         return HEAD_C + Vector((u.x * HEAD_R.x * taper * w, u.y * HEAD_R.y * zt - chin, u.z * HEAD_R.z * h))
 
@@ -740,25 +951,29 @@ def build_face(coll):
             rigid(parts[p + s], "Eye" + s)
         parts["Lid_" + s] = ellipsoid("Lid_" + s, ep, Vector((r * 1.07, r * 1.03, r * 1.07)), coll, 16, 6, lat=(0, 90))
         rigid(parts["Lid_" + s], "Lid" + s)
-        parts["LowerLid_" + s] = ellipsoid("LowerLid_" + s, ep, Vector((r * 1.05, r * 1.02, r * 1.05)), coll, 16, 3, lat=(-90, -58))
+        parts["LowerLid_" + s] = ellipsoid("LowerLid_" + s, ep, Vector((r * 1.04, r * 1.02, r * 1.04)), coll, 16, 3, lat=(-90, -74))
         rigid(parts["LowerLid_" + s], "Head")
         sg = 1 if s == "L" else -1
-        rot = Matrix.Rotation(math.radians(-16 * sg), 3, "Z") @ Matrix.Rotation(math.radians(8 * sg), 3, "Y")
+        rot = Matrix.Rotation(math.radians(-16 * sg), 3, "Z")       # level
         parts["Brow_" + s] = ellipsoid("Brow_" + s, G(*JOINTS["Brow" + s]) + Vector((0, 0, 0.004)), Vector((0.03, 0.009, 0.0085)), coll, 12, 6, rot=rot)
+        bc = sum((v.co for v in parts["Brow_" + s].data.vertices), Vector()) / len(parts["Brow_" + s].data.vertices)
+        for v in parts["Brow_" + s].data.vertices:                    # bend into a soft arch
+            d = (v.co.x - bc.x) / 0.03
+            v.co.z += 0.007 * (1.0 - min(1.0, d * d))
         rigid(parts["Brow_" + s], "Brow" + s)
     mp = G(*JOINTS["Mouth"])
-    parts["MouthCenter"] = ellipsoid("MouthCenter", mp, Vector((0.021, 0.006, 0.0042)), coll, 10, 6)
+    parts["MouthCenter"] = ellipsoid("MouthCenter", mp, Vector((0.017, 0.006, 0.0042)), coll, 10, 6)
     rigid(parts["MouthCenter"], "Mouth")
     for s, sg in (("L", 1), ("R", -1)):
-        c = G(*JOINTS["Mouth" + s]) + Vector((0.004 * sg, 0, 0))
-        parts["MouthCorner_" + s] = ellipsoid("MouthCorner_" + s, c, Vector((0.012, 0.0055, 0.0036)), coll, 8, 5)
+        c = G(*JOINTS["Mouth" + s]) + Vector((-0.003 * sg, 0, 0))
+        parts["MouthCorner_" + s] = ellipsoid("MouthCorner_" + s, c, Vector((0.009, 0.0055, 0.0036)), coll, 8, 5)
         rigid(parts["MouthCorner_" + s], "Mouth" + s)
     # Noses
     np_ = head_point(0, -14, 0.995)
-    noses = {"Nose_Round": (np_, Vector((0.02, 0.022, 0.022)), 0),
-             "Nose_Long": (np_ + Vector((0, -0.004, -0.008)), Vector((0.016, 0.03, 0.034)), -20),
-             "Nose_Button": (np_ + Vector((0, 0.004, -0.01)), Vector((0.015, 0.017, 0.014)), 0),
-             "Nose_Wide": (np_, Vector((0.03, 0.02, 0.02)), 0)}
+    noses = {"Nose_Round": (np_, Vector((0.012, 0.014, 0.012)), 0),
+             "Nose_Long": (np_ + Vector((0, -0.004, -0.008)), Vector((0.013, 0.024, 0.027)), -20),
+             "Nose_Button": (np_ + Vector((0, 0.004, -0.01)), Vector((0.012, 0.013, 0.011)), 0),
+             "Nose_Wide": (np_, Vector((0.024, 0.016, 0.016)), 0)}
     for name, (p, rr, tilt) in noses.items():
         parts[name] = ellipsoid(name, p, rr, coll, 12, 8, rot=Matrix.Rotation(math.radians(tilt), 3, "X"))
         rigid(parts[name], "Head")
@@ -855,21 +1070,22 @@ def scalp_shell(name, head, coll, front, side, back, offset):
 
 def build_hair(coll, head):
     parts = {}
-    # Wavy short volume like the reference (default style): base volume + wave lumps
+    # Short wavy cut (default style): close on the sides, forehead free, volume + waves on top
     import random
     rnd = random.Random(7)
-    els = scalp_cover(front=40, side=4, back=-34, s=1.0, r=0.054)
-    for k in range(26):
-        lon = rnd.uniform(-150, 150)
-        lat = rnd.uniform(46, 86)
-        if abs(lon) < 50 and lat < 52:
+    els = scalp_cover(front=48, side=14, back=-30, s=0.99, r=0.048, top_r=0.052)
+    for k in range(34):
+        lon = rnd.uniform(-165, 165)
+        lat = rnd.uniform(46, 78)
+        if abs(lon) < 45 and lat < 56:
             continue
-        els.append({"co": head_point(lon, lat, 1.1 + rnd.uniform(0.0, 0.05)), "r": rnd.uniform(0.032, 0.045)})
-    for lon in (-34, -16, 2, 20, 36):
-        els.append({"co": head_point(lon, 57 + rnd.uniform(-3, 3), 1.1), "r": 0.04})
-    for sg in (1, -1):
-        els.append({"co": head_point(84 * sg, 12, 1.0), "r": 0.03})
-    parts["Hair_Short"] = metaball_part("Hair_Short", els, coll)
+        els.append({"co": head_point(lon, lat, 1.08 + rnd.uniform(0.0, 0.04)), "r": rnd.uniform(0.034, 0.046)})
+    for sg in (1, -1):                          # square-ish top corners
+        for lon in (55, 80, 105, 130):
+            els.append({"co": head_point(lon * sg, 62 + rnd.uniform(-3, 3), 1.1), "r": 0.042})
+    for lon in (-38, -20, -2, 16, 34):          # wavy front edge
+        els.append({"co": head_point(lon, 58 + rnd.uniform(-2, 3), 1.08), "r": 0.036})
+    parts["Hair_Short"] = metaball_part("Hair_Short", els, coll, decimate=0.42)
     parts["Hair_Buzz"] = scalp_shell("Hair_Buzz", head, coll, front=44, side=6, back=-30, offset=0.005)
     els = scalp_cover(front=44, side=12, back=-26, s=1.0, r=0.05)
     for k in range(9):
@@ -1008,8 +1224,8 @@ def sole_from_shoe(shoe, name, coll, height):
 def build_shoes(coll):
     parts = {}
     styles = {
-        "Shoes_Boots": {"shaft": 0.15, "rs": 0.06, "rh": (0.068, 0.07), "rb": (0.078, 0.052), "rt": (0.072, 0.048), "toe": 0.19, "h": 0.06, "sole": 0.024},
-        "Shoes_Sneakers": {"shaft": 0.11, "rs": 0.052, "rh": (0.06, 0.06), "rb": (0.068, 0.044), "rt": (0.062, 0.04), "toe": 0.185, "h": 0.05, "sole": 0.026},
+        "Shoes_Boots": {"shaft": 0.14, "rs": 0.066, "rh": (0.076, 0.08), "rb": (0.086, 0.074), "rt": (0.08, 0.066), "toe": 0.19, "h": 0.05, "sole": 0.024},
+        "Shoes_Sneakers": {"shaft": 0.11, "rs": 0.058, "rh": (0.066, 0.064), "rb": (0.076, 0.05), "rt": (0.07, 0.046), "toe": 0.19, "h": 0.054, "sole": 0.026},
         "Shoes_Dress": {"shaft": 0.1, "rs": 0.048, "rh": (0.054, 0.054), "rb": (0.058, 0.036), "rt": (0.044, 0.03), "toe": 0.2, "h": 0.042, "sole": 0.014},
     }
     for name, st in styles.items():
@@ -1211,7 +1427,7 @@ def build_armature(coll):
         children.setdefault(p, []).append(b)
     for name in BONE_ORDER:
         bone = eb.new(name)
-        head = G(*JOINTS[name])
+        head = G(*final_joint(name))
         bone.head = head
         kids = [k for k in children.get(name, []) if not k.startswith(("Eye", "Lid", "Brow", "Mouth"))]
         main = None
@@ -1219,8 +1435,8 @@ def build_armature(coll):
             main = "Spine"
         elif kids:
             main = kids[0]
-        if main and (G(*JOINTS[main]) - head).length > 0.02:
-            bone.tail = G(*JOINTS[main])
+        if main and (G(*final_joint(main)) - head).length > 0.02:
+            bone.tail = G(*final_joint(main))
         elif name in ("EyeL", "EyeR", "LidL", "LidR", "BrowL", "BrowR", "Mouth", "MouthL", "MouthR"):
             bone.tail = head + Vector((0, -0.025, 0))
         elif name == "Head":
@@ -1330,6 +1546,17 @@ def build_set(lod):
             cols[dst].objects.link(ob)
     cover_mask(body, cls)
     meshes = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    maps = bone_maps()
+    for o in meshes:
+        reproportion(o, maps)
+    # feet grew: put every shoe (and its sole, same offset) back on the ground
+    for o in meshes:
+        if o.name.startswith("Shoes_") and not o.name.endswith("_Sole"):
+            dz = -min((o.matrix_world @ v.co).z for v in o.data.vertices)
+            for t in [o] + [x for x in meshes if x.name == o.name + "_Sole"]:
+                for v in t.data.vertices:
+                    v.co.z += dz
+                t.data.update()
     # Polygon budget: rigid parts (no shape keys) are decimated - capped at LOD0, reduced at LOD1.
     for o in list(meshes):
         if lod > 0 and o.name.startswith(LOD1_SKIP):
@@ -1395,6 +1622,9 @@ def main():
     if RENDER:
         import render_previews
         render_previews.render_all(REN_DIR, quick="--quick" in ARGS)
+    if "--views" in ARGS:
+        import render_previews
+        render_previews.render_reference_views(REN_DIR)
 
 
 if __name__ == "__main__":

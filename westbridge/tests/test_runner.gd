@@ -198,7 +198,7 @@ func test_character_asset() -> void:
 	var m := CharacterModel.new()
 	add_child(m)
 	m.build(CharacterAppearance.new())
-	var used_asset := m.uses_asset and m.skeleton.get_bone_count() == ref.size() and absf(m.hips_height - 0.94) < 0.01
+	var used_asset := m.uses_asset and m.skeleton.get_bone_count() == ref.size() and absf(m.hips_height - (ref["Hips"] as Vector3).y) < 0.01
 	CharacterModel.force_procedural = true
 	m.build(CharacterAppearance.new())
 	var fell_back := not m.uses_asset and m.mesh_instance.mesh != null

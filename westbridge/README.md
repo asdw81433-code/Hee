@@ -46,6 +46,8 @@
   - `assets/characters/westbridge_characters.glb` โหลดเข้าเกม (88 ชิ้น + ชุด LOD1 อีก 79 ชิ้น)
   - `assets/characters/source/westbridge_characters.blend` เปิดใน Blender เพื่อปั้น/แก้ต่อได้ แต่ละชิ้นเป็น object แยก
   - `assets/characters/renders/sheet_*.png` แผ่นรวมภาพเรนเดอร์: turnaround หน้า/ข้าง/หลัง, เทียบขนาด, shape keys, ชุด 8 แบบ, ทรงผม/เครา/หมวก (ภาพแยกแต่ละมุมสร้างใหม่ได้ด้วย `--render` แล้วตามด้วย `python tools/blender/make_sheets.py`)
+- สัดส่วนแบบ stylized ตามชีตอ้างอิง: หัวใหญ่ทรงสี่เหลี่ยมมน, ตาโตยื่นมีเปลือกตาบนปิดราว 1/4, คิ้วหนา, จมูกเล็ก, คอหนาสั้น, ตัวยาว ขาสั้น (สะโพก 0.77 ม.), เสื้อยืดทรงกล่อง, บูตอ้วน
+  ทุกชิ้นปั้นใน "build space" แล้วแปลงไปยังโครงกระดูกสุดท้าย (`NEW_JOINTS`) ด้วยน้ำหนักกระดูกของชิ้นนั้นเอง (`reproportion()`) จึงปรับสัดส่วนทั้งชุดได้จากตารางเดียว และ `HumanoidDef` ในเกมใช้ตำแหน่งเดียวกัน
 - Shape keys: Female / Heavy / Thin / Muscular (ตัว) และ HeadWide / HeadLong / JawWide / JawNarrow (หัว) ผูกกับแถบเลื่อนใน Character Creator
 - ในเกม `CharacterAssetBuilder` จะเลือกชิ้นตามหน้าตาที่ตั้งไว้ อบ shape key ใส่สี แล้วรวมเป็น **skinned mesh เดียว = 1 draw call** ใช้ skeleton เดียวกับเดิม ทำให้ Animation, FaceRig, ragdoll และ balance ทำงานได้โดยไม่ต้องแก้
 - ประหยัดสำหรับมือถือ: ผิวส่วนที่ถูกเสื้อผ้าบังจะถูกตัดทิ้ง (hidden-surface removal) และ NPC ที่อยู่ไกลใช้ชุด LOD1 ที่ปั้นมาจาก Blender เอง (~7.5–9.4k สามเหลี่ยมเมื่ออยู่ใกล้ / ~2.8–3.6k เมื่ออยู่ไกล)

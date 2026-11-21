@@ -9,6 +9,7 @@ extends RefCounted
 ##   legs/arms: negative X rotation swings the limb forward
 ##   spine:     positive X rotation leans the torso forward
 
+## Hip height the animation clips were authored for (motion_scale = hips / this).
 const BASE_HIPS_HEIGHT := 0.94
 
 ## Upper-body bones (used for layered animation filters).
@@ -35,38 +36,40 @@ static func bone_list(dims: Dictionary) -> Array:
 	var hp: float = dims.get("hips", 1.0)
 	var nk: float = dims.get("neck", 1.0) * h
 	var hd: float = dims.get("head", 1.0)
-	var hips_y := 0.07 * h + 0.40 * leg + 0.41 * leg + 0.06 * h
+	# Stylized proportions (same as the Blender character asset, NEW_JOINTS in
+	# tools/blender/build_characters.py): short legs, long torso, big head.
+	var hips_y := 0.08 * h + 0.32 * leg + 0.31 * leg + 0.06 * h
 	var b: Array = []
 	b.append({"name": "Root", "parent": "", "pos": Vector3.ZERO})
 	b.append({"name": "Hips", "parent": "Root", "pos": Vector3(0, hips_y, 0)})
-	b.append({"name": "Spine", "parent": "Hips", "pos": Vector3(0, 0.10 * tor, 0)})
-	b.append({"name": "Chest", "parent": "Spine", "pos": Vector3(0, 0.12 * tor, 0)})
-	b.append({"name": "UpperChest", "parent": "Chest", "pos": Vector3(0, 0.12 * tor, 0)})
-	b.append({"name": "Neck", "parent": "UpperChest", "pos": Vector3(0, 0.15 * tor, 0)})
-	b.append({"name": "Head", "parent": "Neck", "pos": Vector3(0, 0.10 * nk, 0)})
+	b.append({"name": "Spine", "parent": "Hips", "pos": Vector3(0, 0.12 * tor, 0)})
+	b.append({"name": "Chest", "parent": "Spine", "pos": Vector3(0, 0.14 * tor, 0)})
+	b.append({"name": "UpperChest", "parent": "Chest", "pos": Vector3(0, 0.16 * tor, 0)})
+	b.append({"name": "Neck", "parent": "UpperChest", "pos": Vector3(0, 0.14 * tor, 0)})
+	b.append({"name": "Head", "parent": "Neck", "pos": Vector3(0, 0.055 * nk, 0)})
 	for side in [1.0, -1.0]:
 		var p := "Left" if side > 0.0 else "Right"
-		b.append({"name": p + "Shoulder", "parent": "UpperChest", "pos": Vector3(0.04 * side, 0.11 * tor, 0)})
-		b.append({"name": p + "UpperArm", "parent": p + "Shoulder", "pos": Vector3(0.14 * sh * side * h, -0.02 * h, 0)})
-		b.append({"name": p + "LowerArm", "parent": p + "UpperArm", "pos": Vector3(0, -0.27 * arm, 0)})
-		b.append({"name": p + "Hand", "parent": p + "LowerArm", "pos": Vector3(0, -0.25 * arm, 0)})
+		b.append({"name": p + "Shoulder", "parent": "UpperChest", "pos": Vector3(0.04 * side, 0.12 * tor, 0)})
+		b.append({"name": p + "UpperArm", "parent": p + "Shoulder", "pos": Vector3(0.115 * sh * side * h, -0.045 * h, 0)})
+		b.append({"name": p + "LowerArm", "parent": p + "UpperArm", "pos": Vector3(0, -0.275 * arm, 0)})
+		b.append({"name": p + "Hand", "parent": p + "LowerArm", "pos": Vector3(0, -0.23 * arm, 0)})
 	for side in [1.0, -1.0]:
 		var p := "Left" if side > 0.0 else "Right"
-		b.append({"name": p + "UpperLeg", "parent": "Hips", "pos": Vector3(0.09 * hp * side * h, -0.06 * h, 0)})
-		b.append({"name": p + "LowerLeg", "parent": p + "UpperLeg", "pos": Vector3(0, -0.41 * leg, 0)})
-		b.append({"name": p + "Foot", "parent": p + "LowerLeg", "pos": Vector3(0, -0.40 * leg, 0)})
-		b.append({"name": p + "Toes", "parent": p + "Foot", "pos": Vector3(0, -0.05 * h, 0.11 * h)})
+		b.append({"name": p + "UpperLeg", "parent": "Hips", "pos": Vector3(0.084 * hp * side * h, -0.06 * h, 0)})
+		b.append({"name": p + "LowerLeg", "parent": p + "UpperLeg", "pos": Vector3(0, -0.31 * leg, 0)})
+		b.append({"name": p + "Foot", "parent": p + "LowerLeg", "pos": Vector3(0, -0.32 * leg, 0)})
+		b.append({"name": p + "Toes", "parent": p + "Foot", "pos": Vector3(0, -0.055 * h, 0.13 * h)})
 	# Face rig (children of Head). Positions are relative to the head joint.
 	var eye_sp: float = dims.get("eye_spacing", 1.0)
-	b.append({"name": "EyeL", "parent": "Head", "pos": Vector3(0.052 * eye_sp, 0.165, 0.098) * hd})
-	b.append({"name": "EyeR", "parent": "Head", "pos": Vector3(-0.052 * eye_sp, 0.165, 0.098) * hd})
-	b.append({"name": "LidL", "parent": "Head", "pos": Vector3(0.052 * eye_sp, 0.165, 0.098) * hd})
-	b.append({"name": "LidR", "parent": "Head", "pos": Vector3(-0.052 * eye_sp, 0.165, 0.098) * hd})
-	b.append({"name": "BrowL", "parent": "Head", "pos": Vector3(0.056 * eye_sp, 0.228, 0.112) * hd})
-	b.append({"name": "BrowR", "parent": "Head", "pos": Vector3(-0.056 * eye_sp, 0.228, 0.112) * hd})
-	b.append({"name": "Mouth", "parent": "Head", "pos": Vector3(0, 0.062, 0.118) * hd})
-	b.append({"name": "MouthL", "parent": "Mouth", "pos": Vector3(0.022, 0, -0.002) * hd})
-	b.append({"name": "MouthR", "parent": "Mouth", "pos": Vector3(-0.022, 0, -0.002) * hd})
+	b.append({"name": "EyeL", "parent": "Head", "pos": Vector3(0.0582 * eye_sp, 0.1749, 0.1119) * hd})
+	b.append({"name": "EyeR", "parent": "Head", "pos": Vector3(-0.0582 * eye_sp, 0.1749, 0.1119) * hd})
+	b.append({"name": "LidL", "parent": "Head", "pos": Vector3(0.0582 * eye_sp, 0.1749, 0.1119) * hd})
+	b.append({"name": "LidR", "parent": "Head", "pos": Vector3(-0.0582 * eye_sp, 0.1749, 0.1119) * hd})
+	b.append({"name": "BrowL", "parent": "Head", "pos": Vector3(0.0627 * eye_sp, 0.2417, 0.1107) * hd})
+	b.append({"name": "BrowR", "parent": "Head", "pos": Vector3(-0.0627 * eye_sp, 0.2417, 0.1107) * hd})
+	b.append({"name": "Mouth", "parent": "Head", "pos": Vector3(0, 0.0657, 0.1221) * hd})
+	b.append({"name": "MouthL", "parent": "Mouth", "pos": Vector3(0.0246, 0, -0.0021) * hd})
+	b.append({"name": "MouthR", "parent": "Mouth", "pos": Vector3(-0.0246, 0, -0.0021) * hd})
 	return b
 
 

@@ -32,6 +32,7 @@ var _speed: float = 0.0
 var _gait: float = 0.0
 var _injury: float = 0.0
 var cadence_scale: float = 1.0   ## emotion/fatigue tweak of stride frequency
+var stride_scale: float = 1.0    ## body proportion: shorter legs -> quicker steps (set by CharacterModel)
 
 
 func setup() -> void:
@@ -245,7 +246,7 @@ func _process(delta: float) -> void:
 	set("parameters/loco_bs/blend_position", _gait)
 	set("parameters/inj_bs/blend_position", clampf(_speed / 1.2, 0.0, 1.0))
 	set("parameters/inj/blend_amount", _injury)
-	set("parameters/loco_ts/scale", target.y * cadence_scale * lerpf(1.0, 0.85, _injury))
+	set("parameters/loco_ts/scale", target.y * cadence_scale * stride_scale * lerpf(1.0, 0.85, _injury))
 	set("parameters/crouch_bs/blend_position", clampf(_speed / 1.5, 0.0, 1.0))
 	set("parameters/crouch_bs/blend_position", clampf(_speed / 1.5, 0.0, 1.0))
 	_hold_amount = move_toward(_hold_amount, _hold_target, delta * 4.0)

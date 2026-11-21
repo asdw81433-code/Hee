@@ -79,6 +79,8 @@ func build(p_appearance: CharacterAppearance, p_detail: int = 0) -> void:
 		animator.setup()
 	else:
 		animator.clear_caches()
+	# Clips were authored for 0.94 m hips: shorter legs take quicker steps so feet don't slide.
+	animator.stride_scale = clampf(HumanoidDef.BASE_HIPS_HEIGHT / maxf(hips_height, 0.3), 0.8, 1.35)
 	rebuilt.emit()
 
 

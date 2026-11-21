@@ -55,7 +55,7 @@ def sheet(name, title, rows, cell_w, label_h=34):
 
 def main():
     sheet("sheet_base.png", "WESTBRIDGE - character base mesh (Blender)", [
-        [("turn_front.png", "Front", 1), ("turn_side_left.png", "Side", 1), ("turn_back.png", "Back", 1), ("turn_three_quarter.png", "3/4", 1)],
+        [("view_front.png", "Front", 1), ("view_right.png", "Side", 1), ("view_back.png", "Back", 1), ("view_sizes.png", "Sizes", 1)],
         [("face_closeup.png", "Face", 2), ("size_compare.png", "Size comparison", 2)],
         [("base_mesh_variants.png", "Base mesh + shape keys", 4)],
     ], 480)

@@ -5,17 +5,20 @@ import os
 from mathutils import Matrix, Vector
 
 
+LID_REST_DEG = -38.0     # resting upper-lid angle (game: FaceRig closed 0.21 -> lid covers the top quarter)
+
+
 def srgb(c):
     return tuple(pow(max(0.0, x), 2.2) for x in c)
 
 
-SKIN_TONES = {"tan": (0.86, 0.6, 0.38), "light": (0.96, 0.8, 0.66), "brown": (0.62, 0.42, 0.28), "dark": (0.42, 0.27, 0.18), "pale": (0.98, 0.86, 0.74)}
+SKIN_TONES = {"tan": (0.72, 0.5, 0.31), "light": (0.96, 0.8, 0.66), "brown": (0.62, 0.42, 0.28), "dark": (0.42, 0.27, 0.18), "pale": (0.98, 0.86, 0.74)}
 FACE = ["HeadBase", "Ears", "EyeWhite_L", "EyeWhite_R", "Iris_L", "Iris_R", "Pupil_L", "Pupil_R", "Lid_L", "Lid_R",
         "LowerLid_L", "LowerLid_R", "Brow_L", "Brow_R", "MouthCenter", "MouthCorner_L", "MouthCorner_R"]
 
 # Original outfits made from the modular library.
 OUTFITS = {
-    "casual": {"skin": "tan", "nose": "Nose_Round", "hair": ("Hair_Short", (0.36, 0.2, 0.1)),
+    "casual": {"skin": "tan", "nose": "Nose_Round", "hair": ("Hair_Short", (0.3, 0.16, 0.06)),
                "parts": [("Top_TShirt", (0.16, 0.25, 0.56)), ("Pants_Long", (0.06, 0.08, 0.16)), ("Shoes_Boots", (0.36, 0.2, 0.1)), ("Shoes_Boots_Sole", (0.2, 0.12, 0.07))]},
     "gardener": {"skin": "light", "nose": "Nose_Long", "hair": None,
                  "parts": [("Top_ButtonShirt", (0.2, 0.72, 0.16)), ("Detail_Buttons", (0.08, 0.3, 0.06)), ("Detail_Collar", (0.22, 0.76, 0.18)),
@@ -57,6 +60,10 @@ def mat(color, rough=0.55):
     b = m.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (*srgb(color), 1.0)
     b.inputs["Roughness"].default_value = rough
+    for name in ("Specular IOR Level", "Specular"):
+        if name in b.inputs:
+            b.inputs[name].default_value = 0.22     # matte, toy-like plastic
+            break
     _mat_cache[key] = m
     return m
 
@@ -77,9 +84,56 @@ def instance(name, color, coll, xf, keys=None, rough=0.55, scale_local=None):
     if scale_local is not None:
         pivot, s = scale_local
         ob.data.transform(Matrix.Translation(pivot) @ Matrix.Diagonal((*s, 1.0)) @ Matrix.Translation(-pivot))
+    a_pose(ob, A_POSE_DEG)
     ob.matrix_world = xf @ ob.matrix_world
     ob.hide_render = False
     return ob
+
+
+A_POSE_DEG = 0.0          # arms swung out from the body (character-sheet A-pose); 0 = rest pose
+
+
+def a_pose(ob, deg):
+    """Swings the arms out about the shoulders using the part's own skin weights."""
+    if abs(deg) < 0.01:
+        return
+    arm = bpy.data.objects.get("Armature")
+    if arm is None:
+        return
+    groups = {g.index: g.name for g in ob.vertex_groups}
+    piv = {}
+    for side, sg in (("Left", 1), ("Right", -1)):
+        p = arm.data.bones[side + "UpperArm"].head_local
+        piv[side] = (Matrix.Translation(p) @ Matrix.Rotation(math.radians(-deg * sg), 4, "Y") @ Matrix.Translation(-p))
+    for side, sg in (("Left", 1), ("Right", -1)):     # shoulders follow half way
+        p = arm.data.bones[side + "UpperArm"].head_local
+        piv[side + "S"] = (Matrix.Translation(p) @ Matrix.Rotation(math.radians(-deg * 0.5 * sg), 4, "Y") @ Matrix.Translation(-p))
+
+    def side_of(n):
+        for side in ("Left", "Right"):
+            if n.startswith(side) and any(k in n for k in ("UpperArm", "LowerArm", "Hand")):
+                return side
+            if n == side + "Shoulder":
+                return side + "S"
+        return None
+    keys = ob.data.shape_keys.key_blocks if ob.data.shape_keys else None
+    for v in ob.data.vertices:
+        M = Matrix(((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0)))
+        tot = 0.0
+        moved = False
+        for g in v.groups:
+            sd = side_of(groups.get(g.group, ""))
+            M = M + (piv[sd] if sd else Matrix.Identity(4)) * g.weight
+            tot += g.weight
+            moved = moved or sd is not None
+        if not moved or tot <= 0:
+            continue
+        M = M * (1.0 / tot)
+        if keys:
+            for kb in keys:
+                kb.data[v.index].co = M @ kb.data[v.index].co
+        v.co = M @ v.co
+    ob.data.update()
 
 
 def build_outfit(name, coll, xf, body_keys=None):
@@ -95,7 +149,7 @@ def build_outfit(name, coll, xf, body_keys=None):
         if f.startswith("EyeWhite"):
             c = (0.97, 0.97, 0.95)
         elif f.startswith("Iris"):
-            c = (0.3, 0.18, 0.08)
+            c = (0.36, 0.33, 0.3)
         elif f.startswith("Pupil"):
             c = (0.02, 0.02, 0.02)
         elif f.startswith("Lid"):
@@ -117,7 +171,7 @@ def build_outfit(name, coll, xf, body_keys=None):
         if f.startswith("Lid_"):
             eye = bpy.data.objects["EyeWhite_" + f[-1]]
             center = sum((v.co for v in eye.data.vertices), Vector()) / len(eye.data.vertices)
-            ob.data.transform(Matrix.Translation(center) @ Matrix.Rotation(math.radians(-46), 4, "X") @ Matrix.Translation(-center))
+            ob.data.transform(Matrix.Translation(center) @ Matrix.Rotation(math.radians(LID_REST_DEG), 4, "X") @ Matrix.Translation(-center))
         objs.append(ob)
     objs.append(instance(o["nose"], tuple(x * 0.97 for x in skin), coll, xf))
     if o.get("hair"):
@@ -149,15 +203,29 @@ def studio(scene, res=(480, 720), ortho=2.15, samples=32):
     w = scene.world or bpy.data.worlds.new("Studio")
     scene.world = w
     w.use_nodes = True
-    bg = w.node_tree.nodes["Background"]
-    bg.inputs[0].default_value = (0.92, 0.92, 0.94, 1)
-    bg.inputs[1].default_value = 0.45
+    nt = w.node_tree
+    bg = nt.nodes["Background"]
+    bg.inputs[0].default_value = (0.95, 0.95, 0.96, 1)
+    bg.inputs[1].default_value = 0.38
+    if "CamBG" not in nt.nodes:
+        # camera sees a light-grey backdrop, objects are lit by the dimmer environment
+        cam_bg = nt.nodes.new("ShaderNodeBackground")
+        cam_bg.name = "CamBG"
+        cam_bg.inputs[0].default_value = (0.86, 0.87, 0.89, 1)
+        cam_bg.inputs[1].default_value = 1.0
+        lp = nt.nodes.new("ShaderNodeLightPath")
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        out = nt.nodes["World Output"]
+        nt.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+        nt.links.new(bg.outputs[0], mix.inputs[1])
+        nt.links.new(cam_bg.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], out.inputs["Surface"])
     if "PrevFloor" not in bpy.data.objects:
         bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0))
         fl = bpy.context.view_layer.objects.active
         fl.name = "PrevFloor"
         fl.data.materials.append(mat((0.93, 0.93, 0.95), 0.8))
-        for name, loc, energy, size in (("Key", (2.6, -3.6, 3.4), 260, 3.0), ("Fill", (-3.2, -2.4, 2.2), 110, 4.0), ("Rim", (0.5, 3.5, 3.2), 180, 2.5)):
+        for name, loc, energy, size in (("Key", (2.6, -3.6, 3.4), 190, 3.0), ("Fill", (-3.2, -2.4, 2.2), 70, 4.0), ("Rim", (0.5, 3.5, 3.2), 140, 2.5)):
             ld = bpy.data.lights.new(name, "AREA")
             ld.energy = energy
             ld.size = size
@@ -191,6 +259,31 @@ def shot(scene, path):
 def clear(coll):
     for ob in list(coll.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
+
+
+def render_reference_views(out_dir):
+    """Front / back / sides / size comparison, framed like a character-sheet turnaround."""
+    scene = bpy.context.scene
+    for ob in bpy.data.objects:
+        if ob.type == "MESH" and ob.name != "PrevFloor":
+            ob.hide_render = True
+    coll = bpy.data.collections.get("Preview") or bpy.data.collections.new("Preview")
+    if coll.name not in scene.collection.children:
+        scene.collection.children.link(coll)
+    global A_POSE_DEG
+    A_POSE_DEG = 19.0
+    studio(scene, res=(720, 720), ortho=2.34)
+    build_outfit("casual", coll, Matrix.Identity(4))
+    for name, yaw in (("front", 0), ("back", 180), ("left", 90), ("right", -90)):
+        look(scene, yaw, target=(0, 0, 0.86), height=0.86)
+        shot(scene, os.path.join(out_dir, "view_%s.png" % name))
+    clear(coll)
+    build_outfit("casual", coll, Matrix.Translation((-0.42, 0, 0)) @ Matrix.Diagonal((0.84, 0.84, 0.84, 1)))
+    build_outfit("casual", coll, Matrix.Translation((0.38, 0, 0)))
+    look(scene, 0, target=(0, 0, 0.86), height=0.86)
+    shot(scene, os.path.join(out_dir, "view_sizes.png"))
+    clear(coll)
+    A_POSE_DEG = 0.0
 
 
 def render_all(out_dir, quick=False):

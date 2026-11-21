@@ -4,7 +4,8 @@ extends SkeletonModifier3D
 ## talking mouth movement. Runs after the body animation and the procedural rig.
 
 ## Base lid closedness per CharacterAppearance.EYE_SHAPES (round, sleepy, narrow, wide)
-const LID_BASE := [0.14, 0.44, 0.34, 0.02]
+## Resting lid covers about the top quarter of the eyeball (heavy-lidded stylized look).
+const LID_BASE := [0.21, 0.42, 0.34, 0.08]
 
 var expression: Dictionary = {"happy": 0.0, "sad": 0.0, "angry": 0.0, "fear": 0.0, "surprise": 0.0, "tired": 0.0}
 var _expr: Dictionary = expression.duplicate()
