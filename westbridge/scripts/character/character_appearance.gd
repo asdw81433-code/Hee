@@ -13,10 +13,13 @@ const BROW_STYLES := ["Thin", "Normal", "Thick", "Bushy"]
 const EYE_SHAPES := ["Round", "Sleepy", "Narrow", "Wide"]
 const NOSE_SHAPES := ["Round", "Long", "Button", "Wide"]
 const TOPS := ["T-shirt", "Long sleeve", "Button shirt", "Tank top", "Hoodie", "Polo", "Sweater"]
-const JACKETS := ["None", "Open jacket", "Blazer", "Vest", "Hi-vis vest", "Puffer"]
+const JACKETS := ["None", "Open jacket", "Blazer", "Vest", "Hi-vis vest", "Puffer", "Police vest"]
 const PANTS := ["Trousers", "Jeans", "Shorts", "Skirt", "Cargo"]
 const SHOES := ["Sneakers", "Boots", "Dress shoes", "Sandals"]
-const HATS := ["None", "Cap", "Beanie", "Fedora", "Bucket hat", "Backwards cap"]
+const HATS := ["None", "Cap", "Beanie", "Fedora", "Bucket hat", "Backwards cap", "Police cap"]
+## Uniform pieces are only given by roles, never rolled for random civilians.
+const CIVILIAN_JACKETS := 6
+const CIVILIAN_HATS := 6
 const GLASSES := ["None", "Round", "Square", "Sunglasses"]
 const BAGS := ["None", "Backpack", "Shoulder bag"]
 const ACCESSORIES := ["None", "Necklace", "Earrings", "Scarf"]
@@ -215,7 +218,7 @@ func randomize_look(rng: RandomNumberGenerator, p_gender: int = -1, p_age: int =
 	# Clothing
 	top = rng.randi() % TOPS.size()
 	top_color = _tint(rng, _pick(rng, CLOTH_COLORS))
-	jacket = rng.randi() % JACKETS.size() if rng.randf() < 0.45 else 0
+	jacket = rng.randi() % CIVILIAN_JACKETS if rng.randf() < 0.45 else 0
 	if jacket == 4:
 		jacket = 1
 	jacket_color = _tint(rng, _pick(rng, CLOTH_COLORS))
@@ -226,7 +229,7 @@ func randomize_look(rng: RandomNumberGenerator, p_gender: int = -1, p_age: int =
 	shoes = rng.randi() % SHOES.size()
 	shoes_color = _pick(rng, [CLOTH_COLORS[0], CLOTH_COLORS[1], CLOTH_COLORS[6], CLOTH_COLORS[7]])
 	socks_color = _pick(rng, CLOTH_COLORS)
-	hat = rng.randi() % HATS.size() if rng.randf() < 0.3 else 0
+	hat = rng.randi() % CIVILIAN_HATS if rng.randf() < 0.3 else 0
 	hat_color = _tint(rng, _pick(rng, CLOTH_COLORS))
 	glasses = rng.randi() % GLASSES.size() if rng.randf() < (0.25 + age * 0.004) else 0
 	bag = rng.randi() % BAGS.size() if rng.randf() < 0.25 else 0
@@ -248,11 +251,11 @@ func randomize_look(rng: RandomNumberGenerator, p_gender: int = -1, p_age: int =
 		"police":
 			top = 2
 			top_color = Color(0.18, 0.26, 0.48)
-			jacket = 3
+			jacket = 6
 			jacket_color = Color(0.13, 0.14, 0.17)
 			pants = 0
 			pants_color = Color(0.12, 0.15, 0.28)
-			hat = 1
+			hat = 6
 			hat_color = Color(0.13, 0.17, 0.32)
 			shoes = 1
 		"cafe", "shop":

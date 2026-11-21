@@ -42,6 +42,14 @@ static func build(appearance: CharacterAppearance, skeleton: Skeleton3D, detail:
 
 func _build(appearance: CharacterAppearance, skeleton: Skeleton3D, detail: float) -> ArrayMesh:
 	a = appearance
+	# Uniform pieces only exist in the Blender asset; the procedural fallback
+	# draws their closest generic equivalent (police vest -> vest, police cap -> cap).
+	if a.jacket == 6 or a.hat == 6:
+		a = appearance.duplicate()
+		if a.jacket == 6:
+			a.jacket = 3
+		if a.hat == 6:
+			a.hat = 1
 	mb = SkinnedMeshBuilder.new()
 	mb.detail = detail
 	g = HumanoidDef.global_rest_positions(a.body_dims())

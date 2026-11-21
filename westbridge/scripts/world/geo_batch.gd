@@ -84,6 +84,29 @@ func floor_quad(center: Vector3, size: Vector2, color: Color, kind: int, yaw: fl
 	_quad(a, bb, c, d)
 
 
+## Quad from 4 world points: a = bottom-left, b = bottom-right, c = top-right, d = top-left
+## (seen from the side the normal points to).
+func quad_pts(a: Vector3, b: Vector3, c: Vector3, d: Vector3, color: Color, kind: int, rnd: float = 0.0) -> void:
+	var n := (b - a).cross(d - a).normalized()
+	if n.y < 0.0 and absf(n.y) > 0.5:
+		n = -n
+	var ia := _v(a, n, color, kind, rnd)
+	var ib := _v(b, n, color, kind, rnd)
+	var ic := _v(c, n, color, kind, rnd)
+	var id := _v(d, n, color, kind, rnd)
+	_quad(ia, ib, ic, id)
+
+
+func tri_pts(a: Vector3, b: Vector3, c: Vector3, color: Color, kind: int) -> void:
+	var n := (b - a).cross(c - a).normalized()
+	if n.y < 0.0:
+		n = -n
+	var ia := _v(a, n, color, kind, 0.0)
+	var ib := _v(b, n, color, kind, 0.0)
+	var ic := _v(c, n, color, kind, 0.0)
+	indices.append_array(PackedInt32Array([ia, ic, ib]))
+
+
 ## Gable roof along local X, ridge height `rise`.
 func gable_roof(xform: Transform3D, size: Vector3, rise: float, color: Color, gable_color: Color) -> void:
 	var hx := size.x * 0.5

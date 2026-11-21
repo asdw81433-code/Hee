@@ -20,6 +20,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	test_save_system()
 	test_appearance_and_mesh()
+	test_character_asset()
 	test_animation_library()
 	test_balance_controller()
 	test_memory()
@@ -91,6 +92,119 @@ func test_appearance_and_mesh() -> void:
 	check("appearance: dict round trip + valid skinned meshes", ok, "verts %d..%d" % [min_v, max_v])
 	check("appearance: 30 random people look different", looks.size() >= 28, "%d unique" % looks.size())
 	check("mesh budget: < 9000 verts per character", max_v < 9000)
+
+
+## The Blender-made character library (assets/characters/westbridge_characters.glb).
+func test_character_asset() -> void:
+	var lib := CharacterAssetLibrary
+	check("asset: Blender character library loads", lib.available(), "%d parts" % lib.parts.size())
+	if not lib.available():
+		return
+	# Same skeleton as the procedural humans -> every animation / ragdoll / face rig works.
+	var ref := HumanoidDef.global_rest_positions({})
+	var same := lib.bone_order.size() == ref.size()
+	var worst := 0.0
+	for bn in ref.keys():
+		if not lib.rest_positions.has(bn):
+			same = false
+			continue
+		worst = maxf(worst, ((lib.rest_positions[bn] as Vector3) - (ref[bn] as Vector3)).length())
+	check("asset: bone names + joints match HumanoidDef", same and worst < 0.002, "max joint error %.4f m" % worst)
+	var missing: Array = []
+	var probe := CharacterAppearance.new()
+	for field in [["hair_style", CharacterAssetBuilder.HAIR], ["beard_style", CharacterAssetBuilder.BEARD], ["mustache_style", CharacterAssetBuilder.MUSTACHE],
+			["top", CharacterAssetBuilder.TOPS], ["jacket", CharacterAssetBuilder.JACKETS], ["pants", CharacterAssetBuilder.PANTS],
+			["shoes", CharacterAssetBuilder.SHOES], ["hat", CharacterAssetBuilder.HATS], ["glasses", CharacterAssetBuilder.GLASSES],
+			["bag", CharacterAssetBuilder.BAGS], ["accessory", CharacterAssetBuilder.ACCESSORIES]]:
+		for i in (field[1] as Array).size():
+			probe.set(field[0], i)
+			for e in CharacterAssetBuilder.part_list(probe):
+				for lod in 2:
+					if CharacterAssetBuilder.resolve_part(e[0], lod) == "" and not (lod == 1 and e[0] in CharacterAssetBuilder.SMALL_PARTS):
+						missing.append("%s@%d" % [e[0], lod])
+		probe.set(field[0], 0)
+	check("asset: every creator option has a modelled part (LOD0 + LOD1)", missing.is_empty(), str(missing.slice(0, 6)))
+	check("asset: creator lists match the part tables",
+		CharacterAppearance.JACKETS.size() == CharacterAssetBuilder.JACKETS.size() and CharacterAppearance.HATS.size() == CharacterAssetBuilder.HATS.size()
+		and CharacterAppearance.TOPS.size() == CharacterAssetBuilder.TOPS.size() and CharacterAppearance.HAIR_STYLES.size() == CharacterAssetBuilder.HAIR.size())
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var ok := true
+	var max_t0 := 0
+	var max_t1 := 0
+	var max_v0 := 0
+	for i in 24:
+		var a := CharacterAppearance.new().randomize_look(rng, -1, -1, ["", "police", "worker", "office"][i % 4])
+		var sk := CharacterAssetBuilder.build_skeleton(a.height, a.eye_spacing)
+		for lod in 2:
+			var arr := CharacterAssetBuilder.build(a, sk, a.height, lod).surface_get_arrays(0)
+			var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var t: int = (arr[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+			if lod == 0:
+				max_t0 = maxi(max_t0, t)
+				max_v0 = maxi(max_v0, verts.size())
+			else:
+				max_t1 = maxi(max_t1, t)
+			for v in verts:
+				if not v.is_finite():
+					ok = false
+			for bi in (arr[Mesh.ARRAY_BONES] as PackedInt32Array):
+				if bi < 0 or bi >= sk.get_bone_count():
+					ok = false
+			var ws: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+			for k in range(0, ws.size(), 4):
+				if absf(ws[k] + ws[k + 1] + ws[k + 2] + ws[k + 3] - 1.0) > 0.01:
+					ok = false
+		sk.free()
+	check("asset: 24 random people -> valid skinned meshes", ok)
+	check("asset: triangle budget LOD0 < 10k, LOD1 < 4k", max_t0 < 10000 and max_t1 < 4000, "LOD0 max %d tris / %d verts, LOD1 max %d tris" % [max_t0, max_v0, max_t1])
+	# Hidden-surface removal: the body under long sleeves + trousers + shoes loses most triangles.
+	var dressed := CharacterAppearance.new()
+	dressed.top = 1
+	dressed.pants = 0
+	var bare := CharacterAppearance.new()
+	bare.top = 3
+	bare.pants = 2
+	var b_body: int = (lib.parts["Body"].i as PackedInt32Array).size() / 3
+	var dress_mask := CharacterAssetBuilder.worn_mask(CharacterAssetBuilder.part_list(dressed))
+	var hidden := 0
+	var mk: PackedInt32Array = lib.parts["Body"].mask
+	var bi_: PackedInt32Array = lib.parts["Body"].i
+	for t in range(0, bi_.size(), 3):
+		if (mk[bi_[t]] & mk[bi_[t + 1]] & mk[bi_[t + 2]] & dress_mask) != 0:
+			hidden += 1
+	check("asset: body hidden under clothes", hidden > b_body * 0.4, "%d of %d body triangles hidden" % [hidden, b_body])
+	# Shape keys: heavy people are wider, women's builds differ.
+	var sk2 := CharacterAssetBuilder.build_skeleton(1.0)
+	var slim := CharacterAppearance.new()
+	slim.weight = 0.1
+	var heavy := CharacterAppearance.new()
+	heavy.weight = 1.0
+	var belly := func(mesh: ArrayMesh) -> float:
+		var front := -1.0
+		for v in (mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+			if v.y > 1.0 and v.y < 1.15 and absf(v.x) < 0.1:
+				front = maxf(front, v.z)
+		return front
+	var w_slim: float = belly.call(CharacterAssetBuilder.build(slim, sk2, 1.0))
+	var w_heavy: float = belly.call(CharacterAssetBuilder.build(heavy, sk2, 1.0))
+	sk2.free()
+	check("asset: Heavy/Thin shape keys change the body", w_heavy > w_slim + 0.02, "belly front %.3f -> %.3f m" % [w_slim, w_heavy])
+	# Police uniform uses the dedicated vest + cap parts.
+	var cop := CharacterAppearance.new().randomize_look(rng, -1, -1, "police")
+	var names: Array = CharacterAssetBuilder.part_list(cop).map(func(e: Array) -> String: return e[0])
+	check("asset: police role wears the police vest + cap", "Jacket_PoliceVest" in names and "Hat_PoliceCap" in names)
+	# CharacterModel uses the asset and falls back to the procedural mesh when asked to.
+	var m := CharacterModel.new()
+	add_child(m)
+	m.build(CharacterAppearance.new())
+	var used_asset := m.uses_asset and m.skeleton.get_bone_count() == ref.size() and absf(m.hips_height - 0.94) < 0.01
+	CharacterModel.force_procedural = true
+	m.build(CharacterAppearance.new())
+	var fell_back := not m.uses_asset and m.mesh_instance.mesh != null
+	CharacterModel.force_procedural = false
+	m.queue_free()
+	check("asset: CharacterModel uses it, procedural fallback still works", used_asset and fell_back)
 
 
 func test_animation_library() -> void:

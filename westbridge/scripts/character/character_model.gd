@@ -16,18 +16,44 @@ var detail_level: int = 0      ## 0 = full, 1 = reduced
 var _meshes: Dictionary = {}   ## detail -> ArrayMesh
 var hips_height: float = HumanoidDef.BASE_HIPS_HEIGHT
 var total_height: float = 1.8
+var uses_asset: bool = false   ## true when the Blender-made mesh library is used
+var _asset_scale: float = 1.0
+
+## Global switch (also exposed in Settings as "character_assets").
+static var force_procedural: bool = false
+
+
+static func asset_enabled() -> bool:
+	if force_procedural:
+		return false
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree and tree.root:
+		var st := tree.root.get_node_or_null("Settings")
+		if st and not bool(st.get_value("character_assets", true)):
+			return false
+	return CharacterAssetLibrary.available()
 
 
 func build(p_appearance: CharacterAppearance, p_detail: int = 0) -> void:
 	appearance = p_appearance
 	detail_level = p_detail
 	_clear()
-	var dims := appearance.body_dims()
-	skeleton = HumanoidDef.build_skeleton(dims)
+	uses_asset = asset_enabled()
+	if uses_asset:
+		# Blender asset: uniform scale of the modelled body (shape keys do the rest).
+		var dims := appearance.body_dims()
+		_asset_scale = float(dims["height"])
+		skeleton = CharacterAssetBuilder.build_skeleton(_asset_scale, appearance.eye_spacing)
+		var rest: Dictionary = CharacterAssetLibrary.rest_positions
+		hips_height = (rest["Hips"] as Vector3).y * _asset_scale
+		total_height = ((rest["Head"] as Vector3).y + 0.34 * appearance.head_height) * _asset_scale
+	else:
+		var dims := appearance.body_dims()
+		skeleton = HumanoidDef.build_skeleton(dims)
+		var rests := HumanoidDef.global_rest_positions(dims)
+		hips_height = rests["Hips"].y
+		total_height = rests["Head"].y + 0.34 * appearance.head_height
 	add_child(skeleton)
-	var rests := HumanoidDef.global_rest_positions(dims)
-	hips_height = rests["Hips"].y
-	total_height = rests["Head"].y + 0.34 * appearance.head_height
 	skeleton.motion_scale = hips_height / HumanoidDef.BASE_HIPS_HEIGHT
 	mesh_instance = MeshInstance3D.new()
 	mesh_instance.name = "Body"
@@ -65,8 +91,11 @@ func _clear() -> void:
 
 func _apply_mesh() -> void:
 	if not _meshes.has(detail_level):
-		var detail := 1.0 if detail_level == 0 else 0.55
-		_meshes[detail_level] = CharacterMeshFactory.build(appearance, skeleton, detail)
+		if uses_asset:
+			_meshes[detail_level] = CharacterAssetBuilder.build(appearance, skeleton, _asset_scale, detail_level)
+		else:
+			var detail := 1.0 if detail_level == 0 else 0.55
+			_meshes[detail_level] = CharacterMeshFactory.build(appearance, skeleton, detail)
 	mesh_instance.mesh = _meshes[detail_level]
 
 

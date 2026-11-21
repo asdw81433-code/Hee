@@ -209,6 +209,7 @@ func _build_panel() -> void:
 	UIKit.anchor(panel, Control.PRESET_TOP_RIGHT, Vector2(-560, 50), Vector2(260, 600))
 	panel.add_theme_stylebox_override("panel", UIKit.panel_style(Color(0.06, 0.08, 0.1, 0.8), 12))
 	hud.root.add_child(panel)
+	panel.visible = not "nopanel" in OS.get_cmdline_user_args()   # clean screenshots
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	panel.add_child(vb)

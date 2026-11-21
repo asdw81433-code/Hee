@@ -36,11 +36,24 @@
 
 ## 2. Character pipeline
 
-1. `CharacterAppearance` (Resource, serializable) → `HumanoidDef.bone_list(dims)` builds a
-   Skeleton3D (SkeletonProfileHumanoid names + face bones, identity rest rotations).
-2. `CharacterMeshFactory` writes one vertex-coloured, bone-weighted ArrayMesh (lathe tubes with
-   2-bone weights at joints, ellipsoids, primitives). Clothing is part of the same mesh, so a
-   character is one draw call. LOD1 is the same mesh at ~40% segments.
+1. **Modelling happens in Blender.** `tools/blender/build_characters.py` builds the base mesh
+   (Skin modifier + Subdivision), head (deformed quad sphere), metaball hair/beards, garments
+   fitted from the body surface (copied faces pushed along normals, so they share the body's
+   shape keys and weights), shoes, hats, glasses and accessories, all rigged to one armature
+   with the game's bone names. It also builds a LOD1 set (`*_LOD1`: hand-decimated body,
+   low-poly head, decimated props) and writes a garment-coverage bitmask into the body's
+   `CoverMask` colour attribute. Output: `assets/characters/westbridge_characters.glb`
+   (+ the editable `.blend` and preview renders).
+2. `CharacterAssetLibrary` loads the glb once and caches every part in skeleton space
+   (vertices, normals, bone names + weights, blend-shape deltas, cover mask).
+   `CharacterAssetBuilder` turns a `CharacterAppearance` into a part list, bakes the body/head
+   shape keys (Female/Heavy/Thin/Muscular, HeadWide/HeadLong/JawWide/JawNarrow), applies face
+   tweaks (eye size/spacing, nose, brows, mouth), drops body triangles under worn clothes,
+   and merges everything into ONE vertex-coloured skinned surface → one draw call.
+   `build_skeleton()` places identity-rotation rests at the asset joints (identical to
+   `HumanoidDef`), so animation clips, FaceRig, ProceduralRig and ragdolls are unchanged.
+   Fallback: if the asset is missing or `Settings.character_assets` is off, `HumanoidDef` +
+   `CharacterMeshFactory` build the old procedural character.
 3. Modifier order on the skeleton each frame:
    `AnimationTree` → `ProceduralRig` (springs, lean, balance tilt, look-at, foot IK) →
    `FaceRig` (lids, brows, mouth, eyes) → `PhysicalBoneSimulator3D` (only while a ragdoll is active).

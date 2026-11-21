@@ -24,6 +24,7 @@ var values: Dictionary = {
 	"controls_opacity": 0.75,
 	"controls_scale": 1.0,
 	"physics_debug": false,
+	"character_assets": true,   # Blender-made character meshes (false = procedural fallback)
 }
 
 ## Per-button layout overrides: { "jump": {"anchor": Vector2(0.9, 0.8), "scale": 1.0}, ... }

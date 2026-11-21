@@ -1,9 +1,10 @@
 # WESTBRIDGE — City Life Simulator (Godot 4)
 
 เกม 3D Open World Life Simulator มุมมองบุคคลที่ 3 สำหรับ Android (และ PC) สร้างด้วย **Godot 4 + GDScript**
-ทุกอย่างในเกมสร้างด้วยโค้ดตอนเริ่มเกม ทั้งเมือง ตัวละคร เสื้อผ้า และ Animation จึงไม่ต้องมี asset จากภายนอก และไม่มีส่วนไหนลอกมาจากเกมอื่น
+**โมเดลตัวละครและเสื้อผ้าทั้งหมดปั้นใน Blender** (ไฟล์ `.blend` ต้นฉบับอยู่ใน `assets/characters/source/` เปิดแก้ต่อได้) แล้ว export เป็น glTF ให้เกมโหลด
+ส่วนเมือง Animation และระบบเกมสร้างด้วยโค้ด ทุกชิ้นออกแบบเอง ไม่ได้ลอกจากเกมอื่น
 
-> สถานะ: **Phase 1 + Phase 2 + ระบบฟิสิกส์/อนิเมชั่นตัวละครขั้นสูง** เสร็จแล้ว มีชุดทดสอบอัตโนมัติ 66 รายการและผ่านทั้งหมด
+> สถานะ: **Phase 1 + Phase 2 + ระบบฟิสิกส์/อนิเมชั่นตัวละครขั้นสูง** เสร็จแล้ว มีชุดทดสอบอัตโนมัติ 76 รายการและผ่านทั้งหมด
 > ทดสอบกับ **Godot 4.7.1** (ใช้ API ของ 4.5 ขึ้นไป แต่แนะนำให้ใช้ 4.7.x)
 
 ---
@@ -40,11 +41,19 @@
 
 ## สิ่งที่ทำงานได้แล้ว
 
-### ตัวละครสไตล์ Stylized (ตามภาพอ้างอิง แต่ออกแบบเอง)
+### ตัวละครสไตล์ Stylized: Character Base Mesh ปั้นใน Blender
+- **Base mesh และชุดทั้งหมดสร้างใน Blender** ด้วย `tools/blender/build_characters.py` ซึ่งใช้ Skin modifier + Subdivision ทำตัว, Metaball ทำผมและเครา, ตัดเสื้อผ้าจากผิวตัวจริงให้พอดีตัว และมี Armature ที่ใช้ชื่อกระดูกเดียวกับเกม ผลลัพธ์มีดังนี้
+  - `assets/characters/westbridge_characters.glb` โหลดเข้าเกม (88 ชิ้น + ชุด LOD1 อีก 79 ชิ้น)
+  - `assets/characters/source/westbridge_characters.blend` เปิดใน Blender เพื่อปั้น/แก้ต่อได้ แต่ละชิ้นเป็น object แยก
+  - `assets/characters/renders/sheet_*.png` แผ่นรวมภาพเรนเดอร์: turnaround หน้า/ข้าง/หลัง, เทียบขนาด, shape keys, ชุด 8 แบบ, ทรงผม/เครา/หมวก (ภาพแยกแต่ละมุมสร้างใหม่ได้ด้วย `--render` แล้วตามด้วย `python tools/blender/make_sheets.py`)
+- Shape keys: Female / Heavy / Thin / Muscular (ตัว) และ HeadWide / HeadLong / JawWide / JawNarrow (หัว) ผูกกับแถบเลื่อนใน Character Creator
+- ในเกม `CharacterAssetBuilder` จะเลือกชิ้นตามหน้าตาที่ตั้งไว้ อบ shape key ใส่สี แล้วรวมเป็น **skinned mesh เดียว = 1 draw call** ใช้ skeleton เดียวกับเดิม ทำให้ Animation, FaceRig, ragdoll และ balance ทำงานได้โดยไม่ต้องแก้
+- ประหยัดสำหรับมือถือ: ผิวส่วนที่ถูกเสื้อผ้าบังจะถูกตัดทิ้ง (hidden-surface removal) และ NPC ที่อยู่ไกลใช้ชุด LOD1 ที่ปั้นมาจาก Blender เอง (~7.5–9.4k สามเหลี่ยมเมื่ออยู่ใกล้ / ~2.8–3.6k เมื่ออยู่ไกล)
+- ถ้าไม่มีไฟล์ asset หรือปิด `character_assets` ใน Settings ระบบจะกลับไปใช้ตัวละครแบบ procedural เดิมโดยอัตโนมัติ
+- สร้างโมเดลใหม่: `python tools/blender/build_characters.py [--render]` (ใช้ Blender 4.2+ หรือ `pip install bpy`) หรือ `blender -b -P tools/blender/build_characters.py -- --render`
 - หัวทรงไข่ ตาโตมีเปลือกตาที่ขยับได้ คิ้ว ปาก จมูก หู แสดงอารมณ์ได้ (สุข, เศร้า, โกรธ, กลัว, ตกใจ, เหนื่อย) กะพริบตา กลอกตามองสิ่งต่างๆ ขยับปากตอนพูด
-- **ตัวละคร 1 ตัวเป็น skinned mesh เดียว = 1 draw call** (ประหยัดสำหรับมือถือ) และมี LOD 2 ระดับ (~5k / ~2k สามเหลี่ยม)
 - Character Creator: เพศ, ส่วนสูง, น้ำหนัก, รูปร่าง (ผอม/ปกติ/อ้วน/กล้าม), สีผิว, อายุ, หน้า (กว้าง/สูง/กราม), ตา (ทรง/ขนาด/ระยะ/สี), คิ้ว, จมูก, ปาก, ทรงผม 11 แบบ, สีผม, เครา, หนวด
-- เสื้อผ้า **แยกชิ้นและแสดงบนตัวจริง**: เสื้อ 7 แบบ, เสื้อคลุม 6 แบบ, กางเกง/กระโปรง 5 แบบ, รองเท้า 4 แบบ, ถุงเท้า, หมวก 6 แบบ, แว่น 4 แบบ, กระเป๋า, เครื่องประดับ, นาฬิกา, เข็มขัด เปลี่ยนชุดได้ที่ตู้เสื้อผ้าในบ้าน
+- เสื้อผ้า **แยกชิ้นและแสดงบนตัวจริง**: เสื้อ 7 แบบ, เสื้อคลุม 7 แบบ (รวมเสื้อเกราะตำรวจ), กางเกง/กระโปรง 5 แบบ, รองเท้า 4 แบบ, ถุงเท้า, หมวก 7 แบบ (รวมหมวกตำรวจ), แว่น 4 แบบ, กระเป๋า, เครื่องประดับ, นาฬิกา, เข็มขัด เปลี่ยนชุดได้ที่ตู้เสื้อผ้าในบ้าน
 
 ### ระบบอนิเมชั่น + ฟิสิกส์ตัวละครขั้นสูง
 - **AnimationTree แบบหลายชั้น**: locomotion blend (idle → walk → jog → run → sprint ซิงก์ phase กัน), เดินกะเผลกตามค่าบาดเจ็บ, ย่อตัว, กระโดด/ตก/ลงพื้น, นั่ง, นอน, ลุก, เบรกตอนวิ่ง, เซ, ชั้น upper body (ต่อย, โบกมือ, คุย, กิน, ดื่ม, หัวเราะ, โกรธ, ชี้, เปิดประตู, โดนตี 5 ทิศ) และท่าถือค้าง (โทรศัพท์, ป้องกัน, กอดอก, ล้วงกระเป๋า, ถือของ, ร่ม, ทำงาน) ทุกการเปลี่ยนท่ามีการ cross-fade
@@ -116,7 +125,8 @@ westbridge/
   shaders/         world.gdshader (สีจาก vertex color + ลวดลายแบบ procedural, กลางคืน, ถนนเปียก)
   scripts/
     core/          event_bus, game_time, settings, save_system, game  (autoloads)
-    character/     appearance, humanoid_def (กระดูก), mesh builders, character_model, face_rig, humanoid_body
+    character/     appearance, humanoid_def (กระดูก), character_asset_library/builder (โหลด+รวมโมเดล Blender),
+                   procedural mesh builders (สำรอง), character_model, face_rig, humanoid_body
     animation/     anim_library_builder (54 clips), character_animator (AnimationTree)
     physics/       balance_controller, pid_controller, impact_data, procedural_rig, ragdoll_rig, humanoid_physics, thrown_object
     player/        player_controller, third_person_camera, player_interactor
@@ -126,8 +136,9 @@ westbridge/
     npc/           npc_data, personality, npc_emotion, npc_memory, npc_generator, npc_manager, npc_body, ai/npc_brain, ai/npc_reactions
     ui/            ui_kit, hud, pause_menu, settings_menu, character_creator, main_menu, npc_dialog
     test/          physics_lab, world_test
-  tests/           test_runner (unit + integration), visual/char_preview
-  tools/           check.sh, run_tests.sh, env.sh
+  assets/characters/  westbridge_characters.glb, source/*.blend, renders/*.png
+  tests/           test_runner (unit + integration), visual/char_preview, perf/lineup (ภาพตัวละครในเอนจิน)
+  tools/           check.sh, run_tests.sh, env.sh, blender/build_characters.py + render_previews.py
   docs/            ARCHITECTURE.md
 ```
 

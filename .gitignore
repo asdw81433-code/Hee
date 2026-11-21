@@ -31,3 +31,10 @@ westbridge/.godot/
 westbridge/export/
 westbridge/*.apk
 westbridge/*.aab
+
+# Blender pipeline (westbridge/tools/blender): backups, caches, per-shot renders
+# (the composited sheet_*.png files are kept; rebuild the rest with --render)
+*.blend1
+__pycache__/
+westbridge/assets/characters/renders/*.png
+!westbridge/assets/characters/renders/sheet_*.png
